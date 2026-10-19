@@ -217,6 +217,10 @@ struct LibraryGameTile: View {
                 }
                 Spacer()
             }
+            
+            if let compat = appState.getCompatibility(for: game) {
+                CompatibilityBadge(compat: compat)
+            }
         }
         .onTapGesture {
             if game.isInstalled {

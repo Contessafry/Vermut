@@ -124,6 +124,18 @@ struct AppShell: View {
         .navigationSplitViewStyle(.balanced)
         .background(Color.Vermut.background)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : VermutMotion.panel, value: appState.section)
+        .overlay(alignment: .bottom) {
+            if let session = appState.compatFeedbackSession {
+                CompatFeedbackBanner(
+                    session: session,
+                    autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
+                    onDismiss: { appState.dismissCompatFeedback() }
+                )
+                .padding(VermutSpace.s6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(VermutMotion.sheet, value: appState.compatFeedbackSession)
+            }
+        }
         .sheet(item: $appState.bottleToDelete) { store in
             DeleteBottleSheet(store: store) {
                 appState.bottleToDelete = nil

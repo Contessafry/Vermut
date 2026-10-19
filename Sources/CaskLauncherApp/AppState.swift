@@ -45,9 +45,13 @@ final class AppState: ObservableObject {
     @Published var showingEpicAuth = false
     @Published var gameDownloads: [String: GameDownload] = [:]
     @Published var libraryFilterStore: GameStore?
+    @Published var compatFeedbackSession: GameSession?
+    @Published var compatFeedbackAutoDetectedCrash = false
+    @Published var compatibilityData: [String: GameCompatibility] = [:]
 
     private var statusTask: Task<Void, Never>?
     private var installTasks: [GameStore: Task<Void, Never>] = [:]
+    private var sessionCheckTask: Task<Void, Never>?
     private static let setupCompleteDefaultsKey = "vermut.setupComplete"
 
     init() {
@@ -66,6 +70,9 @@ final class AppState: ObservableObject {
         Task {
             await checkSetup()
         }
+        
+        startSessionMonitoring()
+        fetchCompatibilityData()
     }
 
     var appVersion: String { VermutProject.version }
@@ -313,6 +320,9 @@ final class AppState: ObservableObject {
                 bottleConfig.engine = engine.rawValue
                 bottleConfig = StoreRecipe.normalized(bottleConfig, for: store)
                 try WineManager.shared.saveBottleConfig(bottleConfig, for: store)
+                
+                startGameSession(store: store, gameId: "launcher", gameName: nil, config: bottleConfig)
+                
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
 
@@ -397,6 +407,7 @@ final class AppState: ObservableObject {
             Task {
                 do {
                     let bottleConfig = StoreRecipe.normalized(loadBottle(.epic), for: .epic)
+                    startGameSession(store: game.store, gameId: game.appId, gameName: game.name, config: bottleConfig)
                     try await WineManager.shared.launchEpicGame(appName: game.appId, config: bottleConfig)
                     storeStatuses[.epic] = .running
                     Task {
@@ -409,6 +420,9 @@ final class AppState: ObservableObject {
             }
             return
         }
+        
+        let bottleConfig = loadBottle(game.store)
+        startGameSession(store: game.store, gameId: game.appId, gameName: game.name, config: bottleConfig)
         launchStore(game.store)
     }
 
@@ -596,5 +610,104 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+    
+    private func startGameSession(store: GameStore, gameId: String, gameName: String?, config: BottleConfiguration) {
+        guard CompatibilityService.shared.isPromptEnabled else { return }
+        
+        let engine = WineEngine.resolved(from: config.engine)
+        let graphics = GraphicsBackend(rawValue: config.graphicsBackend) ?? .wined3d
+        
+        GameSessionTracker.shared.startSession(
+            store: store,
+            gameId: gameId,
+            gameName: gameName,
+            engine: engine.rawValue,
+            graphics: graphicsIdentifier(graphics)
+        )
+    }
+    
+    private func graphicsIdentifier(_ backend: GraphicsBackend) -> String {
+        switch backend {
+        case .dxmt: return "dxmt"
+        case .dxvk: return "dxvk"
+        case .d3dmetal: return "d3dmetal"
+        case .wined3d: return "wined3d"
+        }
+    }
+    
+    private func startSessionMonitoring() {
+        sessionCheckTask?.cancel()
+        sessionCheckTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                await self.checkForEndedSessions()
+            }
+        }
+    }
+    
+    private func checkForEndedSessions() async {
+        for store in GameStore.allCases {
+            if case .installed = storeStatuses[store] {
+                checkSessionEnd(store: store)
+            }
+        }
+    }
+    
+    private func checkSessionEnd(store: GameStore) {
+        guard CompatibilityService.shared.isPromptEnabled else { return }
+        
+        let wasRunning = runningStores.contains(store)
+        updateStoreStatus(store)
+        let isRunning = runningStores.contains(store)
+        
+        if wasRunning && !isRunning {
+            if let session = GameSessionTracker.shared.endSession(store: store, gameId: "launcher") {
+                handleSessionEnd(session)
+            }
+        }
+    }
+    
+    private func handleSessionEnd(_ session: GameSession) {
+        let playMinutes = session.playMinutes
+        
+        guard playMinutes >= 5 else { return }
+        
+        let autoDetectedCrash = playMinutes < 1
+        
+        Task { @MainActor in
+            compatFeedbackSession = session
+            compatFeedbackAutoDetectedCrash = autoDetectedCrash
+        }
+    }
+    
+    func dismissCompatFeedback() {
+        compatFeedbackSession = nil
+        compatFeedbackAutoDetectedCrash = false
+    }
+    
+    func fetchCompatibilityData() {
+        Task {
+            do {
+                let data = try await CompatibilityService.shared.fetchCompatibilityData()
+                
+                await MainActor.run {
+                    var map: [String: GameCompatibility] = [:]
+                    for game in data.games {
+                        let key = "\(game.store):\(game.gameId)"
+                        map[key] = game
+                    }
+                    compatibilityData = map
+                }
+            } catch {
+                print("Failed to fetch compatibility data: \(error)")
+            }
+        }
+    }
+    
+    func getCompatibility(for game: InstalledGame) -> GameCompatibility? {
+        let key = "\(game.store.identifier):\(game.appId)"
+        return compatibilityData[key]
     }
 }
