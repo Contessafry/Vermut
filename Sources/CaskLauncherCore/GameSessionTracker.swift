@@ -41,9 +41,19 @@ public final class GameSessionTracker: @unchecked Sendable {
     
     public func clearAllSessions() {
         lock.lock()
-        defer { lock.unlock()
+        defer { lock.unlock() }
         
         activeSessions.removeAll()
+    }
+    
+    public func getAllSessions(for store: GameStore) -> [GameSession] {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        let prefix = "\(store.identifier):"
+        return activeSessions
+            .filter { $0.key.hasPrefix(prefix) }
+            .map { $0.value }
     }
     
     private func sessionKey(store: GameStore, gameId: String) -> String {

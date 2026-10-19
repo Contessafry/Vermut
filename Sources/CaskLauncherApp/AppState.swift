@@ -73,6 +73,19 @@ final class AppState: ObservableObject {
         
         startSessionMonitoring()
         fetchCompatibilityData()
+        
+        #if DEBUG
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("VermutDebugTriggerCompatFeedback"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let session = notification.userInfo?["session"] as? GameSession,
+                  let crash = notification.userInfo?["crash"] as? Bool else { return }
+            self?.compatFeedbackSession = session
+            self?.compatFeedbackAutoDetectedCrash = crash
+        }
+        #endif
     }
 
     var appVersion: String { VermutProject.version }
@@ -320,9 +333,6 @@ final class AppState: ObservableObject {
                 bottleConfig.engine = engine.rawValue
                 bottleConfig = StoreRecipe.normalized(bottleConfig, for: store)
                 try WineManager.shared.saveBottleConfig(bottleConfig, for: store)
-                
-                startGameSession(store: store, gameId: "launcher", gameName: nil, config: bottleConfig)
-                
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
 
@@ -648,10 +658,24 @@ final class AppState: ObservableObject {
     }
     
     private func checkForEndedSessions() async {
+        guard CompatibilityService.shared.isPromptEnabled else { return }
+        
         for store in GameStore.allCases {
-            if case .installed = storeStatuses[store] {
-                checkSessionEnd(store: store)
+            let wasRunning = storeStatuses[store].map(isRunning) ?? false
+            updateStoreStatus(store)
+            let isRunning = storeStatuses[store].map(self.isRunning) ?? false
+            
+            if wasRunning && !isRunning {
+                checkAllSessionsForStore(store)
             }
+        }
+    }
+    
+    private func checkAllSessionsForStore(_ store: GameStore) {
+        let allSessions = GameSessionTracker.shared.getAllSessions(for: store)
+        for session in allSessions {
+            _ = GameSessionTracker.shared.endSession(store: store, gameId: session.gameId)
+            handleSessionEnd(session)
         }
     }
     
@@ -663,18 +687,20 @@ final class AppState: ObservableObject {
         let isRunning = runningStores.contains(store)
         
         if wasRunning && !isRunning {
-            if let session = GameSessionTracker.shared.endSession(store: store, gameId: "launcher") {
-                handleSessionEnd(session)
-            }
+            checkAllSessionsForStore(store)
         }
     }
     
     private func handleSessionEnd(_ session: GameSession) {
+        guard !session.gameName.flatMap({ $0.isEmpty }) ?? true,
+              session.gameId != "launcher" else {
+            return
+        }
+        
         let playMinutes = session.playMinutes
-        
-        guard playMinutes >= 5 else { return }
-        
         let autoDetectedCrash = playMinutes < 1
+        
+        guard playMinutes >= 5 || autoDetectedCrash else { return }
         
         Task { @MainActor in
             compatFeedbackSession = session

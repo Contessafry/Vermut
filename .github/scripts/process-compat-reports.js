@@ -8,7 +8,7 @@ const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const [owner, repo] = ['Contessafry', 'Vermut'];
 
 const VALID_STORES = ['steam', 'epic', 'gog'];
-const VALID_ENGINES = ['grapple-wine', 'staging', 'devel'];
+const VALID_ENGINES = ['vermut-wine', 'staging', 'devel'];
 const VALID_GRAPHICS = ['dxmt', 'dxvk', 'd3dmetal', 'wined3d'];
 const VALID_RESULTS = ['perfect', 'issues', 'broken'];
 
@@ -92,7 +92,7 @@ function parseIssue(issue) {
 			chip: fields.chip?.trim(),
 			playMinutes: parseInt(fields.playMinutes, 10),
 			result: fields.result?.toLowerCase().trim(),
-			autoDetectedCrash: fields.autoDetectedCrash === 'true' || body.includes('[X] Game exited quickly'),
+			autoDetectedCrash: fields.autoDetectedCrash?.toLowerCase().trim() === 'yes',
 			note: fields.note?.trim() || null,
 		};
 
@@ -101,12 +101,12 @@ function parseIssue(issue) {
 			return { valid: false, error: `Invalid store: ${report.store}. Must be steam, epic, or gog.` };
 		}
 
-		if (!report.gameId) {
-			return { valid: false, error: 'Missing gameId' };
+		if (!report.gameId || report.gameId === 'launcher') {
+			return { valid: false, error: 'Invalid gameId (cannot be empty or "launcher")' };
 		}
 
-		if (!report.gameName) {
-			return { valid: false, error: 'Missing gameName' };
+		if (!report.gameName || report.gameName.length === 0) {
+			return { valid: false, error: 'Missing or empty gameName' };
 		}
 
 		if (!report.vermutVersion) {
@@ -170,11 +170,7 @@ function extractFields(body) {
 			else if (header.includes('early exit')) currentField = 'autoDetectedCrash';
 			else if (header.includes('notes')) currentField = 'note';
 		} else if (currentField && line && !line.startsWith('_')) {
-			if (currentField === 'autoDetectedCrash') {
-				fields[currentField] = line.includes('[X]') ? 'true' : 'false';
-			} else {
-				fields[currentField] = (fields[currentField] || '') + line + '\n';
-			}
+			fields[currentField] = (fields[currentField] || '') + line + '\n';
 		}
 	}
 

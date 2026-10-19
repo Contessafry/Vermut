@@ -26,11 +26,7 @@ function extractFields(body) {
 			else if (header.includes('early exit')) currentField = 'autoDetectedCrash';
 			else if (header.includes('notes')) currentField = 'note';
 		} else if (currentField && line && !line.startsWith('_')) {
-			if (currentField === 'autoDetectedCrash') {
-				fields[currentField] = line.includes('[X]') ? 'true' : 'false';
-			} else {
-				fields[currentField] = (fields[currentField] || '') + line + '\n';
-			}
+			fields[currentField] = (fields[currentField] || '') + line + '\n';
 		}
 	}
 
@@ -69,7 +65,7 @@ Portal 2
 1.0.0
 
 ### Wine Engine
-grapple-wine
+vermut-wine
 
 ### Graphics Layer
 dxmt
@@ -87,7 +83,7 @@ M2 Pro
 perfect
 
 ### Early Exit
-- [ ] Game exited quickly
+no
 
 ### Notes
 Runs great!
@@ -99,24 +95,24 @@ Runs great!
 	assert.strictEqual(fields.gameId, '123456');
 	assert.strictEqual(fields.gameName, 'Portal 2');
 	assert.strictEqual(fields.vermutVersion, '1.0.0');
-	assert.strictEqual(fields.engine, 'grapple-wine');
+	assert.strictEqual(fields.engine, 'vermut-wine');
 	assert.strictEqual(fields.graphics, 'dxmt');
 	assert.strictEqual(fields.macOS, '14.5');
 	assert.strictEqual(fields.chip, 'M2 Pro');
 	assert.strictEqual(fields.playMinutes, '45');
 	assert.strictEqual(fields.result, 'perfect');
-	assert.strictEqual(fields.autoDetectedCrash, 'false');
+	assert.strictEqual(fields.autoDetectedCrash.trim(), 'no');
 	assert.strictEqual(fields.note, 'Runs great!');
 });
 
-test('extractFields handles checked early exit', () => {
+test('extractFields handles yes for early exit', () => {
 	const body = `
 ### Early Exit
-- [X] Game exited quickly
+yes
 	`.trim();
 
 	const fields = extractFields(body);
-	assert.strictEqual(fields.autoDetectedCrash, 'true');
+	assert.strictEqual(fields.autoDetectedCrash.trim(), 'yes');
 });
 
 test('computeRecommendation picks best graphics layer', () => {

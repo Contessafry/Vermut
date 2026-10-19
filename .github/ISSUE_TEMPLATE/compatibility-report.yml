@@ -44,28 +44,21 @@ body:
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: engine
     attributes:
       label: Wine Engine
       description: Which Wine engine did you use?
-      options:
-        - grapple-wine
-        - staging
-        - devel
+      placeholder: "vermut-wine, staging, or devel"
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: graphics
     attributes:
       label: Graphics Layer
       description: Which graphics backend?
-      options:
-        - dxmt
-        - dxvk
-        - d3dmetal
-        - wined3d
+      placeholder: "dxmt, dxvk, d3dmetal, or wined3d"
     validations:
       required: true
 
@@ -96,25 +89,21 @@ body:
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: result
     attributes:
       label: Result
       description: How well did it run?
-      options:
-        - perfect
-        - issues
-        - broken
+      placeholder: "perfect, issues, or broken"
     validations:
       required: true
 
-  - type: checkboxes
+  - type: input
     id: autoDetectedCrash
     attributes:
       label: Early Exit
-      description: Did the game exit within ~30 seconds?
-      options:
-        - label: Game exited quickly (possible crash)
+      description: Did the game exit within ~30 seconds? (yes/no)
+      placeholder: "no"
 
   - type: textarea
     id: note
