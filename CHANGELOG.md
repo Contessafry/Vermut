@@ -2,6 +2,12 @@
 
 All notable changes to Vermut are documented here.
 
+## Unreleased
+
+### Added
+
+- `install.sh`: one-line terminal installer (`curl -fsSL https://raw.githubusercontent.com/Contessafry/Vermut/main/install.sh | bash`) that installs the latest release into `/Applications` without Gatekeeper quarantine
+
 ## 1.0.0 — 2026-10-19
 
 First public release.

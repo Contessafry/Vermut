@@ -58,12 +58,22 @@ Intel Macs are not supported.
 
 ## Install
 
+Recommended: paste this into Terminal.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Contessafry/Vermut/main/install.sh | bash
+```
+
+It downloads the latest release, installs `Vermut.app` into `/Applications` and opens it. Files downloaded with `curl` don't get the `com.apple.quarantine` flag, so Gatekeeper doesn't block the unsigned app.
+
+### Alternative: disk image
+
 1. Download `Vermut-<version>.dmg` from [Releases](https://github.com/Contessafry/Vermut/releases).
 2. Open the disk image and drag **Vermut** to **Applications**.
 
 The app is **unsigned**. macOS Gatekeeper will block a double-click the first time.
 
-- In Finder, **right-click Vermut.app → Open**, then confirm, or
+- Open **System Settings → Privacy & Security** and click **Open Anyway**, or
 - After copying it to Applications:
 
 ```bash
