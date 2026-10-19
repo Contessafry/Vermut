@@ -1,0 +1,78 @@
+import SwiftUI
+import AppKit
+import CaskLauncherCore
+
+@main
+struct CaskLauncherApp: App {
+    @StateObject private var appState = AppState()
+
+    init() {
+        _ = VermutPalette.assertAllTokensResolve()
+    }
+
+    var body: some Scene {
+        WindowGroup("Vermut") {
+            ContentView()
+                .environmentObject(appState)
+                .tint(Color.Vermut.primary)
+                .background(WindowFit())
+                .frame(minWidth: 1024, minHeight: 680)
+                .frame(idealWidth: 1280, idealHeight: 800)
+        }
+        .defaultSize(width: 1280, height: 800)
+        .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Vermut") {
+                    NSApplication.shared.orderFrontStandardAboutPanel(
+                        options: [
+                            .applicationName: VermutProject.name,
+                            .applicationVersion: VermutProject.version,
+                            .version: VermutProject.version,
+                            .credits: NSAttributedString(
+                                string: "\(VermutProject.tagline)\nOpen-source Windows game store launcher for macOS.\nEpic Games uses Legendary (GPLv3)."
+                            )
+                        ]
+                    )
+                }
+            }
+            CommandGroup(after: .appSettings) {
+                Button("Settings…") {
+                    appState.section = .settings
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+    }
+}
+
+/// Enforces the token window size (1280×800 default, 1024×680 minimum).
+/// An undersized window squashes the three store cards into icon-only columns.
+private struct WindowFit: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async { Self.apply(view.window) }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async { Self.apply(view.window) }
+    }
+
+    private static func apply(_ window: NSWindow?) {
+        guard let window else { return }
+        window.styleMask.insert(.resizable)
+        window.styleMask.insert(.titled)
+        window.title = "Vermut"
+        window.titleVisibility = .hidden
+        window.toolbarStyle = .unified
+        window.minSize = NSSize(width: 1024, height: 680)
+        window.contentMinSize = NSSize(width: 1024, height: 680)
+        window.contentMaxSize = NSSize(width: 10_000, height: 10_000)
+        if window.frame.width < 1024 || window.frame.height < 680 {
+            window.setContentSize(NSSize(width: 1280, height: 800))
+            window.center()
+        }
+    }
+}

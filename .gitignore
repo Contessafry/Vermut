@@ -1,0 +1,39 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+
+# App bundles and disk images produced by build.sh / scripts/make-dmg.sh
+*.app
+*.dmg
+dist/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Leftovers
+*.orig
+*.bak
+*.tmp
+*~
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.coverage
+htmlcov/
