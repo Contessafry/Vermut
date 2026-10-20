@@ -342,7 +342,7 @@ final class AppState: ObservableObject {
         storeStatuses[.steam] = .installing(.updatingClient)
         var launchError: Error?
         do {
-            try await WineManager.shared.launchStore(.steam, config: config)
+            try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
         } catch {
             launchError = error  // transient while bootstrapping; judged at timeout
         }

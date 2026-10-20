@@ -314,7 +314,7 @@ public final class WineManager: @unchecked Sendable {
         return body()
     }
 
-    public func launchStore(_ store: GameStore, config: BottleConfiguration) async throws {
+    public func launchStore(_ store: GameStore, config: BottleConfiguration, firstRunUpdate: Bool = false) async throws {
         if store == .epic {
             return
         }
@@ -351,7 +351,8 @@ public final class WineManager: @unchecked Sendable {
         let recipe = StoreLaunchRecipe.build(
             store: store,
             executable: executablePath,
-            wineLibDir: layout.wineLibDir
+            wineLibDir: layout.wineLibDir,
+            firstRunUpdate: firstRunUpdate
         )
         for (key, value) in recipe.environment {
             environment[key] = value

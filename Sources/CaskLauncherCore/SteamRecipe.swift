@@ -210,7 +210,8 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
     public static func build(
         store: GameStore,
         executable: URL,
-        wineLibDir: URL
+        wineLibDir: URL,
+        firstRunUpdate: Bool = false
     ) -> StoreLaunchRecipe {
         var env: [String: String] = [
             "WINEDEBUG": "-all",
@@ -224,12 +225,11 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
             env["CX_FWD_COMPAT_GL_CTX"] = "1"
             env["WINEDLLOVERRIDES"] = "gameoverlayrenderer,gameoverlayrenderer64=d"
             return StoreLaunchRecipe(
-                arguments: [
-                    "steam.exe",
-                    "-no-cef-sandbox",
-                    "-cef-disable-gpu",
-                    "-noverifyfiles"
-                ],
+                // First run: plain steam.exe so the bootstrapper downloads and
+                // applies the client normally (msync env fix still applies).
+                arguments: firstRunUpdate
+                    ? ["steam.exe"]
+                    : ["steam.exe", "-no-cef-sandbox", "-cef-disable-gpu", "-noverifyfiles"],
                 environment: env,
                 workingDirectory: executable.deletingLastPathComponent().path
             )
