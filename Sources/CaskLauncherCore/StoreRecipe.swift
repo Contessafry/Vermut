@@ -6,6 +6,12 @@ import FoundationNetworking
 /// Per-store bottle policy. Steam and Epic pick DXMT/DXVK; GOG stays on WineD3D.
 /// Grapple-wine has no Vulkan loader, so DXVK bottles use Wine Staging.
 public enum StoreRecipe {
+    /// GOG Galaxy's Qt UI can't create a D3D11 renderer under our engines yet
+    /// (blank window), so the store is shown as "Coming soon" until it works.
+    public static func isComingSoon(_ store: GameStore) -> Bool {
+        store == .gog
+    }
+
     public static func allowsNativeGraphics(_ store: GameStore) -> Bool {
         store == .steam || store == .epic
     }

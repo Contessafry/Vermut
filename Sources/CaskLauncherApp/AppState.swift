@@ -250,6 +250,7 @@ final class AppState: ObservableObject {
     }
 
     func installStore(_ store: GameStore) {
+        guard !StoreRecipe.isComingSoon(store) else { return }
         installTasks[store]?.cancel()
         installTasks[store] = Task {
             do {
@@ -330,6 +331,7 @@ final class AppState: ObservableObject {
     }
 
     func launchStore(_ store: GameStore) {
+        guard !StoreRecipe.isComingSoon(store) else { return }
         if store == .epic {
             openEpicLibraryOrSignIn()
             return

@@ -256,6 +256,12 @@ struct StoreCard: View {
 
     @ViewBuilder
     private var storeActions: some View {
+        if StoreRecipe.isComingSoon(store) {
+            Button("Coming soon") {}
+                .buttonStyle(VermutButtonStyle(kind: .outline, fillWidth: true))
+                .disabled(true)
+                .help("GOG Galaxy support is coming in a future update.")
+        } else {
         switch status {
         case .notInstalled:
             Button("Install") { appState.installStore(store) }
@@ -307,6 +313,7 @@ struct StoreCard: View {
                         .buttonStyle(VermutButtonStyle(kind: .ghost, fillWidth: true))
                 }
             }
+        }
         }
     }
 }
