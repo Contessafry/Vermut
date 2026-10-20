@@ -1,5 +1,20 @@
 {
-  "games": [],
-  "generated": 1792487589,
-  "reportCount": 0
+  "games": [
+    {
+      "store": "steam",
+      "gameId": "588950",
+      "gameName": "Kingsway",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    }
+  ],
+  "generated": 1792525041,
+  "reportCount": 1
 }
