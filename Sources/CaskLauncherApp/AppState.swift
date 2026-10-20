@@ -218,7 +218,7 @@ final class AppState: ObservableObject {
     func finishOnboarding() {
         showOnboarding = false
         section = .stores
-        let selected = onboardingStoreSelection
+        let selected = StoreRecipe.selectableStores(onboardingStoreSelection)
         for store in GameStore.allCases where selected.contains(store) {
             if case .notInstalled = status(for: store) {
                 installStore(store)
@@ -232,30 +232,25 @@ final class AppState: ObservableObject {
     }
 
     func updateStoreStatus(_ store: GameStore) {
-        if WineManager.shared.isStoreRunning(store) {
-            storeStatuses[store] = .running
-        } else if WineManager.shared.isStoreInstalled(store) {
-            storeStatuses[store] = .installed
-        } else if case .downloading = storeStatuses[store] {
-            return
-        } else if case .installing = storeStatuses[store] {
-            return
-        } else if case .error = storeStatuses[store] {
-            return
-        } else {
-            storeStatuses[store] = .notInstalled
-        }
+        storeStatuses[store] = StoreStatus.refreshed(
+            current: storeStatuses[store],
+            isRunning: WineManager.shared.isStoreRunning(store),
+            isInstalled: WineManager.shared.isStoreInstalled(store)
+        )
     }
 
     func retryStore(_ store: GameStore) {
         if store == .epic {
             signInEpic()
+        } else if WineManager.shared.isStoreInstalled(store) {
+            launchStore(store)
         } else {
             installStore(store)
         }
     }
 
     func installStore(_ store: GameStore) {
+        guard !StoreRecipe.isComingSoon(store) else { return }
         installTasks[store]?.cancel()
         installTasks[store] = Task {
             do {
@@ -291,6 +286,9 @@ final class AppState: ObservableObject {
                     }
                 )
 
+                if store == .steam {
+                    try await runSteamFirstUpdate(config: bottleConfig)
+                }
                 storeStatuses[store] = .installed
                 refreshLibrary()
                 refreshBottleMetrics()
@@ -335,7 +333,39 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Steam's bootstrapper downloads the real client on first launch and shows
+    /// transient errors meanwhile. Start it ourselves, keep the card in a neutral
+    /// "Updating" state, and only report failure if it never becomes ready.
+    private func runSteamFirstUpdate(config: BottleConfiguration) async throws {
+        let prefix = PathManager.shared.prefixURL(for: .steam)
+        if SteamReadiness.isClientReady(inPrefix: prefix) { return }
+        storeStatuses[.steam] = .installing(.updatingClient)
+        // Right after SteamSetup exits, wine can bounce the first launch (exit 1,
+        // no output) while the installer's wineserver winds down. Retry a few times.
+        var launchError: Error?
+        for attempt in 0..<SteamReadiness.firstLaunchAttempts {
+            do {
+                try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
+                launchError = nil
+                break
+            } catch {
+                launchError = error  // transient while bootstrapping; judged at timeout
+                if attempt + 1 < SteamReadiness.firstLaunchAttempts {
+                    try await Task.sleep(nanoseconds: SteamReadiness.firstLaunchRetryDelayNanos)
+                }
+            }
+        }
+        let deadline = Date().addingTimeInterval(20 * 60)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            if SteamReadiness.isClientReady(inPrefix: prefix) { return }
+            try await Task.sleep(nanoseconds: 3_000_000_000)
+        }
+        throw launchError ?? WineError.installerTimedOut(.steam)
+    }
+
     func launchStore(_ store: GameStore) {
+        guard !StoreRecipe.isComingSoon(store) else { return }
         if store == .epic {
             openEpicLibraryOrSignIn()
             return

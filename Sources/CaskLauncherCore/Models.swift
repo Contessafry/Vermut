@@ -3,7 +3,7 @@ import Foundation
 /// Public project identity. Product name is Vermut; Swift targets stay CaskLauncher*.
 public enum VermutProject {
     public static let name = "Vermut"
-    public static let version = "1.1.1"
+    public static let version = "1.1.2"
     public static let tagline = "Pour. Click. Play."
     public static let githubOwner = "Contessafry"
     public static let githubRepository = "Vermut"
@@ -74,6 +74,8 @@ public enum GameStore: String, CaseIterable, Identifiable, Sendable {
 public enum InstallerPhase: String, Sendable, Equatable {
     case settingUp
     case awaitingWindow
+    /// Store installed; its client is downloading its first self-update.
+    case updatingClient
 }
 
 public enum StoreStatus: Sendable, Equatable {
@@ -89,6 +91,20 @@ public enum StoreStatus: Sendable, Equatable {
         case .downloading, .installing: return true
         default: return false
         }
+    }
+
+    /// Status the periodic refresh should show. An install in progress is never
+    /// overridden by "installed": store installers (e.g. SteamSetup) write the
+    /// launcher exe long before setup finishes. Errors stick until retried.
+    public static func refreshed(
+        current: StoreStatus?,
+        isRunning: Bool,
+        isInstalled: Bool
+    ) -> StoreStatus {
+        if isRunning { return .running }
+        if let current, current.isInstallInProgress { return current }
+        if case .error = current { return current! }
+        return isInstalled ? .installed : .notInstalled
     }
 }
 

@@ -256,6 +256,12 @@ struct StoreCard: View {
 
     @ViewBuilder
     private var storeActions: some View {
+        if StoreRecipe.isComingSoon(store) {
+            Button("Coming soon") {}
+                .buttonStyle(VermutButtonStyle(kind: .outline, fillWidth: true))
+                .disabled(true)
+                .help("GOG Galaxy support is coming in a future update.")
+        } else {
         switch status {
         case .notInstalled:
             Button("Install") { appState.installStore(store) }
@@ -294,19 +300,20 @@ struct StoreCard: View {
         case .error:
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: VermutSpace.s2) {
-                    Button("Retry") { appState.installStore(store) }
+                    Button("Retry") { appState.retryStore(store) }
                         .buttonStyle(VermutButtonStyle(kind: .outline, fillWidth: true))
                     Button("View logs") { appState.openLogs(for: store) }
                         .buttonStyle(VermutButtonStyle(kind: .ghost))
                         .fixedSize()
                 }
                 VStack(spacing: VermutSpace.s2) {
-                    Button("Retry") { appState.installStore(store) }
+                    Button("Retry") { appState.retryStore(store) }
                         .buttonStyle(VermutButtonStyle(kind: .outline, fillWidth: true))
                     Button("View logs") { appState.openLogs(for: store) }
                         .buttonStyle(VermutButtonStyle(kind: .ghost, fillWidth: true))
                 }
             }
+        }
         }
     }
 }
@@ -347,6 +354,17 @@ struct ActivityCard: View {
                     symbol: "arrow.down.circle",
                     title: "Setting up \(store.rawValue)",
                     detail: "Download complete. Setting up…",
+                    time: "now",
+                    actionTitle: "Cancel",
+                    action: { appState.cancelInstall(store) }
+                )
+            case .installing(.updatingClient):
+                return ActivityItem(
+                    id: store.identifier + "-upd",
+                    kind: .info,
+                    symbol: "arrow.triangle.2.circlepath",
+                    title: "Updating \(store.rawValue)",
+                    detail: "First-run update. \(store.rawValue) will be ready in a few minutes.",
                     time: "now",
                     actionTitle: "Cancel",
                     action: { appState.cancelInstall(store) }

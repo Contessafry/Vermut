@@ -147,14 +147,15 @@ copy_spm_bundle() {
     local name="$1"
     local found
     found=$(find "$BUILD_DIR" -maxdepth 3 -name "$name" | head -n 1)
-    if [ -n "$found" ]; then
-        cp -R "$found" "$APP_BUNDLE/Contents/Resources/"
-        # Bundle.module for a wrapped executable also looks next to Contents/MacOS/
-        cp -R "$found" "$APP_BUNDLE/Contents/MacOS/"
+    if [ -z "$found" ]; then
+        echo "Error: SwiftPM resource bundle $name not found in $BUILD_DIR"
+        exit 1
     fi
+    # The app finds these via VermutResources (Contents/Resources), never Bundle.module.
+    cp -R "$found" "$APP_BUNDLE/Contents/Resources/"
 }
-copy_spm_bundle "CaskLauncherApp_CaskLauncherApp.bundle"
-copy_spm_bundle "CaskLauncherCore_CaskLauncherCore.bundle"
+copy_spm_bundle "Vermut_CaskLauncherApp.bundle"
+copy_spm_bundle "Vermut_CaskLauncherCore.bundle"
 
 REQUIRED_BRAND=(
     steam.png steam@2x.png steam@3x.png steam.pdf
@@ -187,6 +188,11 @@ codesign --force --deep --sign - --timestamp=none "$APP_BUNDLE"
 if ! codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"; then
     echo "Error: codesign verification failed for $APP_BUNDLE"
     exit 1
+fi
+
+# The app must not depend on the build machine's .build path (SwiftPM Bundle.module).
+if [ "${SKIP_SMOKE_TEST:-0}" != "1" ]; then
+    "$SCRIPT_DIR/scripts/smoke-test-app.sh" "$APP_BUNDLE"
 fi
 
 echo ""

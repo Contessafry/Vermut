@@ -2,6 +2,18 @@
 
 All notable changes to Vermut are documented here.
 
+## 1.1.2 — 2026-10-20
+
+### Fixed
+
+- Fix a crash at launch on Macs other than the build machine: the SwiftPM resource bundles (colour tokens, brand assets) were never copied into the app, and the generated `Bundle.module` accessor fell back to the build machine's `.build` path and called `fatalError`. Resources are now bundled in `Contents/Resources` and located without `Bundle.module`; a missing `tokens.json` falls back to the built-in palette instead of crashing
+- The startup colour-token check is now debug-only and never fatal
+- A store no longer shows "Installed" while its installer is still running (the periodic refresh saw the launcher exe the installer writes early)
+- Fix Steam not opening on a fresh bottle (wine exited with code 1): a wineserver started by setup or registry tweaks without msync made `steam.exe` fail with `msync_init Failed bootstrap_look_up`. Registry tweaks now use the same sync mode, and Vermut waits for the old wineserver to exit before launching
+- A store that fails to launch now shows an error with Retry (which relaunches) instead of staying on "Installed"; set `VERMUT_WINEDEBUG` to capture Wine debug output in the store log
+- Fix GOG Galaxy showing "Essential components needed to start GOG GALAXY are missing" right after install: setup auto-started `GalaxyClient.exe /firstRun` while its services were still being registered (service error 1055) and then hung. Vermut now stops only that first-run child, waits for setup and the bottle to settle, and opens GOG from the card
+- `build.sh` now fails if a resource bundle is missing, and runs a smoke test that launches the app from a temporary folder with `.build` hidden
+
 ## 1.1.1 — 2026-10-20
 
 ### Fixed

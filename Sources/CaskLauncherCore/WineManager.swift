@@ -177,11 +177,27 @@ public final class WineManager: @unchecked Sendable {
             onAwaitingWindow?()
         }
 
+        // GOG's setup auto-starts `GalaxyClient.exe /firstRun` while it is still
+        // registering services; that run fails ("Essential components … missing")
+        // and blocks setup. Stop only that child; Vermut opens GOG afterwards.
+        let firstRunGuard: Task<Void, Never>? = store == .gog ? Task.detached {
+            while !Task.isCancelled {
+                for pid in GOGFirstRun.pids(in: PrefixRuntime.processPIDLines(), prefixPath: prefixURL.path) {
+                    kill(pid, SIGTERM)
+                }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        } : nil
+
         let waitResult = ProcessWait.waitUntilExit(
             installerProcess,
             timeout: StoreInstaller.timeout(for: store)
         )
         awaitTask.cancel()
+        firstRunGuard?.cancel()
+        if store == .gog {
+            waitForWineserver(prefix: prefixURL, engine: engine, timeout: 30)
+        }
         let wasCancelled = mutateInstallerState { () -> Bool in
             installerProcesses.removeValue(forKey: key)
             let cancelled = cancelledInstalls.contains(key)
@@ -298,7 +314,7 @@ public final class WineManager: @unchecked Sendable {
         return body()
     }
 
-    public func launchStore(_ store: GameStore, config: BottleConfiguration) async throws {
+    public func launchStore(_ store: GameStore, config: BottleConfiguration, firstRunUpdate: Bool = false) async throws {
         if store == .epic {
             return
         }
@@ -319,6 +335,10 @@ public final class WineManager: @unchecked Sendable {
             try? SteamHelper.shared.restoreOriginalSteamWebHelper(in: prefixURL)
             try migrateSteamBottleIfNeeded(prefixURL: prefixURL, engine: engine, config: config)
             try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: store)
+            // A wineserver left over from setup or `wine reg` may run without msync.
+            if !isStoreRunning(store) {
+                waitForWineserver(prefix: prefixURL, engine: engine)
+            }
         } else {
             try configureLauncherBottle(for: store, config: config, engine: engine)
         }
@@ -331,10 +351,14 @@ public final class WineManager: @unchecked Sendable {
         let recipe = StoreLaunchRecipe.build(
             store: store,
             executable: executablePath,
-            wineLibDir: layout.wineLibDir
+            wineLibDir: layout.wineLibDir,
+            firstRunUpdate: firstRunUpdate
         )
         for (key, value) in recipe.environment {
             environment[key] = value
+        }
+        if let debug = ProcessInfo.processInfo.environment["VERMUT_WINEDEBUG"] {
+            environment["WINEDEBUG"] = debug
         }
 
         let logURL = PathManager.shared.logURL(for: store)
@@ -502,8 +526,27 @@ public final class WineManager: @unchecked Sendable {
         guard !ops.isEmpty else { return }
 
         var environment = buildEnvironment(for: .steam, config: config)
+        // Same sync mode (esync/msync) as the launch: a wineserver started here
+        // without WINEMSYNC makes steam.exe fail with "msync_init Failed bootstrap_look_up".
+        for key in StoreLaunchRecipe.syncEnvironmentKeys {
+            if let value = StoreLaunchRecipe.syncEnvironment(for: .steam)[key] { environment[key] = value }
+        }
         environment["WINEPREFIX"] = prefixURL.path
         try apply(ops, wineExecutable: wineExecutable, environment: environment)
+        // Let that wineserver exit so the launch starts a fresh one with its own environment.
+        waitForWineserver(prefix: prefixURL, engine: engine)
+    }
+
+    private func waitForWineserver(prefix: URL, engine: WineEngine, timeout: TimeInterval = 15) {
+        guard let wineserverExecutable = PathManager.shared.wineserverExecutable(engine: engine) else { return }
+        let process = Process()
+        process.executableURL = wineserverExecutable
+        process.arguments = ["-w"]
+        process.environment = ["WINEPREFIX": prefix.path]
+        guard (try? process.run()) != nil else { return }
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning && Date() < deadline { usleep(100_000) }
+        if process.isRunning { process.terminate() }
     }
 
     private func configureLauncherBottle(
@@ -710,6 +753,8 @@ public final class WineManager: @unchecked Sendable {
                 to: logURL
             )
             appendSpawnStderr(from: logURL)
+            // Surface the failure so the card shows an error with Retry instead of "Installed".
+            throw WineError.launchFailed(exitCode)
         } else if waited < 0 {
             appendLaunchLog(
                 "Vermut: spawn pid=\(pid) waitpid errno=\(errno)",
@@ -821,7 +866,7 @@ public final class WineManager: @unchecked Sendable {
             env["WINEDLLPATH"] = layout.wineLibDir.path
         }
 
-        env["WINEDEBUG"] = "-all"
+        env["WINEDEBUG"] = ProcessInfo.processInfo.environment["VERMUT_WINEDEBUG"] ?? "-all"
         return env
     }
 
@@ -866,6 +911,18 @@ public enum PrefixRuntime {
 
     /// `ps …e…` includes the environment so WINEPREFIX is visible even when
     /// argv is just `steam.exe`.
+    /// `ps` lines as "pid command+env".
+    public static func processPIDLines() -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-axEww", "-o", "pid=,command="]
+        process.standardError = FileHandle.nullDevice
+        guard let data = try? ProcessPipe.runReadingStdout(process) else { return [] }
+        return String(data: data, encoding: .utf8)?
+            .components(separatedBy: .newlines)
+            .filter { !$0.isEmpty } ?? []
+    }
+
     public static func processArgumentLines() -> [String] {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
@@ -916,7 +973,7 @@ public enum WineError: LocalizedError {
         case .executableNotFound:
             return "Store executable not found"
         case .launchFailed(let code):
-            return "Failed to launch (posix_spawn \(code))"
+            return "Failed to launch (exit code \(code)). See the logs."
         case .cancelled:
             return "Installation cancelled"
         case .installerTimedOut(let store):
@@ -930,6 +987,19 @@ public enum WineError: LocalizedError {
             }
         case .installerFailed(let store, let status):
             return "The \(store.rawValue) installer exited with status \(status). Check Bottles → Logs."
+        }
+    }
+}
+
+/// Finds GOG Galaxy's installer-spawned `/firstRun` client in one prefix.
+public enum GOGFirstRun {
+    public static func pids(in psLines: [String], prefixPath: String) -> [pid_t] {
+        psLines.compactMap { raw in
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard line.contains("GalaxyClient.exe"),
+                  line.contains("/firstRun"),
+                  line.contains("WINEPREFIX=\(prefixPath)") else { return nil }
+            return line.split(separator: " ", maxSplits: 1).first.flatMap { pid_t($0) }
         }
     }
 }

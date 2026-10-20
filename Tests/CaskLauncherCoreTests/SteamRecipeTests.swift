@@ -404,4 +404,14 @@ final class SteamRecipeTests: XCTestCase {
         )
         try Data("x".utf8).write(to: url)
     }
+
+    func testSteamFirstRunUpdateUsesPlainArgumentsButKeepsSyncFix() {
+        let wineLib = URL(fileURLWithPath: "/engines/grapple-wine/grapple-wine/lib/wine")
+        let steam = URL(fileURLWithPath: "/bottles/steam/prefix/drive_c/Program Files (x86)/Steam/steam.exe")
+        let first = StoreLaunchRecipe.build(store: .steam, executable: steam, wineLibDir: wineLib, firstRunUpdate: true)
+        XCTAssertEqual(first.arguments, ["steam.exe"])
+        let normal = StoreLaunchRecipe.build(store: .steam, executable: steam, wineLibDir: wineLib)
+        XCTAssertEqual(first.environment, normal.environment)
+        XCTAssertTrue(normal.arguments.contains("-noverifyfiles"))
+    }
 }

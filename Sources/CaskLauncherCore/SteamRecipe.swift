@@ -199,30 +199,37 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         "Vermut: launching \(store.identifier) with engine=\(engine.rawValue) wine=\(wine.path) wineserver=\(wineserver.path)"
     }
 
+    public static let syncEnvironmentKeys = ["WINEESYNC", "WINEMSYNC"]
+
+    /// Sync mode a store runs with. Every wine process sharing the prefix's
+    /// wineserver must use the same values.
+    public static func syncEnvironment(for store: GameStore) -> [String: String] {
+        store == .steam ? ["WINEESYNC": "1", "WINEMSYNC": "1"] : [:]
+    }
+
     public static func build(
         store: GameStore,
         executable: URL,
-        wineLibDir: URL
+        wineLibDir: URL,
+        firstRunUpdate: Bool = false
     ) -> StoreLaunchRecipe {
         var env: [String: String] = [
             "WINEDEBUG": "-all",
             "WINEDLLPATH": wineLibDir.path
         ]
 
+        for (key, value) in syncEnvironment(for: store) { env[key] = value }
         switch store {
         case .steam:
-            env["WINEESYNC"] = "1"
-            env["WINEMSYNC"] = "1"
             env["ROSETTA_ADVERTISE_AVX"] = "1"
             env["CX_FWD_COMPAT_GL_CTX"] = "1"
             env["WINEDLLOVERRIDES"] = "gameoverlayrenderer,gameoverlayrenderer64=d"
             return StoreLaunchRecipe(
-                arguments: [
-                    "steam.exe",
-                    "-no-cef-sandbox",
-                    "-cef-disable-gpu",
-                    "-noverifyfiles"
-                ],
+                // First run: plain steam.exe so the bootstrapper downloads and
+                // applies the client normally (msync env fix still applies).
+                arguments: firstRunUpdate
+                    ? ["steam.exe"]
+                    : ["steam.exe", "-no-cef-sandbox", "-cef-disable-gpu", "-noverifyfiles"],
                 environment: env,
                 workingDirectory: executable.deletingLastPathComponent().path
             )

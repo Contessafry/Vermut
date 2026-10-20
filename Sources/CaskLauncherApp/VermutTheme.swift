@@ -363,6 +363,15 @@ struct StoreInstallControls: View {
                 }
                 cancelButton
             }
+        case .installing(.updatingClient):
+            HStack(spacing: VermutSpace.s2) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Updating \(store.rawValue)…")
+                    .font(VermutType.body)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+                Spacer(minLength: 0)
+            }
         case .installing(.awaitingWindow):
             VStack(alignment: .leading, spacing: VermutSpace.s2) {
                 VermutBadge(

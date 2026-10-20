@@ -125,9 +125,8 @@ public enum BrandAsset: String, CaseIterable, Sendable {
             if seen.insert(url.path) { bundles.append(bundle) }
         }
         add(Bundle.main)
-        #if SWIFT_PACKAGE
-        add(Bundle.module)
-        #endif
+        // Never Bundle.module: its accessor traps when the bundle is missing.
+        VermutResources.coreBundles.forEach { add($0) }
         let names = [
             "CaskLauncherCore_CaskLauncherCore",
             "CaskLauncherApp_CaskLauncherApp",

@@ -166,6 +166,14 @@ struct StoreStatusPresentation {
                 showsDot: false,
                 showsSpinner: true
             )
+        case .installing(.updatingClient):
+            return StoreStatusPresentation(
+                kind: .info,
+                text: "Updating…",
+                symbol: "arrow.triangle.2.circlepath",
+                showsDot: false,
+                showsSpinner: true
+            )
         case .installing(.awaitingWindow):
             return StoreStatusPresentation(
                 kind: .warning,
