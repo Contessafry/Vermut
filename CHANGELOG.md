@@ -2,10 +2,14 @@
 
 All notable changes to Vermut are documented here.
 
-## Unreleased
+## 1.1.0 — 2026-10-20
 
 ### Added
 
+- Community compatibility reports: after a play session of 5+ minutes (or an early exit), a feedback banner asks how the game ran and opens a prefilled GitHub issue (no account data leaves the Mac unless you submit it)
+- Library compatibility badges (Works / Mixed / Issues) built from community reports, published on the `compat-data` branch
+- Settings → Compatibility reports: toggle to turn the feedback prompts off
+- GitHub workflow that validates reports and aggregates them into `compat/compatibility.json`
 - `install.sh`: one-line terminal installer (`curl -fsSL https://raw.githubusercontent.com/Contessafry/Vermut/main/install.sh | bash`) that installs the latest release into `/Applications` without Gatekeeper quarantine
 
 ## 1.0.0 — 2026-10-19

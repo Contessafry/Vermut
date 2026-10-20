@@ -3,7 +3,7 @@ import Foundation
 /// Public project identity. Product name is Vermut; Swift targets stay CaskLauncher*.
 public enum VermutProject {
     public static let name = "Vermut"
-    public static let version = "1.0.0"
+    public static let version = "1.1.0"
     public static let tagline = "Pour. Click. Play."
     public static let githubOwner = "Contessafry"
     public static let githubRepository = "Vermut"
