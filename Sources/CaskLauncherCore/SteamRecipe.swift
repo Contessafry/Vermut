@@ -199,6 +199,14 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         "Vermut: launching \(store.identifier) with engine=\(engine.rawValue) wine=\(wine.path) wineserver=\(wineserver.path)"
     }
 
+    public static let syncEnvironmentKeys = ["WINEESYNC", "WINEMSYNC"]
+
+    /// Sync mode a store runs with. Every wine process sharing the prefix's
+    /// wineserver must use the same values.
+    public static func syncEnvironment(for store: GameStore) -> [String: String] {
+        store == .steam ? ["WINEESYNC": "1", "WINEMSYNC": "1"] : [:]
+    }
+
     public static func build(
         store: GameStore,
         executable: URL,
@@ -209,10 +217,9 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
             "WINEDLLPATH": wineLibDir.path
         ]
 
+        for (key, value) in syncEnvironment(for: store) { env[key] = value }
         switch store {
         case .steam:
-            env["WINEESYNC"] = "1"
-            env["WINEMSYNC"] = "1"
             env["ROSETTA_ADVERTISE_AVX"] = "1"
             env["CX_FWD_COMPAT_GL_CTX"] = "1"
             env["WINEDLLOVERRIDES"] = "gameoverlayrenderer,gameoverlayrenderer64=d"

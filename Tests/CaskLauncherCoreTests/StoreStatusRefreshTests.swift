@@ -15,3 +15,17 @@ final class StoreStatusRefreshTests: XCTestCase {
         XCTAssertEqual(StoreStatus.refreshed(current: .error("x"), isRunning: false, isInstalled: false), .error("x"))
     }
 }
+
+final class SteamSyncEnvironmentTests: XCTestCase {
+    func testSteamLaunchUsesTheSharedSyncEnvironment() {
+        let recipe = StoreLaunchRecipe.build(
+            store: .steam,
+            executable: URL(fileURLWithPath: "/tmp/Steam/steam.exe"),
+            wineLibDir: URL(fileURLWithPath: "/tmp/lib")
+        )
+        for (key, value) in StoreLaunchRecipe.syncEnvironment(for: .steam) {
+            XCTAssertEqual(recipe.environment[key], value, key)
+        }
+        XCTAssertEqual(StoreLaunchRecipe.syncEnvironment(for: .steam)["WINEMSYNC"], "1")
+    }
+}

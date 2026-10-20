@@ -242,6 +242,8 @@ final class AppState: ObservableObject {
     func retryStore(_ store: GameStore) {
         if store == .epic {
             signInEpic()
+        } else if WineManager.shared.isStoreInstalled(store) {
+            launchStore(store)
         } else {
             installStore(store)
         }

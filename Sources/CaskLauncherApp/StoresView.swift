@@ -294,14 +294,14 @@ struct StoreCard: View {
         case .error:
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: VermutSpace.s2) {
-                    Button("Retry") { appState.installStore(store) }
+                    Button("Retry") { appState.retryStore(store) }
                         .buttonStyle(VermutButtonStyle(kind: .outline, fillWidth: true))
                     Button("View logs") { appState.openLogs(for: store) }
                         .buttonStyle(VermutButtonStyle(kind: .ghost))
                         .fixedSize()
                 }
                 VStack(spacing: VermutSpace.s2) {
-                    Button("Retry") { appState.installStore(store) }
+                    Button("Retry") { appState.retryStore(store) }
                         .buttonStyle(VermutButtonStyle(kind: .outline, fillWidth: true))
                     Button("View logs") { appState.openLogs(for: store) }
                         .buttonStyle(VermutButtonStyle(kind: .ghost, fillWidth: true))
