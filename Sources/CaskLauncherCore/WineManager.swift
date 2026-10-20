@@ -177,11 +177,27 @@ public final class WineManager: @unchecked Sendable {
             onAwaitingWindow?()
         }
 
+        // GOG's setup auto-starts `GalaxyClient.exe /firstRun` while it is still
+        // registering services; that run fails ("Essential components … missing")
+        // and blocks setup. Stop only that child; Vermut opens GOG afterwards.
+        let firstRunGuard: Task<Void, Never>? = store == .gog ? Task.detached {
+            while !Task.isCancelled {
+                for pid in GOGFirstRun.pids(in: PrefixRuntime.processPIDLines(), prefixPath: prefixURL.path) {
+                    kill(pid, SIGTERM)
+                }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        } : nil
+
         let waitResult = ProcessWait.waitUntilExit(
             installerProcess,
             timeout: StoreInstaller.timeout(for: store)
         )
         awaitTask.cancel()
+        firstRunGuard?.cancel()
+        if store == .gog {
+            waitForWineserver(prefix: prefixURL, engine: engine, timeout: 30)
+        }
         let wasCancelled = mutateInstallerState { () -> Bool in
             installerProcesses.removeValue(forKey: key)
             let cancelled = cancelledInstalls.contains(key)
@@ -894,6 +910,18 @@ public enum PrefixRuntime {
 
     /// `ps …e…` includes the environment so WINEPREFIX is visible even when
     /// argv is just `steam.exe`.
+    /// `ps` lines as "pid command+env".
+    public static func processPIDLines() -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-axEww", "-o", "pid=,command="]
+        process.standardError = FileHandle.nullDevice
+        guard let data = try? ProcessPipe.runReadingStdout(process) else { return [] }
+        return String(data: data, encoding: .utf8)?
+            .components(separatedBy: .newlines)
+            .filter { !$0.isEmpty } ?? []
+    }
+
     public static func processArgumentLines() -> [String] {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
@@ -958,6 +986,19 @@ public enum WineError: LocalizedError {
             }
         case .installerFailed(let store, let status):
             return "The \(store.rawValue) installer exited with status \(status). Check Bottles → Logs."
+        }
+    }
+}
+
+/// Finds GOG Galaxy's installer-spawned `/firstRun` client in one prefix.
+public enum GOGFirstRun {
+    public static func pids(in psLines: [String], prefixPath: String) -> [pid_t] {
+        psLines.compactMap { raw in
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard line.contains("GalaxyClient.exe"),
+                  line.contains("/firstRun"),
+                  line.contains("WINEPREFIX=\(prefixPath)") else { return nil }
+            return line.split(separator: " ", maxSplits: 1).first.flatMap { pid_t($0) }
         }
     }
 }
