@@ -205,6 +205,35 @@ struct OnboardingView: View {
     }
 
     private func storePick(_ store: GameStore) -> some View {
+        if StoreRecipe.isComingSoon(store) {
+            return AnyView(comingSoonPick(store))
+        }
+        return AnyView(availableStorePick(store))
+    }
+
+    private func comingSoonPick(_ store: GameStore) -> some View {
+        HStack(spacing: VermutSpace.s2) {
+            StoreLogoTile(store: store, size: 32)
+                .opacity(0.5)
+            Text(store.shortName)
+                .font(VermutType.bodyEmphasis)
+                .foregroundStyle(Color.Vermut.mutedForeground)
+                .lineLimit(1)
+            Text("Coming soon")
+                .font(VermutType.caption)
+                .foregroundStyle(Color.Vermut.mutedForeground)
+                .lineLimit(1)
+        }
+        .padding(VermutSpace.s2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.Vermut.border, lineWidth: 1)
+        )
+        .accessibilityLabel("\(store.shortName), coming soon")
+        .help("\(store.shortName) support is coming in a future update.")
+    }
+
+    private func availableStorePick(_ store: GameStore) -> some View {
         let selected = appState.onboardingStoreSelection.contains(store)
         return Button {
             if selected {

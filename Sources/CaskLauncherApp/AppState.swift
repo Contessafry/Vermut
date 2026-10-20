@@ -218,7 +218,7 @@ final class AppState: ObservableObject {
     func finishOnboarding() {
         showOnboarding = false
         section = .stores
-        let selected = onboardingStoreSelection
+        let selected = StoreRecipe.selectableStores(onboardingStoreSelection)
         for store in GameStore.allCases where selected.contains(store) {
             if case .notInstalled = status(for: store) {
                 installStore(store)

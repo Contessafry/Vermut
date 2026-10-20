@@ -12,6 +12,11 @@ public enum StoreRecipe {
         store == .gog
     }
 
+    /// Drops "Coming soon" stores from a first-setup selection.
+    public static func selectableStores(_ selection: Set<GameStore>) -> Set<GameStore> {
+        selection.filter { !isComingSoon($0) }
+    }
+
     public static func allowsNativeGraphics(_ store: GameStore) -> Bool {
         store == .steam || store == .epic
     }

@@ -215,4 +215,8 @@ final class StoreRecipeTests: XCTestCase {
         XCTAssertFalse(StoreRecipe.isComingSoon(.steam))
         XCTAssertFalse(StoreRecipe.isComingSoon(.epic))
     }
+
+    func testFirstSetupSelectionDropsComingSoonStores() {
+        XCTAssertEqual(StoreRecipe.selectableStores([.steam, .epic, .gog]), [.steam, .epic])
+    }
 }
