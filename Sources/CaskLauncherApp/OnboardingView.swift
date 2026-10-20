@@ -66,7 +66,7 @@ struct OnboardingView: View {
                         Text(stepCaption)
                             .font(VermutType.caption)
                             .foregroundStyle(Color.Vermut.mutedForeground)
-                        Text(appState.setupFailed ? "Setup failed" : "Getting your Mac ready")
+                        Text(appState.setupFailed ? "Setup failed" : (appState.setupPhase == .permissions ? "Permissions Vermut may need" : "Getting your Mac ready"))
                             .font(VermutType.title)
                             .foregroundStyle(Color.Vermut.foreground)
                             .fixedSize(horizontal: false, vertical: true)
@@ -74,6 +74,8 @@ struct OnboardingView: View {
 
                     if appState.setupFailed {
                         failureBlock
+                    } else if appState.setupPhase == .permissions {
+                        PermissionsStepView(localNetwork: appState.localNetwork)
                     } else {
                         VStack(alignment: .leading, spacing: VermutSpace.s6) {
                             stepRow(
@@ -103,16 +105,16 @@ struct OnboardingView: View {
             Rectangle().fill(Color.Vermut.border).frame(height: 1)
             HStack(spacing: VermutSpace.s3) {
                 Button("Skip for now") {
-                    appState.skipOnboarding()
+                    if onPermissions { appState.confirmPermissions() } else { appState.skipOnboarding() }
                 }
                 .buttonStyle(VermutButtonStyle(kind: .ghost))
-                .disabled(!appState.isSetupComplete)
-                .opacity(appState.isSetupComplete ? 1 : 0.5)
+                .disabled(!(appState.isSetupComplete || onPermissions))
+                .opacity(appState.isSetupComplete || onPermissions ? 1 : 0.5)
 
                 Spacer(minLength: VermutSpace.s2)
 
                 Button {
-                    appState.finishOnboarding()
+                    if onPermissions { appState.confirmPermissions() } else { appState.finishOnboarding() }
                 } label: {
                     HStack(spacing: VermutSpace.s2) {
                         Text("Continue")
@@ -129,8 +131,8 @@ struct OnboardingView: View {
                         horizontalPadding: VermutSpace.s4
                     )
                 )
-                .disabled(!appState.isSetupComplete)
-                .opacity(appState.isSetupComplete ? 1 : 0.5)
+                .disabled(!(appState.isSetupComplete || onPermissions))
+                .opacity(appState.isSetupComplete || onPermissions ? 1 : 0.5)
                 .help("Continue to stores")
                 .fixedSize()
             }
@@ -320,12 +322,15 @@ struct OnboardingView: View {
         .accessibilityLabel(state == .done ? "Step \(index) complete" : "Step \(index)")
     }
 
+    private var onPermissions: Bool { appState.setupPhase == .permissions && !appState.setupFailed }
+
     private var stepCaption: String {
         if appState.setupFailed { return "Setup" }
+        if onPermissions { return "Setup · step 1 of 4" }
         if !appState.isSetupComplete {
-            return appState.setupPhase == .rosetta ? "Setup · step 1 of 3" : "Setup · step 2 of 3"
+            return appState.setupPhase == .rosetta ? "Setup · step 2 of 4" : "Setup · step 3 of 4"
         }
-        return "Setup · step 3 of 3"
+        return "Setup · step 4 of 4"
     }
 
     private var rosettaState: StepState {

@@ -62,6 +62,12 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
     <string>14.0</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Vermut Contributors. Open Source Software.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Steam uses your local network for downloads from other computers, Remote Play and in-home streaming.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_vermut._tcp</string>
+    </array>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.games</string>
     <key>NSSupportsAutomaticTermination</key>
@@ -194,6 +200,10 @@ fi
 if [ "${SKIP_SMOKE_TEST:-0}" != "1" ]; then
     "$SCRIPT_DIR/scripts/smoke-test-app.sh" "$APP_BUNDLE"
 fi
+
+# The build output is not an installed app: keep it out of LaunchServices so
+# Launchpad/Spotlight only ever show /Applications/Vermut.app.
+"/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -u "$APP_BUNDLE" >/dev/null 2>&1 || true
 
 echo ""
 echo "✅ Build complete!"
