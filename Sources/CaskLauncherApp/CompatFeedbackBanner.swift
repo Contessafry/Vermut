@@ -186,8 +186,16 @@ struct CompatFeedbackBanner: View {
         if brand.contains("Apple M") {
             let components = brand.components(separatedBy: " ")
             for (i, component) in components.enumerated() {
-                if component.hasPrefix("M"), i + 1 < components.count {
-                    return component + " " + components[i + 1]
+                if component.hasPrefix("M") {
+                    // Check if there's a suffix like Pro/Max/Ultra
+                    if i + 1 < components.count {
+                        let next = components[i + 1]
+                        if ["Pro", "Max", "Ultra"].contains(next) {
+                            return component + " " + next
+                        }
+                    }
+                    // No suffix, just the base chip (e.g., "M4")
+                    return component
                 }
             }
             return "Apple Silicon"
