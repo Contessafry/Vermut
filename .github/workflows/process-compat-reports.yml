@@ -28,6 +28,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -42,18 +47,19 @@ jobs:
             # Branch exists, check it out in the worktree
             git worktree add /tmp/compat-data-work compat-data
           else
-            # Branch doesn't exist, create it as orphan
+            # Branch doesn't exist, create it as orphan in the worktree only
             git worktree add --detach /tmp/compat-data-work
+            # All subsequent operations happen in the worktree
             cd /tmp/compat-data-work
             git checkout --orphan compat-data
             git rm -rf . 2>/dev/null || true
             git commit --allow-empty -m "Initialize compat-data branch"
-            git push origin compat-data
+            git push -u origin compat-data
           fi
 
       - name: Ensure compat-report label exists
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh label create compat-report \
             --description "Community compatibility report" \
@@ -77,8 +83,6 @@ jobs:
       - name: Commit compatibility data
         run: |
           cd /tmp/compat-data-work
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add compat/compatibility.json
           if git diff --staged --quiet; then
             echo "No changes to commit"
