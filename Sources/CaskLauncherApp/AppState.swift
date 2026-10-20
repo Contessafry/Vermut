@@ -232,19 +232,11 @@ final class AppState: ObservableObject {
     }
 
     func updateStoreStatus(_ store: GameStore) {
-        if WineManager.shared.isStoreRunning(store) {
-            storeStatuses[store] = .running
-        } else if WineManager.shared.isStoreInstalled(store) {
-            storeStatuses[store] = .installed
-        } else if case .downloading = storeStatuses[store] {
-            return
-        } else if case .installing = storeStatuses[store] {
-            return
-        } else if case .error = storeStatuses[store] {
-            return
-        } else {
-            storeStatuses[store] = .notInstalled
-        }
+        storeStatuses[store] = StoreStatus.refreshed(
+            current: storeStatuses[store],
+            isRunning: WineManager.shared.isStoreRunning(store),
+            isInstalled: WineManager.shared.isStoreInstalled(store)
+        )
     }
 
     func retryStore(_ store: GameStore) {
