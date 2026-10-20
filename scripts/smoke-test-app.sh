@@ -18,6 +18,9 @@ cleanup() {
         wait "$PID" 2>/dev/null || true
     fi
     if [ -d "$HIDDEN" ] && [ ! -e "$BUILD" ]; then mv "$HIDDEN" "$BUILD"; fi
+    # Launching the temp copy registers it with LaunchServices; drop it so it
+    # never shows up as a second Vermut in Launchpad/Spotlight/Open With.
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -u "$TMP/Vermut.app" >/dev/null 2>&1 || true
     rm -rf "$TMP"
 }
 trap cleanup EXIT

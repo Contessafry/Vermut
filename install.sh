@@ -64,6 +64,7 @@ fi
 say "Installing to $DEST"
 $SUDO rm -rf "$DEST"
 $SUDO ditto "$MOUNT/$APP_NAME" "$DEST"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST" >/dev/null 2>&1 || true
 $SUDO xattr -dr com.apple.quarantine "$DEST" >/dev/null 2>&1 || true
 
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$DEST/Contents/Info.plist" 2>/dev/null || echo "")"

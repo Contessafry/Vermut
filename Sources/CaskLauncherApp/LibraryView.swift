@@ -42,9 +42,14 @@ struct LibraryView: View {
             .padding(.bottom, VermutSpace.s4)
 
             if games.isEmpty {
-                empty
-                    .padding(.horizontal, VermutSpace.s6)
-                Spacer()
+                // Fixed-height-free container: the empty state's wrapping text inside a bare
+                // VStack + Spacer next to ViewThatFits produced a layout SwiftUI gave up on,
+                // blanking the whole window (sidebar included).
+                ScrollView {
+                    empty
+                        .padding(.horizontal, VermutSpace.s6)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             } else {
                 ScrollView {
                     LazyVGrid(
@@ -141,7 +146,7 @@ struct LibraryView: View {
             systemImage: "gamecontroller",
             title: appState.installedGames.isEmpty ? "No games in your library yet" : "No games match this filter",
             message: appState.installedGames.isEmpty
-                ? "Install Steam or GOG, or sign in to Epic. Owned Epic titles show up here so you can install and play them."
+                ? VermutProject.libraryEmptyMessage
                 : "Try another store filter or clear the search field.",
             actionTitle: appState.installedGames.isEmpty ? "Open Stores" : nil,
             action: appState.installedGames.isEmpty ? { appState.section = .stores } : nil

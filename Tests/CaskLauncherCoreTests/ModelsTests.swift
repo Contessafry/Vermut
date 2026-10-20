@@ -38,7 +38,14 @@ final class ModelsTests: XCTestCase {
     
     func testVermutProjectIdentityIsPublicAndDoesNotSayCaskLauncher() {
         XCTAssertEqual(VermutProject.name, "Vermut")
-        XCTAssertEqual(VermutProject.version, "1.1.2")
+        // Must match the VERSION file build.sh stamps into Info.plist (the
+        // sidebar showed v1.1.2 inside a 1.1.3 bundle once).
+        let versionFile = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("VERSION")
+        let fileVersion = (try? String(contentsOf: versionFile, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(VermutProject.version, fileVersion)
         XCTAssertEqual(VermutProject.tagline, "Pour. Click. Play.")
         XCTAssertEqual(VermutProject.githubDisplay, "github.com/Contessafry/Vermut")
         XCTAssertEqual(VermutProject.githubURL.host, "github.com")

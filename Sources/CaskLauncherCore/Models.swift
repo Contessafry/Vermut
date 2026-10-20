@@ -3,7 +3,9 @@ import Foundation
 /// Public project identity. Product name is Vermut; Swift targets stay CaskLauncher*.
 public enum VermutProject {
     public static let name = "Vermut"
-    public static let version = "1.1.2"
+    public static let version = "1.1.3"
+    /// Library empty state. GOG is "Coming soon", so it is not offered here.
+    public static let libraryEmptyMessage = "Install Steam or Epic from Stores to see your games here."
     public static let tagline = "Pour. Click. Play."
     public static let githubOwner = "Contessafry"
     public static let githubRepository = "Vermut"
@@ -101,6 +103,9 @@ public enum StoreStatus: Sendable, Equatable {
         isRunning: Bool,
         isInstalled: Bool
     ) -> StoreStatus {
+        // Steam's first-run update runs the client itself: "running" must not
+        // short-circuit the setup stages (it skipped "Finishing" in 1.1.3 testing).
+        if case .installing(.updatingClient)? = current { return .installing(.updatingClient) }
         if isRunning { return .running }
         if let current, current.isInstallInProgress { return current }
         if case .error = current { return current! }

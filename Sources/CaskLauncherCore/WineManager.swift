@@ -52,15 +52,13 @@ public final class WineManager: @unchecked Sendable {
         bootProcess.environment = environment
 
         let logURL = PathManager.shared.logURL(for: store)
-        _ = fileManager.createFile(atPath: logURL.path, contents: nil)
-        let logHandle = try FileHandle(forWritingTo: logURL)
-        bootProcess.standardOutput = logHandle
-        bootProcess.standardError = logHandle
+        let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
+        bootProcess.standardOutput = logPipe
+        bootProcess.standardError = logPipe
 
         try bootProcess.run()
         bootProcess.waitUntilExit()
 
-        try? logHandle.close()
 
         guard bootProcess.terminationStatus == 0 else {
             throw WineError.prefixCreationFailed
@@ -160,10 +158,9 @@ public final class WineManager: @unchecked Sendable {
         installerProcess.environment = environment
 
         let logURL = PathManager.shared.logURL(for: store)
-        _ = fileManager.createFile(atPath: logURL.path, contents: nil)
-        let logHandle = try FileHandle(forWritingTo: logURL)
-        installerProcess.standardOutput = logHandle
-        installerProcess.standardError = logHandle
+        let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
+        installerProcess.standardOutput = logPipe
+        installerProcess.standardError = logPipe
 
         onSettingUp?()
         try installerProcess.run()
@@ -204,7 +201,6 @@ public final class WineManager: @unchecked Sendable {
             cancelledInstalls.remove(key)
             return cancelled
         }
-        try? logHandle.close()
 
         if wasCancelled || Task.isCancelled {
             try? killPrefix(prefix: prefixURL, engine: engine)
@@ -434,6 +430,9 @@ public final class WineManager: @unchecked Sendable {
             )
         }
         let executableName = URL(fileURLWithPath: store.executablePath).lastPathComponent
+        if store == .steam {
+            return PrefixRuntime.isBottleSteamRunning(prefixPath: prefixURL.path, processLines: PrefixRuntime.processPIDLines())
+        }
         return PrefixRuntime.isRunning(prefix: prefixURL, executableName: executableName)
     }
 
@@ -677,15 +676,7 @@ public final class WineManager: @unchecked Sendable {
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let data = Data((line + "\n").utf8)
-        if !fileManager.fileExists(atPath: logURL.path) {
-            try? data.write(to: logURL)
-            return
-        }
-        guard let handle = try? FileHandle(forWritingTo: logURL) else { return }
-        defer { try? handle.close() }
-        _ = handle.seekToEndOfFile()
-        try? handle.write(contentsOf: data)
+        CappedLogWriter.shared(for: logURL).append(line: line)
     }
 
     private func launchDetached(
@@ -699,10 +690,6 @@ public final class WineManager: @unchecked Sendable {
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        if !fileManager.fileExists(atPath: logURL.path) {
-            _ = fileManager.createFile(atPath: logURL.path, contents: nil)
-        }
-
         let spawnPath: String
         let argv: [String]
         let spawnCwd: String?
@@ -721,16 +708,27 @@ public final class WineManager: @unchecked Sendable {
         argv = ["/bin/sh", "-c", script]
         spawnCwd = nil
 #endif
+        // Child stdout/stderr go through a pipe into the capped log writer, never
+        // straight into the file: a Wine error loop can't fill the disk.
+        let writer = CappedLogWriter.shared(for: logURL)
+        var fds: [Int32] = [0, 0]
+        guard pipe(&fds) == 0 else { throw WineError.launchFailed(errno) }
+        // If Vermut quits, the child's writes get EPIPE instead of SIGPIPE.
+        signal(SIGPIPE, SIG_IGN)
         let pid: pid_t
         do {
             pid = try posixSpawnSetSID(
                 path: spawnPath,
                 argv: argv,
                 environment: environment,
-                logPath: logURL.path,
+                outputFD: fds[1],
+                closeFD: fds[0],
                 workingDirectory: spawnCwd
             )
+            close(fds[1])
+            writer.pump(readFD: fds[0])
         } catch {
+            close(fds[0]); close(fds[1])
             appendLaunchLog(
                 "Vermut: spawn failed status=\(error.localizedDescription) exe=\(executable.path) cwd=\(workingDirectory ?? "")",
                 to: logURL
@@ -764,12 +762,10 @@ public final class WineManager: @unchecked Sendable {
     }
 
     private func appendSpawnStderr(from logURL: URL) {
-        guard let text = try? String(contentsOf: logURL, encoding: .utf8) else {
-            appendLaunchLog("Vermut: spawn stderr unreadable \(logURL.path)", to: logURL)
-            return
-        }
-        let lines = text
-            .components(separatedBy: .newlines)
+        usleep(50_000)  // let the pump drain what the child wrote before exiting
+        CappedLogWriter.shared(for: logURL).flush()
+        let snapshot = LogTail.read(from: logURL, maxBytes: 64 * 1024, maxLines: 200)
+        let lines = snapshot.lines
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && !$0.hasPrefix("Vermut:") }
             .suffix(24)
@@ -800,7 +796,8 @@ public final class WineManager: @unchecked Sendable {
         path: String,
         argv: [String],
         environment: [String: String],
-        logPath: String,
+        outputFD: Int32,
+        closeFD: Int32,
         workingDirectory: String?
     ) throws -> pid_t {
         var pid: pid_t = 0
@@ -818,18 +815,13 @@ public final class WineManager: @unchecked Sendable {
         posix_spawn_file_actions_init(&fileActions)
         defer { posix_spawn_file_actions_destroy(&fileActions) }
 
-        logPath.withCString { cLog in
-            _ = posix_spawn_file_actions_addopen(
-                &fileActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0
-            )
-            let logFlags = O_WRONLY | O_CREAT | O_APPEND
-            _ = posix_spawn_file_actions_addopen(
-                &fileActions, STDOUT_FILENO, cLog, logFlags, 0o644
-            )
-            _ = posix_spawn_file_actions_addopen(
-                &fileActions, STDERR_FILENO, cLog, logFlags, 0o644
-            )
-        }
+        _ = posix_spawn_file_actions_addopen(
+            &fileActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0
+        )
+        _ = posix_spawn_file_actions_adddup2(&fileActions, outputFD, STDOUT_FILENO)
+        _ = posix_spawn_file_actions_adddup2(&fileActions, outputFD, STDERR_FILENO)
+        _ = posix_spawn_file_actions_addclose(&fileActions, outputFD)
+        _ = posix_spawn_file_actions_addclose(&fileActions, closeFD)
         if let workingDirectory {
 #if os(macOS)
             _ = workingDirectory.withCString { cDir in
@@ -893,6 +885,18 @@ public enum PrefixRuntime {
         processLines.contains { line in
             line.contains(executableName) && line.contains(prefixPath)
         }
+    }
+
+    /// Wine hides WINEPREFIX from Windows processes' ps lines ("C:\\...\\steam.exe"),
+    /// so Steam counts as running when its Windows steam.exe is up and this
+    /// bottle's wine/wineserver is alive.
+    public static func isBottleSteamRunning(prefixPath: String, processLines: [String]) -> Bool {
+        if isStoreProcessRunning(executableName: "steam.exe", prefixPath: prefixPath, processLines: processLines) { return true }
+        let steamUp = processLines.contains { line in
+            let l = line.lowercased()
+            return l.contains("c:\\") && l.contains("\\steam\\steam.exe")
+        }
+        return steamUp && hasWineProcess(prefixPath: prefixPath, processLines: processLines)
     }
 
     /// Any wine/wineserver process whose environment or argv names this prefix.

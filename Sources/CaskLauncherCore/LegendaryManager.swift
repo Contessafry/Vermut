@@ -664,13 +664,9 @@ public final class LegendaryManager: @unchecked Sendable {
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        if !fileManager.fileExists(atPath: logURL.path) {
-            _ = fileManager.createFile(atPath: logURL.path, contents: nil)
-        }
-        let handle = try FileHandle(forWritingTo: logURL)
-        _ = handle.seekToEndOfFile()
-        process.standardOutput = handle
-        process.standardError = handle
+        let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
+        process.standardOutput = logPipe
+        process.standardError = logPipe
         process.qualityOfService = .userInitiated
         try process.run()
         appendLog("legendary \(arguments.joined(separator: " ")) pid=\(process.processIdentifier)")
@@ -682,15 +678,7 @@ public final class LegendaryManager: @unchecked Sendable {
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let data = Data(("Vermut: " + line + "\n").utf8)
-        if !fileManager.fileExists(atPath: logURL.path) {
-            try? data.write(to: logURL)
-            return
-        }
-        guard let handle = try? FileHandle(forWritingTo: logURL) else { return }
-        defer { try? handle.close() }
-        _ = handle.seekToEndOfFile()
-        try? handle.write(contentsOf: data)
+        CappedLogWriter.shared(for: logURL).append(line: "Vermut: " + line)
     }
 
     private func cleanError(_ stderr: String, stdout: String, fallback: String) -> String {

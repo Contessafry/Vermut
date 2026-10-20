@@ -322,6 +322,15 @@ struct ActivityCard: View {
     @EnvironmentObject var appState: AppState
 
     private var items: [ActivityItem] {
+        var hint: [ActivityItem] = []
+        if let text = appState.steamWindowHint {
+            hint.append(ActivityItem(id: "steam-window", kind: .neutral, symbol: "macwindow",
+                                     title: text, detail: "Brought to the front.", time: "now"))
+        }
+        return hint + storeItems
+    }
+
+    private var storeItems: [ActivityItem] {
         GameStore.allCases.compactMap { store in
             switch appState.status(for: store) {
             case .running:
@@ -364,7 +373,9 @@ struct ActivityCard: View {
                     kind: .info,
                     symbol: "arrow.triangle.2.circlepath",
                     title: "Updating \(store.rawValue)",
-                    detail: "First-run update. \(store.rawValue) will be ready in a few minutes.",
+                    detail: store == .steam
+                        ? (appState.steamStalled ? "Still working…" : (appState.steamStage?.label ?? "Updating Steam…"))
+                        : "First-run update. \(store.rawValue) will be ready in a few minutes.",
                     time: "now",
                     actionTitle: "Cancel",
                     action: { appState.cancelInstall(store) }
