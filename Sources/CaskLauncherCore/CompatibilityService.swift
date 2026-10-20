@@ -93,7 +93,7 @@ public final class CompatibilityService: @unchecked Sendable {
             }
         }
         
-        let urlString = "https://raw.githubusercontent.com/Contessafry/Vermut/main/compat/compatibility.json"
+        let urlString = "https://raw.githubusercontent.com/Contessafry/Vermut/compat-data/compat/compatibility.json"
         guard let url = URL(string: urlString) else {
             throw CompatibilityError.invalidURL
         }

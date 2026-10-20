@@ -7,6 +7,8 @@ body:
     attributes:
       value: |
         Thank you for helping improve Vermut compatibility data! Fill out the fields below to report how a game ran.
+        
+        Your report will be aggregated with others and published on the `compat-data` branch.
 
   - type: input
     id: store

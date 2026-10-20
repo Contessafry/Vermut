@@ -31,10 +31,20 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Checkout or create compat-data branch
+        run: |
+          git fetch origin compat-data:compat-data 2>/dev/null || \
+            git checkout --orphan compat-data && \
+            git rm -rf . && \
+            git commit --allow-empty -m "Initialize compat-data branch"
+          git checkout compat-data
+
       - name: Process compatibility reports
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          cd $GITHUB_WORKSPACE
+          git checkout main -- .github/scripts
           cd .github/scripts
           npm ci
           node process-compat-reports.js
@@ -48,5 +58,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update compatibility data [skip ci]"
-            git push
+            git push origin compat-data
           fi
