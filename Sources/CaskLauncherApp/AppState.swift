@@ -454,7 +454,7 @@ final class AppState: ObservableObject {
     func showSteamWindowHint() {
         steamWindowHint = "Steam window opened"
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
             steamWindowHint = nil
         }
     }

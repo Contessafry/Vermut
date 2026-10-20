@@ -101,6 +101,9 @@ public enum StoreStatus: Sendable, Equatable {
         isRunning: Bool,
         isInstalled: Bool
     ) -> StoreStatus {
+        // Steam's first-run update runs the client itself: "running" must not
+        // short-circuit the setup stages (it skipped "Finishing" in 1.1.3 testing).
+        if case .installing(.updatingClient)? = current { return .installing(.updatingClient) }
         if isRunning { return .running }
         if let current, current.isInstallInProgress { return current }
         if case .error = current { return current! }

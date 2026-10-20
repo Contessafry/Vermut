@@ -41,4 +41,8 @@ final class GOGFirstRunTests: XCTestCase {
         ]
         XCTAssertEqual(GOGFirstRun.pids(in: lines, prefixPath: prefix), [4911])
     }
+
+    func testSteamFirstRunUpdateIsNotOverriddenByRunning() {
+        XCTAssertEqual(StoreStatus.refreshed(current: .installing(.updatingClient), isRunning: true, isInstalled: true), .installing(.updatingClient))
+    }
 }
