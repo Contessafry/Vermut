@@ -28,6 +28,7 @@ fi
 
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/vermut-dmg.XXXXXX")"
 cleanup() {
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" -u "$STAGE/Vermut.app" >/dev/null 2>&1 || true
     rm -rf "$STAGE"
 }
 trap cleanup EXIT
