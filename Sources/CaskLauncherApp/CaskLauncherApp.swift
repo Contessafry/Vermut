@@ -7,7 +7,9 @@ struct CaskLauncherApp: App {
     @StateObject private var appState = AppState()
 
     init() {
+        #if DEBUG
         _ = VermutPalette.assertAllTokensResolve()
+        #endif
     }
 
     var body: some Scene {

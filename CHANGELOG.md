@@ -2,6 +2,14 @@
 
 All notable changes to Vermut are documented here.
 
+## 1.1.2 — 2026-10-20
+
+### Fixed
+
+- Fix a crash at launch on Macs other than the build machine: the SwiftPM resource bundles (colour tokens, brand assets) were never copied into the app, and the generated `Bundle.module` accessor fell back to the build machine's `.build` path and called `fatalError`. Resources are now bundled in `Contents/Resources` and located without `Bundle.module`; a missing `tokens.json` falls back to the built-in palette instead of crashing
+- The startup colour-token check is now debug-only and never fatal
+- `build.sh` now fails if a resource bundle is missing, and runs a smoke test that launches the app from a temporary folder with `.build` hidden
+
 ## 1.1.1 — 2026-10-20
 
 ### Fixed

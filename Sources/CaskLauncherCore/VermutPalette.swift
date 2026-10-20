@@ -82,7 +82,7 @@ public enum VermutPalette {
         }
     }
 
-    /// Logs every token and traps in debug if any resolve clear in light or dark.
+    /// Logs every token that resolves clear in light or dark. Never traps.
     @discardableResult
     public static func assertAllTokensResolve() -> String {
         var failed: [String] = []
@@ -114,8 +114,8 @@ public enum VermutPalette {
         } else {
             message = "Vermut: CLEAR color tokens: \(failed.joined(separator: ", "))"
         }
+        // Non-fatal: missing or clear tokens are logged, never crash the app.
         log(message)
-        assert(failed.isEmpty, message)
         return message
     }
 
@@ -164,11 +164,8 @@ public enum VermutPalette {
     }
 
     private static func candidateBundles() -> [Bundle] {
-        var bundles: [Bundle] = [.main]
-        #if SWIFT_PACKAGE
-        bundles.append(.module)
-        #endif
-        return bundles
+        // Never Bundle.module: its accessor traps when the bundle is missing.
+        return [.main] + VermutResources.coreBundles
     }
 
     private static func log(_ message: String) {

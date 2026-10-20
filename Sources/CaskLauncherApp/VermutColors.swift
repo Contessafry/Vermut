@@ -7,15 +7,8 @@ import CaskLauncherCore
 
 enum VermutAssets {
     static var bundle: Bundle {
-        #if SWIFT_PACKAGE
-        if let url = Bundle.main.url(forResource: "CaskLauncherApp_CaskLauncherApp", withExtension: "bundle"),
-           let bundled = Bundle(url: url) {
-            return bundled
-        }
-        return .module
-        #else
-        return .main
-        #endif
+        // Never Bundle.module: its accessor traps when the bundle is missing.
+        VermutResources.appBundles.first ?? .main
     }
 }
 
