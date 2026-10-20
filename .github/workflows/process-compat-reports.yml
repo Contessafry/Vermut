@@ -18,7 +18,9 @@ jobs:
     if: |
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issues' && github.event.label.name == 'compat-report')
+      (github.event_name == 'issues' && 
+       (github.event.label.name == 'compat-report' || 
+        contains(github.event.issue.title, '[compat]')))
     
     steps:
       - name: Checkout repository
@@ -33,24 +35,48 @@ jobs:
 
       - name: Checkout or create compat-data branch
         run: |
-          git fetch origin compat-data:compat-data 2>/dev/null || \
-            git checkout --orphan compat-data && \
-            git rm -rf . && \
+          # Create a separate worktree for compat-data to avoid disrupting main checkout
+          mkdir -p /tmp/compat-data-work
+          
+          if git fetch origin compat-data 2>/dev/null; then
+            # Branch exists, check it out in the worktree
+            git worktree add /tmp/compat-data-work compat-data
+          else
+            # Branch doesn't exist, create it as orphan
+            git worktree add --detach /tmp/compat-data-work
+            cd /tmp/compat-data-work
+            git checkout --orphan compat-data
+            git rm -rf . 2>/dev/null || true
             git commit --allow-empty -m "Initialize compat-data branch"
-          git checkout compat-data
+            git push origin compat-data
+          fi
+
+      - name: Ensure compat-report label exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create compat-report \
+            --description "Community compatibility report" \
+            --color "0E8A16" \
+            --force || true
 
       - name: Process compatibility reports
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd $GITHUB_WORKSPACE
-          git checkout main -- .github/scripts
-          cd .github/scripts
+          cp -r .github/scripts /tmp/scripts-copy
+          cd /tmp/scripts-copy
           npm ci
           node process-compat-reports.js
+          
+          # Copy results to compat-data worktree
+          mkdir -p /tmp/compat-data-work/compat
+          cp compat/compatibility.json /tmp/compat-data-work/compat/compatibility.json
 
       - name: Commit compatibility data
         run: |
+          cd /tmp/compat-data-work
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add compat/compatibility.json
