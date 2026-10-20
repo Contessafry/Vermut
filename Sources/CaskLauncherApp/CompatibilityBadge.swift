@@ -49,11 +49,11 @@ struct CompatibilityBadge: View {
         let brokenRatio = Double(compat.brokenReports) / Double(compat.totalReports)
         
         if brokenRatio > 0.5 {
-            return "Known issues"
+            return "Issues"
         } else if perfectRatio > 0.6 {
             return "Works"
         } else {
-            return "Mixed reports"
+            return "Mixed"
         }
     }
     
