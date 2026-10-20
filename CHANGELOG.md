@@ -2,6 +2,12 @@
 
 All notable changes to Vermut are documented here.
 
+## 1.1.1 — 2026-10-20
+
+### Fixed
+
+- Fix "Vermut is damaged and can't be opened" when the DMG is downloaded from a browser: the app bundle now gets a complete ad-hoc signature (sealed resources, bound Info.plist), and the build fails if `codesign --verify --deep --strict` does not pass
+
 ## 1.1.0 — 2026-10-20
 
 ### Added
