@@ -135,6 +135,7 @@ struct SettingsView: View {
                         set: { CompatibilityService.shared.isPromptEnabled = $0 }
                     ))
                     .toggleStyle(.switch)
+                    .tint(.accentColor)
                 }
 
                 VStack(alignment: .leading, spacing: VermutSpace.s2) {

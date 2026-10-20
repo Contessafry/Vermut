@@ -56,10 +56,10 @@ EOF
 2. Configure Vermut to use it (plain path or file:// URL):
 ```bash
 # Plain filesystem path (preferred)
-defaults write com.vermut.Vermut vermut.compat.debugJsonPath "/tmp/test-compat.json"
+defaults write com.opensource.vermut vermut.compat.debugJsonPath "/tmp/test-compat.json"
 
 # Or file:// URL
-defaults write com.vermut.Vermut vermut.compat.debugJsonPath "file:///tmp/test-compat.json"
+defaults write com.opensource.vermut vermut.compat.debugJsonPath "file:///tmp/test-compat.json"
 ```
 
 3. Launch Vermut and check Library for badges:
@@ -107,7 +107,7 @@ CompatibilityService.shared.triggerDebugFeedback(
 ### Clear debug settings
 
 ```bash
-defaults delete com.vermut.Vermut vermut.compat.debugJsonPath
+defaults delete com.opensource.vermut vermut.compat.debugJsonPath
 ```
 
 ---

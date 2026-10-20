@@ -88,48 +88,47 @@ struct AppShell: View {
                 )
         } detail: {
             NavigationStack {
-                ZStack(alignment: .bottom) {
-                    content
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.Vermut.background)
-                        .navigationTitle("")
-                        .toolbar {
-                            ToolbarItemGroup(placement: .primaryAction) {
-                                VermutSearchField(text: $appState.searchQuery)
-                                    .focused(searchFocused)
-                                    .onExitCommand { searchFocused.wrappedValue = false }
-                                    .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
-                                
-                                Button {
-                                    appState.showingFilePicker = true
-                                } label: {
-                                    Label("Run .exe", systemImage: "doc.badge.gearshape")
-                                }
-                                .labelStyle(.titleAndIcon)
-                                .help("Run a Windows executable in a custom bottle")
-                                .accessibilityLabel("Run .exe")
-                                .accessibilityHint("Choose a Windows executable to run in a custom bottle")
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.Vermut.background)
+                    .navigationTitle("")
+                    .toolbar {
+                        ToolbarItemGroup(placement: .primaryAction) {
+                            VermutSearchField(text: $appState.searchQuery)
+                                .focused(searchFocused)
+                                .onExitCommand { searchFocused.wrappedValue = false }
+                                .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
+                            
+                            Button {
+                                appState.showingFilePicker = true
+                            } label: {
+                                Label("Run .exe", systemImage: "doc.badge.gearshape")
                             }
+                            .labelStyle(.titleAndIcon)
+                            .help("Run a Windows executable in a custom bottle")
+                            .accessibilityLabel("Run .exe")
+                            .accessibilityHint("Choose a Windows executable to run in a custom bottle")
                         }
-                        .background {
-                            Button("Focus search") {
-                                searchFocused.wrappedValue = true
-                            }
-                            .keyboardShortcut("k", modifiers: .command)
-                            .opacity(0)
-                            .accessibilityHidden(true)
-                        }
-                    
-                    if let session = appState.compatFeedbackSession {
-                        CompatFeedbackBanner(
-                            session: session,
-                            autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
-                            onDismiss: { appState.dismissCompatFeedback() }
-                        )
-                        .padding(VermutSpace.s6)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                }
+                    .background {
+                        Button("Focus search") {
+                            searchFocused.wrappedValue = true
+                        }
+                        .keyboardShortcut("k", modifiers: .command)
+                        .opacity(0)
+                        .accessibilityHidden(true)
+                    }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if let session = appState.compatFeedbackSession {
+                            CompatFeedbackBanner(
+                                session: session,
+                                autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
+                                onDismiss: { appState.dismissCompatFeedback() }
+                            )
+                            .padding(VermutSpace.s6)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
             }
         }
         .navigationSplitViewStyle(.balanced)
