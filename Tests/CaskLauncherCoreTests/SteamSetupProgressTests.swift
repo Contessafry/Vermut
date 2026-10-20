@@ -51,4 +51,23 @@ final class SteamSetupProgressTests: XCTestCase {
         XCTAssertTrue(SteamSetupEvaluator.isBottleWebhelper(#"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe --type=gpu"#))
         XCTAssertFalse(SteamSetupEvaluator.isBottleWebhelper("/Users/x/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamwebhelper"))
     }
+
+    func testSteamWindowOwnerMatchesBottleNotNativeSteam() {
+        XCTAssertTrue(SteamSetupEvaluator.isBottleSteamCommand(#"C:\Program Files (x86)\Steam\steam.exe "#))
+        XCTAssertTrue(SteamSetupEvaluator.isBottleSteamCommand(#"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe -nocrashdialog"#))
+        XCTAssertFalse(SteamSetupEvaluator.isBottleSteamCommand("/Applications/Steam.app/Contents/MacOS/steam_osx"))
+        XCTAssertFalse(SteamSetupEvaluator.isBottleSteamCommand(#"C:\Program Files\Epic Games\Launcher.exe"#))
+    }
+
+    func testBackgroundCheckWithNothingToDoIsComplete() {
+        let log = """
+        [t] Download complete.
+        [t] Background update loop checking for update. . .
+        [t] Checking for available updates...
+        [t] Manifest download: finished
+        [t] Download skipped: /steam_client_win64 version 1791918634, installed version 1791918634, existing pending version 0
+        [t] Nothing to do
+        """
+        XCTAssertEqual(SteamSetupEvaluator.stage(inputs(log, quiet: 30, files: true, helper: true, window: true)), .ready)
+    }
 }

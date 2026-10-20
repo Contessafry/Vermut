@@ -53,7 +53,9 @@ public enum SteamBootstrapLog {
                 state.updateInProgress = false
                 state.updateCompleted = true
                 state.progress = 1
-            } else if line.contains("Package file") && line.contains("up to date") {
+            } else if (line.contains("Package file") && line.contains("up to date"))
+                        || line.contains("Nothing to do")
+                        || line.contains("Download skipped") {
                 state.updateInProgress = false
                 state.updateCompleted = true
             }
@@ -110,6 +112,12 @@ public enum SteamSetupEvaluator {
     /// True when neither the stage nor the log changed for `stallSeconds`.
     public static func isStalled(secondsSinceProgress: TimeInterval) -> Bool {
         secondsSinceProgress >= stallSeconds
+    }
+
+    /// A Wine process command line running Steam from the bottle (Windows path).
+    public static func isBottleSteamCommand(_ command: String) -> Bool {
+        let c = command.lowercased()
+        return c.hasPrefix("c:\\") && c.contains("\\steam\\")
     }
 
     /// A ps line for the bottle's CEF helper (not native Steam's Mac helper).
