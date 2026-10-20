@@ -364,13 +364,35 @@ struct StoreInstallControls: View {
                 cancelButton
             }
         case .installing(.updatingClient):
-            HStack(spacing: VermutSpace.s2) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Updating \(store.rawValue)…")
-                    .font(VermutType.body)
-                    .foregroundStyle(Color.Vermut.mutedForeground)
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: VermutSpace.s2) {
+                if store == .steam, case .updating(let p?) = appState.steamStage {
+                    VermutProgressBar(value: p)
+                }
+                HStack(spacing: VermutSpace.s2) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(store == .steam ? (appState.steamStage?.label ?? "Updating Steam…") : "Updating \(store.rawValue)…")
+                        .font(VermutType.body)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                    Spacer(minLength: 0)
+                }
+                if store == .steam && appState.steamStalled {
+                    HStack(spacing: VermutSpace.s2) {
+                        Text("Still working… Steam can be slow on its first start.")
+                            .font(VermutType.body)
+                            .foregroundStyle(Color.Vermut.mutedForeground)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Button("Retry") { appState.retrySteamSetup() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+                if store == .steam, let hint = appState.steamWindowHint {
+                    Label(hint, systemImage: "macwindow")
+                        .font(VermutType.body)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                }
             }
         case .installing(.awaitingWindow):
             VStack(alignment: .leading, spacing: VermutSpace.s2) {

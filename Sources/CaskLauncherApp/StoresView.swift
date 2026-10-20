@@ -364,7 +364,9 @@ struct ActivityCard: View {
                     kind: .info,
                     symbol: "arrow.triangle.2.circlepath",
                     title: "Updating \(store.rawValue)",
-                    detail: "First-run update. \(store.rawValue) will be ready in a few minutes.",
+                    detail: store == .steam
+                        ? (appState.steamStalled ? "Still working…" : (appState.steamStage?.label ?? "Updating Steam…"))
+                        : "First-run update. \(store.rawValue) will be ready in a few minutes.",
                     time: "now",
                     actionTitle: "Cancel",
                     action: { appState.cancelInstall(store) }

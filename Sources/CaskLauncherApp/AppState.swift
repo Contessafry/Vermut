@@ -14,6 +14,7 @@ enum AppSection: Hashable {
 
 enum SetupPhase: Equatable {
     case checking
+    case permissions
     case rosetta
     case engine
     case stores
@@ -47,6 +48,27 @@ final class AppState: ObservableObject {
     @Published var libraryFilterStore: GameStore?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
+    /// Fine-grained Steam first-run stage shown while status is .installing(.updatingClient).
+    @Published var steamStage: SteamSetupStage?
+    /// No visible Steam progress for a while: neutral "Still working…" + Retry.
+    @Published var steamStalled = false
+    /// Neutral, transient hint shown when a Steam/Wine window was brought to front.
+    @Published var steamWindowHint: String?
+    var steamRetryRequested = false
+    let localNetwork = LocalNetworkPermission()
+    private var permissionsContinuation: CheckedContinuation<Void, Never>?
+    static let permissionsReviewedKey = "permissionsReviewed"
+    var permissionsReviewed: Bool {
+        UserDefaults.standard.bool(forKey: Self.permissionsReviewedKey)
+    }
+
+    /// Continue (or Skip) on the permissions step: resume first setup.
+    func confirmPermissions() {
+        localNetwork.skip()
+        UserDefaults.standard.set(true, forKey: Self.permissionsReviewedKey)
+        permissionsContinuation?.resume()
+        permissionsContinuation = nil
+    }
     @Published var compatibilityData: [String: GameCompatibility] = [:]
 
     private var statusTask: Task<Void, Never>?
@@ -158,6 +180,15 @@ final class AppState: ObservableObject {
         isCheckingSetup = true
         do {
             try PathManager.shared.ensureDirectoriesExist()
+
+            if !permissionsReviewed {
+                hasRosetta = (try? await SystemSetup.shared.checkRosetta()) ?? false
+                setupPhase = .permissions
+                setupMessage = "Permissions"
+                isCheckingSetup = false
+                await withCheckedContinuation { permissionsContinuation = $0 }
+                isCheckingSetup = true
+            }
 
             let rosetta = try await SystemSetup.shared.checkRosetta()
             hasRosetta = rosetta
@@ -338,30 +369,92 @@ final class AppState: ObservableObject {
     /// "Updating" state, and only report failure if it never becomes ready.
     private func runSteamFirstUpdate(config: BottleConfiguration) async throws {
         let prefix = PathManager.shared.prefixURL(for: .steam)
-        if SteamReadiness.isClientReady(inPrefix: prefix) { return }
+        steamStage = .firstStart
+        steamStalled = false
         storeStatuses[.steam] = .installing(.updatingClient)
-        // Right after SteamSetup exits, wine can bounce the first launch (exit 1,
-        // no output) while the installer's wineserver winds down. Retry a few times.
+        defer { steamStage = nil; steamStalled = false }
+        var launchError = await startSteamFirstRun(config: config)
+        var lastProgressChange = Date()
+        var lastSignature = ""
+        var broughtToFront = false
+        let deadline = Date().addingTimeInterval(45 * 60)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            let snapshot = await Task.detached { SteamWindowWatcher.snapshot(prefix: prefix) }.value
+            let stage = SteamSetupEvaluator.stage(snapshot.inputs)
+            if stage != steamStage { steamStage = stage }
+            if let pid = snapshot.windowPID, !broughtToFront {
+                broughtToFront = true
+                SteamWindowWatcher.bringToFront(pid: pid)
+                showSteamWindowHint()
+            }
+            if stage == .ready { return }
+            let signature = "\(stage)|\(snapshot.logSize)"
+            if signature != lastSignature {
+                lastSignature = signature
+                lastProgressChange = Date()
+                if steamStalled { steamStalled = false }
+            } else if SteamSetupEvaluator.isStalled(secondsSinceProgress: Date().timeIntervalSince(lastProgressChange)) {
+                if !steamStalled { steamStalled = true }
+            }
+            if steamRetryRequested {
+                steamRetryRequested = false
+                steamStalled = false
+                lastProgressChange = Date()
+                broughtToFront = false
+                try? WineManager.shared.stopStore(.steam)
+                try await Task.sleep(nanoseconds: 3_000_000_000)
+                launchError = await startSteamFirstRun(config: config)
+            }
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        // Only a real final failure: nothing usable after the full window.
+        if SteamReadiness.isClientReady(inPrefix: prefix) { return }
+        throw launchError ?? WineError.installerTimedOut(.steam)
+    }
+
+    /// Plain steam.exe start; wine can bounce the first launch right after
+    /// SteamSetup exits, so retry a few times.
+    private func startSteamFirstRun(config: BottleConfiguration) async -> Error? {
         var launchError: Error?
         for attempt in 0..<SteamReadiness.firstLaunchAttempts {
             do {
                 try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
-                launchError = nil
-                break
+                return nil
             } catch {
-                launchError = error  // transient while bootstrapping; judged at timeout
+                launchError = error
                 if attempt + 1 < SteamReadiness.firstLaunchAttempts {
-                    try await Task.sleep(nanoseconds: SteamReadiness.firstLaunchRetryDelayNanos)
+                    try? await Task.sleep(nanoseconds: SteamReadiness.firstLaunchRetryDelayNanos)
                 }
             }
         }
-        let deadline = Date().addingTimeInterval(20 * 60)
-        while Date() < deadline {
-            try Task.checkCancellation()
-            if SteamReadiness.isClientReady(inPrefix: prefix) { return }
-            try await Task.sleep(nanoseconds: 3_000_000_000)
+        return launchError
+    }
+
+    func retrySteamSetup() { steamRetryRequested = true }
+
+    func showSteamWindowHint() {
+        steamWindowHint = "Steam window opened"
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            steamWindowHint = nil
         }
-        throw launchError ?? WineError.installerTimedOut(.steam)
+    }
+
+    /// After a normal Steam launch, bring its first window to the front.
+    func bringSteamWindowForward() {
+        let prefix = PathManager.shared.prefixURL(for: .steam)
+        Task { @MainActor in
+            for _ in 0..<60 {
+                let pid = await Task.detached { SteamWindowWatcher.snapshot(prefix: prefix).windowPID }.value
+                if let pid {
+                    SteamWindowWatcher.bringToFront(pid: pid)
+                    showSteamWindowHint()
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
     }
 
     func launchStore(_ store: GameStore) {
@@ -383,6 +476,7 @@ final class AppState: ObservableObject {
                 try WineManager.shared.saveBottleConfig(bottleConfig, for: store)
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
+                if store == .steam { bringSteamWindowForward() }
 
                 Task {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -663,8 +757,15 @@ final class AppState: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 guard let self, !Task.isCancelled else { return }
-                for store in GameStore.allCases {
-                    self.updateStoreStatus(store)
+                // `ps` + filesystem probes run off the main thread (they caused UI jank).
+                let probes = await Task.detached { () -> [(GameStore, Bool, Bool)] in
+                    GameStore.allCases.map {
+                        ($0, WineManager.shared.isStoreRunning($0), WineManager.shared.isStoreInstalled($0))
+                    }
+                }.value
+                for (store, running, installed) in probes {
+                    self.storeStatuses[store] = StoreStatus.refreshed(
+                        current: self.storeStatuses[store], isRunning: running, isInstalled: installed)
                 }
             }
         }
