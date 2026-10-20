@@ -91,7 +91,7 @@ public enum CompatibilityResult: String, CaseIterable, Sendable {
     }
 }
 
-public struct GameSession: Sendable {
+public struct GameSession: Sendable, Equatable {
     public let store: GameStore
     public let gameId: String
     public let gameName: String?

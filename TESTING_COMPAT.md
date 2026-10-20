@@ -1,31 +1,34 @@
 # Testing Compatibility Reports
 
-## Building for debug
+## Build modes and debug features
 
-Build in debug mode to get full debug symbols:
+### Release build (production)
+The standard `./build.sh` creates a release build with **all QA hooks enabled**:
+
+```bash
+./build.sh
+# Creates Vermut.app in the repo root
+```
+
+### Debug build
+For development with debug symbols:
 
 ```bash
 swift build -c debug
+# Binary: .build/debug/Vermut
 ```
 
-The debug binary will be at:
-```
-.build/debug/Vermut
-```
+**Both release and debug builds support:**
+- `vermut.compat.debugJsonPath` UserDefaults override
+- `VERMUT_DEBUG_FEEDBACK=1` environment variable
 
-## Running a debug build
-
-```bash
-# Run the debug build directly
-.build/debug/Vermut
-
-# Or with the debug feedback trigger:
-VERMUT_DEBUG_FEEDBACK=1 .build/debug/Vermut
-```
+---
 
 ## QA Testing
 
 ### Test with a local JSON file
+
+Works in **both debug and release builds**.
 
 1. Create a test compatibility JSON file:
 ```bash
@@ -50,7 +53,7 @@ cat > /tmp/test-compat.json << 'EOF'
 EOF
 ```
 
-2. Configure Vermut to use it:
+2. Configure Vermut to use it (plain path or file:// URL):
 ```bash
 # Plain filesystem path (preferred)
 defaults write com.vermut.Vermut vermut.compat.debugJsonPath "/tmp/test-compat.json"
@@ -59,18 +62,33 @@ defaults write com.vermut.Vermut vermut.compat.debugJsonPath "/tmp/test-compat.j
 defaults write com.vermut.Vermut vermut.compat.debugJsonPath "file:///tmp/test-compat.json"
 ```
 
-3. Launch Vermut (release or debug build) and check Library for badges
+3. Launch Vermut and check Library for badges:
+```bash
+# Release build
+open -a Vermut
+
+# Debug build
+.build/debug/Vermut
+```
+
+Decode failures are logged to Console.app.
 
 ### Trigger the feedback banner
 
+Works in **both debug and release builds**.
+
 **Option 1: Environment variable (easiest)**
 ```bash
+# Release build
 VERMUT_DEBUG_FEEDBACK=1 open -a Vermut
-# Or for a local build:
+
+# Debug build
 VERMUT_DEBUG_FEEDBACK=1 .build/debug/Vermut
 ```
 
-**Option 2: Programmatically (from code/debugger)**
+A test session (Portal 2, 10 min playtime) will trigger the banner 2 seconds after launch.
+
+**Option 2: Programmatically (from debugger)**
 ```swift
 let session = GameSession(
     store: .steam,
@@ -92,13 +110,32 @@ CompatibilityService.shared.triggerDebugFeedback(
 defaults delete com.vermut.Vermut vermut.compat.debugJsonPath
 ```
 
-## Release build (production)
+---
 
-The standard `build.sh` creates a release build:
+## Running builds
 
+### Release build
 ```bash
+# Standard release build
 ./build.sh
-# Creates Vermut.app in the repo root
+
+# Launch normally
+open -a Vermut
+
+# Or with debug trigger
+VERMUT_DEBUG_FEEDBACK=1 open -a Vermut
 ```
 
-Release builds still support QA overrides (debugJsonPath and VERMUT_DEBUG_FEEDBACK).
+### Debug build
+```bash
+# Build
+swift build -c debug
+
+# Launch
+.build/debug/Vermut
+
+# Or with debug trigger
+VERMUT_DEBUG_FEEDBACK=1 .build/debug/Vermut
+```
+
+Both builds support the same QA features.
