@@ -43,4 +43,8 @@ final class SteamReadinessTests: XCTestCase {
         XCTAssertTrue(s.isInstallInProgress)
         XCTAssertEqual(StoreStatus.refreshed(current: s, isRunning: false, isInstalled: true), s)
     }
+
+    func testFirstLaunchIsRetried() {
+        XCTAssertGreaterThan(SteamReadiness.firstLaunchAttempts, 1)
+    }
 }

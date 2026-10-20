@@ -4,6 +4,9 @@ import Foundation
 /// self-update. SteamSetup only lays down a bootstrapper (steam.exe); the real
 /// client (SteamUI.dll + CEF steamwebhelper.exe) arrives with the first update.
 public enum SteamReadiness {
+    public static let firstLaunchAttempts = 4
+    public static let firstLaunchRetryDelayNanos: UInt64 = 5_000_000_000
+
     public static func isClientReady(steamDirectory dir: URL, fileManager fm: FileManager = .default) -> Bool {
         guard fm.fileExists(atPath: dir.appendingPathComponent("steam.exe").path),
               fm.fileExists(atPath: dir.appendingPathComponent("SteamUI.dll").path) else { return false }

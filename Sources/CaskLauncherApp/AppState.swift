@@ -340,11 +340,20 @@ final class AppState: ObservableObject {
         let prefix = PathManager.shared.prefixURL(for: .steam)
         if SteamReadiness.isClientReady(inPrefix: prefix) { return }
         storeStatuses[.steam] = .installing(.updatingClient)
+        // Right after SteamSetup exits, wine can bounce the first launch (exit 1,
+        // no output) while the installer's wineserver winds down. Retry a few times.
         var launchError: Error?
-        do {
-            try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
-        } catch {
-            launchError = error  // transient while bootstrapping; judged at timeout
+        for attempt in 0..<SteamReadiness.firstLaunchAttempts {
+            do {
+                try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
+                launchError = nil
+                break
+            } catch {
+                launchError = error  // transient while bootstrapping; judged at timeout
+                if attempt + 1 < SteamReadiness.firstLaunchAttempts {
+                    try await Task.sleep(nanoseconds: SteamReadiness.firstLaunchRetryDelayNanos)
+                }
+            }
         }
         let deadline = Date().addingTimeInterval(20 * 60)
         while Date() < deadline {
