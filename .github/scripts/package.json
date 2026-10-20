@@ -1,0 +1,12 @@
+{
+  "name": "compat-processor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.2"
+  }
+}

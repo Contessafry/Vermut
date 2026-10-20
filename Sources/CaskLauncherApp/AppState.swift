@@ -45,9 +45,13 @@ final class AppState: ObservableObject {
     @Published var showingEpicAuth = false
     @Published var gameDownloads: [String: GameDownload] = [:]
     @Published var libraryFilterStore: GameStore?
+    @Published var compatFeedbackSession: GameSession?
+    @Published var compatFeedbackAutoDetectedCrash = false
+    @Published var compatibilityData: [String: GameCompatibility] = [:]
 
     private var statusTask: Task<Void, Never>?
     private var installTasks: [GameStore: Task<Void, Never>] = [:]
+    private var sessionCheckTask: Task<Void, Never>?
     private static let setupCompleteDefaultsKey = "vermut.setupComplete"
 
     init() {
@@ -65,6 +69,40 @@ final class AppState: ObservableObject {
 
         Task {
             await checkSetup()
+        }
+        
+        startSessionMonitoring()
+        fetchCompatibilityData()
+        
+        // Debug feedback trigger (works in release builds via env var)
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("VermutDebugTriggerCompatFeedback"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let session = notification.userInfo?["session"] as? GameSession,
+                  let crash = notification.userInfo?["crash"] as? Bool else { return }
+            self?.compatFeedbackSession = session
+            self?.compatFeedbackAutoDetectedCrash = crash
+        }
+        
+        // Check for debug env var to trigger test feedback
+        if ProcessInfo.processInfo.environment["VERMUT_DEBUG_FEEDBACK"] == "1" {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                let testSession = GameSession(
+                    store: .steam,
+                    gameId: "620",
+                    gameName: "Portal 2",
+                    engine: "vermut-wine",
+                    graphics: "dxmt",
+                    startTime: Date().addingTimeInterval(-600)
+                )
+                CompatibilityService.shared.triggerDebugFeedback(
+                    session: testSession,
+                    autoDetectedCrash: false
+                )
+            }
         }
     }
 
@@ -397,6 +435,7 @@ final class AppState: ObservableObject {
             Task {
                 do {
                     let bottleConfig = StoreRecipe.normalized(loadBottle(.epic), for: .epic)
+                    startGameSession(store: game.store, gameId: game.appId, gameName: game.name, config: bottleConfig)
                     try await WineManager.shared.launchEpicGame(appName: game.appId, config: bottleConfig)
                     storeStatuses[.epic] = .running
                     Task {
@@ -409,6 +448,9 @@ final class AppState: ObservableObject {
             }
             return
         }
+        
+        let bottleConfig = loadBottle(game.store)
+        startGameSession(store: game.store, gameId: game.appId, gameName: game.name, config: bottleConfig)
         launchStore(game.store)
     }
 
@@ -596,5 +638,125 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+    
+    private func startGameSession(store: GameStore, gameId: String, gameName: String?, config: BottleConfiguration) {
+        guard CompatibilityService.shared.isPromptEnabled else { return }
+        
+        let engine = WineEngine.resolved(from: config.engine)
+        let graphics = GraphicsBackend(rawValue: config.graphicsBackend) ?? .wined3d
+        
+        GameSessionTracker.shared.startSession(
+            store: store,
+            gameId: gameId,
+            gameName: gameName,
+            engine: engine.rawValue,
+            graphics: graphicsIdentifier(graphics)
+        )
+    }
+    
+    private func graphicsIdentifier(_ backend: GraphicsBackend) -> String {
+        switch backend {
+        case .dxmt: return "dxmt"
+        case .dxvk: return "dxvk"
+        case .d3dmetal: return "d3dmetal"
+        case .wined3d: return "wined3d"
+        }
+    }
+    
+    private func startSessionMonitoring() {
+        sessionCheckTask?.cancel()
+        sessionCheckTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                await self.checkForEndedSessions()
+            }
+        }
+    }
+    
+    private func checkForEndedSessions() async {
+        guard CompatibilityService.shared.isPromptEnabled else { return }
+        
+        for store in GameStore.allCases {
+            let wasRunning = storeStatuses[store].map { self.isRunning($0) } ?? false
+            updateStoreStatus(store)
+            let nowRunning = storeStatuses[store].map { self.isRunning($0) } ?? false
+            
+            if wasRunning && !nowRunning {
+                checkAllSessionsForStore(store)
+            }
+        }
+    }
+    
+    private func checkAllSessionsForStore(_ store: GameStore) {
+        let allSessions = GameSessionTracker.shared.getAllSessions(for: store)
+        for session in allSessions {
+            _ = GameSessionTracker.shared.endSession(store: store, gameId: session.gameId)
+            handleSessionEnd(session)
+        }
+    }
+    
+    private func checkSessionEnd(store: GameStore) {
+        guard CompatibilityService.shared.isPromptEnabled else { return }
+        
+        let wasRunning = runningStores.contains(store)
+        updateStoreStatus(store)
+        let isRunning = runningStores.contains(store)
+        
+        if wasRunning && !isRunning {
+            checkAllSessionsForStore(store)
+        }
+    }
+    
+    private func handleSessionEnd(_ session: GameSession) {
+        guard let gameName = session.gameName, !gameName.isEmpty,
+              session.gameId != "launcher" else {
+            return
+        }
+        
+        // Note: Currently tracks store process, not individual game process.
+        // This means the banner appears when the *store* closes, which may be
+        // after playing multiple games in one session. We detect crashes based
+        // on very short sessions (<1 min), but a user closing the game normally
+        // after 5+ minutes will not be marked as a crash.
+        let playMinutes = session.playMinutes
+        let autoDetectedCrash = playMinutes < 1
+        
+        guard playMinutes >= 5 || autoDetectedCrash else { return }
+        
+        Task { @MainActor in
+            compatFeedbackSession = session
+            compatFeedbackAutoDetectedCrash = autoDetectedCrash
+        }
+    }
+    
+    func dismissCompatFeedback() {
+        compatFeedbackSession = nil
+        compatFeedbackAutoDetectedCrash = false
+    }
+    
+    func fetchCompatibilityData() {
+        Task {
+            do {
+                let data = try await CompatibilityService.shared.fetchCompatibilityData()
+                
+                await MainActor.run {
+                    var map: [String: GameCompatibility] = [:]
+                    for game in data.games {
+                        let key = "\(game.store):\(game.gameId)"
+                        map[key] = game
+                    }
+                    compatibilityData = map
+                }
+            } catch {
+                print("Failed to fetch compatibility data: \(error)")
+            }
+        }
+    }
+    
+    func getCompatibility(for game: InstalledGame) -> GameCompatibility? {
+        let key = "\(game.store.identifier):\(game.appId)"
+        return compatibilityData[key]
     }
 }

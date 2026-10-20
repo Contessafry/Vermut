@@ -99,6 +99,15 @@ public enum GraphicsBackend: String, CaseIterable, Identifiable, Sendable {
     case wined3d = "WineD3D (OpenGL fallback)"
 
     public var id: String { rawValue }
+    
+    public var shortLabel: String {
+        switch self {
+        case .dxmt: return "DXMT"
+        case .dxvk: return "DXVK"
+        case .d3dmetal: return "D3DMetal"
+        case .wined3d: return "WineD3D"
+        }
+    }
 }
 
 public enum WineEngine: String, CaseIterable, Identifiable, Sendable {

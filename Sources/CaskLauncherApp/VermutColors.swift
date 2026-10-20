@@ -75,6 +75,9 @@ public extension Color {
         public static let chart3 = semantic("chart3")
         public static let chart4 = semantic("chart4")
         public static let chart5 = semantic("chart5")
+        
+        public static let green = success
+        public static let amber = warning
 
         /// Raw scales (theme-independent). Prefer semantic tokens above; Brand.* is for logo/About/marketing only.
         public enum Neutral {

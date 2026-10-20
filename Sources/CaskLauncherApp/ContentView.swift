@@ -93,13 +93,12 @@ struct AppShell: View {
                     .background(Color.Vermut.background)
                     .navigationTitle("")
                     .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
+                        ToolbarItemGroup(placement: .primaryAction) {
                             VermutSearchField(text: $appState.searchQuery)
                                 .focused(searchFocused)
                                 .onExitCommand { searchFocused.wrappedValue = false }
                                 .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
-                        }
-                        ToolbarItem(placement: .primaryAction) {
+                            
                             Button {
                                 appState.showingFilePicker = true
                             } label: {
@@ -119,11 +118,23 @@ struct AppShell: View {
                         .opacity(0)
                         .accessibilityHidden(true)
                     }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if let session = appState.compatFeedbackSession {
+                            CompatFeedbackBanner(
+                                session: session,
+                                autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
+                                onDismiss: { appState.dismissCompatFeedback() }
+                            )
+                            .padding(VermutSpace.s6)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
             }
         }
         .navigationSplitViewStyle(.balanced)
         .background(Color.Vermut.background)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : VermutMotion.panel, value: appState.section)
+        .animation(VermutMotion.panel, value: appState.compatFeedbackSession)
         .sheet(item: $appState.bottleToDelete) { store in
             DeleteBottleSheet(store: store) {
                 appState.bottleToDelete = nil

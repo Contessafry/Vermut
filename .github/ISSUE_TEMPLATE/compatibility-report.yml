@@ -1,0 +1,115 @@
+name: Compatibility Report
+description: Report how well a game runs on Vermut
+title: "[compat] "
+labels: ["compat-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Vermut compatibility data! Fill out the fields below to report how a game ran.
+        
+        Your report will be aggregated with others and published on the `compat-data` branch.
+
+  - type: input
+    id: store
+    attributes:
+      label: Store
+      description: Where did you install the game?
+      placeholder: steam
+    validations:
+      required: true
+
+  - type: input
+    id: gameId
+    attributes:
+      label: Game ID
+      description: Store-specific app ID (e.g., Steam app ID)
+      placeholder: "123456"
+    validations:
+      required: true
+
+  - type: input
+    id: gameName
+    attributes:
+      label: Game Name
+      description: Display name of the game
+      placeholder: "Portal 2"
+    validations:
+      required: true
+
+  - type: input
+    id: vermutVersion
+    attributes:
+      label: Vermut Version
+      description: Version of Vermut you're running
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: engine
+    attributes:
+      label: Wine Engine
+      description: Which Wine engine did you use?
+      placeholder: "vermut-wine, staging, or devel"
+    validations:
+      required: true
+
+  - type: input
+    id: graphics
+    attributes:
+      label: Graphics Layer
+      description: Which graphics backend?
+      placeholder: "dxmt, dxvk, d3dmetal, or wined3d"
+    validations:
+      required: true
+
+  - type: input
+    id: macOS
+    attributes:
+      label: macOS Version
+      description: Your macOS version
+      placeholder: "14.5"
+    validations:
+      required: true
+
+  - type: input
+    id: chip
+    attributes:
+      label: Apple Chip
+      description: Your Mac's Apple Silicon chip
+      placeholder: "M2 Pro"
+    validations:
+      required: true
+
+  - type: input
+    id: playMinutes
+    attributes:
+      label: Play Time (minutes)
+      description: How long did you play?
+      placeholder: "45"
+    validations:
+      required: true
+
+  - type: input
+    id: result
+    attributes:
+      label: Result
+      description: How well did it run?
+      placeholder: "perfect, issues, or broken"
+    validations:
+      required: true
+
+  - type: input
+    id: autoDetectedCrash
+    attributes:
+      label: Early Exit
+      description: Did the game exit within ~30 seconds? (yes/no)
+      placeholder: "no"
+
+  - type: textarea
+    id: note
+    attributes:
+      label: Notes
+      description: Optional details (performance, bugs, workarounds)
+      placeholder: "Audio glitches in cutscenes, otherwise perfect"

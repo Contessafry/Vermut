@@ -121,6 +121,22 @@ struct SettingsView: View {
                         .frame(minHeight: VermutHeight.formRow)
                     }
                 }
+                
+                VStack(alignment: .leading, spacing: VermutSpace.s3) {
+                    Text("Compatibility reports")
+                        .font(VermutType.headline)
+                    Text("After playing a game for 5+ minutes, Vermut can prompt you to share how well it ran via a GitHub issue (filled out for you).")
+                        .font(VermutType.body)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Toggle("Show compatibility prompts", isOn: Binding(
+                        get: { CompatibilityService.shared.isPromptEnabled },
+                        set: { CompatibilityService.shared.isPromptEnabled = $0 }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(.accentColor)
+                }
 
                 VStack(alignment: .leading, spacing: VermutSpace.s2) {
                     Text("About")
