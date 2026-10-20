@@ -42,9 +42,14 @@ struct LibraryView: View {
             .padding(.bottom, VermutSpace.s4)
 
             if games.isEmpty {
-                empty
-                    .padding(.horizontal, VermutSpace.s6)
-                Spacer()
+                // Fixed-height-free container: the empty state's wrapping text inside a bare
+                // VStack + Spacer next to ViewThatFits produced a layout SwiftUI gave up on,
+                // blanking the whole window (sidebar included).
+                ScrollView {
+                    empty
+                        .padding(.horizontal, VermutSpace.s6)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             } else {
                 ScrollView {
                     LazyVGrid(
