@@ -38,7 +38,7 @@ final class ModelsTests: XCTestCase {
     
     func testVermutProjectIdentityIsPublicAndDoesNotSayCaskLauncher() {
         XCTAssertEqual(VermutProject.name, "Vermut")
-        XCTAssertEqual(VermutProject.version, "1.0.0")
+        XCTAssertEqual(VermutProject.version, "1.1.0")
         XCTAssertEqual(VermutProject.tagline, "Pour. Click. Play.")
         XCTAssertEqual(VermutProject.githubDisplay, "github.com/Contessafry/Vermut")
         XCTAssertEqual(VermutProject.githubURL.host, "github.com")
