@@ -13,7 +13,7 @@ struct CompatibilityBadge: View {
                     .frame(width: 6, height: 6)
                 
                 Text(statusText)
-                    .font(VermutType.captionEmphasis)
+                    .font(VermutType.bodyEmphasis)
                     .foregroundStyle(Color.Vermut.foreground)
                 
                 Text("· \(compat.totalReports) reports")

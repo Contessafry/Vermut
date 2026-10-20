@@ -59,24 +59,39 @@ public final class CompatibilityService: @unchecked Sendable {
         return components?.url
     }
     
-    private func userFacingEngineName(_ internal: String) -> String {
-        switch internal {
+    private func userFacingEngineName(_ engineId: String) -> String {
+        switch engineId {
         case "grapple-wine": return "vermut-wine"
         case "staging": return "staging"
         case "devel": return "devel"
-        default: return internal
+        default: return engineId
         }
     }
     
     public func fetchCompatibilityData() async throws -> CompatibilityData {
-        // Debug override for QA
-        #if DEBUG
-        if let overridePath = UserDefaults.standard.string(forKey: "vermut.compat.debugJsonPath"),
-           let url = URL(string: overridePath),
-           let data = try? Data(contentsOf: url) {
-            return try decoder.decode(CompatibilityData.self, from: data)
+        // Debug override for QA (works in release builds too)
+        if let overridePath = UserDefaults.standard.string(forKey: "vermut.compat.debugJsonPath") {
+            let url: URL
+            if overridePath.hasPrefix("file://") {
+                guard let fileUrl = URL(string: overridePath) else {
+                    print("Invalid file:// URL: \(overridePath)")
+                    throw CompatibilityError.invalidURL
+                }
+                url = fileUrl
+            } else {
+                url = URL(fileURLWithPath: overridePath)
+            }
+            
+            do {
+                let data = try Data(contentsOf: url)
+                let decoded = try decoder.decode(CompatibilityData.self, from: data)
+                print("Loaded compatibility data from debug override: \(overridePath)")
+                return decoded
+            } catch {
+                print("Failed to load/decode debug compatibility JSON from \(overridePath): \(error)")
+                throw error
+            }
         }
-        #endif
         
         let urlString = "https://raw.githubusercontent.com/Contessafry/Vermut/main/compat/compatibility.json"
         guard let url = URL(string: urlString) else {
@@ -98,16 +113,14 @@ public final class CompatibilityService: @unchecked Sendable {
         return try decoder.decode(CompatibilityData.self, from: data)
     }
     
-    #if DEBUG
     public func triggerDebugFeedback(session: GameSession, autoDetectedCrash: Bool) {
-        // Debug-only helper to trigger the feedback banner
+        // Debug helper to trigger the feedback banner (works in release builds)
         NotificationCenter.default.post(
             name: NSNotification.Name("VermutDebugTriggerCompatFeedback"),
             object: nil,
             userInfo: ["session": session, "crash": autoDetectedCrash]
         )
     }
-    #endif
 }
 
 public enum CompatibilityError: LocalizedError {

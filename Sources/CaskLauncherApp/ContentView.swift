@@ -93,13 +93,12 @@ struct AppShell: View {
                     .background(Color.Vermut.background)
                     .navigationTitle("")
                     .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
+                        ToolbarItemGroup(placement: .primaryAction) {
                             VermutSearchField(text: $appState.searchQuery)
                                 .focused(searchFocused)
                                 .onExitCommand { searchFocused.wrappedValue = false }
                                 .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
-                        }
-                        ToolbarItem(placement: .primaryAction) {
+                            
                             Button {
                                 appState.showingFilePicker = true
                             } label: {

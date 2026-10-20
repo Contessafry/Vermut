@@ -74,7 +74,7 @@ final class AppState: ObservableObject {
         startSessionMonitoring()
         fetchCompatibilityData()
         
-        #if DEBUG
+        // Debug feedback trigger (works in release builds via env var)
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("VermutDebugTriggerCompatFeedback"),
             object: nil,
@@ -85,7 +85,25 @@ final class AppState: ObservableObject {
             self?.compatFeedbackSession = session
             self?.compatFeedbackAutoDetectedCrash = crash
         }
-        #endif
+        
+        // Check for debug env var to trigger test feedback
+        if ProcessInfo.processInfo.environment["VERMUT_DEBUG_FEEDBACK"] == "1" {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                let testSession = GameSession(
+                    store: .steam,
+                    gameId: "620",
+                    gameName: "Portal 2",
+                    engine: "vermut-wine",
+                    graphics: "dxmt",
+                    startTime: Date().addingTimeInterval(-600)
+                )
+                CompatibilityService.shared.triggerDebugFeedback(
+                    session: testSession,
+                    autoDetectedCrash: false
+                )
+            }
+        }
     }
 
     var appVersion: String { VermutProject.version }
@@ -661,11 +679,11 @@ final class AppState: ObservableObject {
         guard CompatibilityService.shared.isPromptEnabled else { return }
         
         for store in GameStore.allCases {
-            let wasRunning = storeStatuses[store].map(isRunning) ?? false
+            let wasRunning = storeStatuses[store].map { self.isRunning($0) } ?? false
             updateStoreStatus(store)
-            let isRunning = storeStatuses[store].map(self.isRunning) ?? false
+            let nowRunning = storeStatuses[store].map { self.isRunning($0) } ?? false
             
-            if wasRunning && !isRunning {
+            if wasRunning && !nowRunning {
                 checkAllSessionsForStore(store)
             }
         }
@@ -692,11 +710,16 @@ final class AppState: ObservableObject {
     }
     
     private func handleSessionEnd(_ session: GameSession) {
-        guard !session.gameName.flatMap({ $0.isEmpty }) ?? true,
+        guard let gameName = session.gameName, !gameName.isEmpty,
               session.gameId != "launcher" else {
             return
         }
         
+        // Note: Currently tracks store process, not individual game process.
+        // This means the banner appears when the *store* closes, which may be
+        // after playing multiple games in one session. We detect crashes based
+        // on very short sessions (<1 min), but a user closing the game normally
+        // after 5+ minutes will not be marked as a crash.
         let playMinutes = session.playMinutes
         let autoDetectedCrash = playMinutes < 1
         
