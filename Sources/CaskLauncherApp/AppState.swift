@@ -377,11 +377,29 @@ final class AppState: ObservableObject {
         var lastProgressChange = Date()
         var lastSignature = ""
         var broughtToFront = false
+        var lastLogSize = -1
+        var lastLogGrowth = Date()
+        var readySince: Date?
+        let trace = CappedLogWriter.shared(for: PathManager.shared.logURL(for: .steam))
         let deadline = Date().addingTimeInterval(45 * 60)
         while Date() < deadline {
             try Task.checkCancellation()
-            let snapshot = await Task.detached { SteamWindowWatcher.snapshot(prefix: prefix) }.value
-            let stage = SteamSetupEvaluator.stage(snapshot.inputs)
+            var snapshot = await Task.detached { SteamWindowWatcher.snapshot(prefix: prefix) }.value
+            // Quiet period measured by Vermut itself (file mtimes in the bottle are unreliable).
+            if snapshot.logSize != lastLogSize { lastLogSize = snapshot.logSize; lastLogGrowth = Date() }
+            snapshot.inputs.secondsSinceLogChange = Date().timeIntervalSince(lastLogGrowth)
+            var stage = SteamSetupEvaluator.stage(snapshot.inputs)
+            // Ready must hold for a full quiet period before we commit to it.
+            if stage == .ready {
+                readySince = readySince ?? Date()
+                if Date().timeIntervalSince(readySince!) < SteamSetupEvaluator.quietSeconds { stage = .finishing }
+            } else {
+                readySince = nil
+            }
+            if stage != steamStage {
+                let i = snapshot.inputs
+                trace.append(line: "[vermut] steam setup: \(stage.label) (updateDone=\(i.bootstrap?.updateCompleted ?? false) inProgress=\(i.bootstrap?.updateInProgress ?? false) files=\(i.clientFilesReady) helper=\(i.webhelperRunning) window=\(i.windowVisible) quiet=\(Int(i.secondsSinceLogChange ?? -1))s)")
+            }
             if stage != steamStage { steamStage = stage }
             if let pid = snapshot.windowPID, !broughtToFront {
                 broughtToFront = true

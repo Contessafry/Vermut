@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import CoreGraphics
 import CaskLauncherCore
 
@@ -26,12 +27,14 @@ enum SteamWindowWatcher {
         }
         let helper = PrefixRuntime.processArgumentLines().contains(where: SteamSetupEvaluator.isBottleWebhelper)
         let pid = wineWindowPID()
+        // Login/main window, not Steam's small "Updating Steam" progress box.
+        let bigWindow = wineWindowPID(minWidth: 600, minHeight: 400) != nil
         let inputs = SteamSetupInputs(
             bootstrap: bootstrap,
             secondsSinceLogChange: age,
             clientFilesReady: SteamReadiness.isClientReady(inPrefix: prefix),
             webhelperRunning: helper,
-            windowVisible: pid != nil
+            windowVisible: bigWindow
         )
         return Snapshot(inputs: inputs, logSize: size, windowPID: pid)
     }
@@ -45,20 +48,28 @@ enum SteamWindowWatcher {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// A normal-layer, reasonably sized on-screen window owned by a Wine process.
-    /// Uses owner name/pid/bounds only (no titles), so no Screen Recording needed.
-    static func wineWindowPID() -> pid_t? {
+    /// A normal-layer on-screen window owned by a process running Vermut's own Wine
+    /// (owner name varies: "wine", "Steam", ...; native Steam is excluded by path).
+    /// Uses owner pid/bounds only (no titles), so no Screen Recording needed.
+    static func wineWindowPID(minWidth: CGFloat = 300, minHeight: CGFloat = 200) -> pid_t? {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+        let enginesRoot = PathManager.shared.appSupportURL.path
         for w in list {
             guard (w[kCGWindowLayer as String] as? Int) == 0,
-                  let owner = (w[kCGWindowOwnerName as String] as? String)?.lowercased(),
-                  owner.contains("wine") || owner.hasSuffix(".exe"),
                   let pid = w[kCGWindowOwnerPID as String] as? pid_t,
                   let b = w[kCGWindowBounds as String] as? [String: CGFloat],
-                  (b["Width"] ?? 0) >= 300, (b["Height"] ?? 0) >= 200 else { continue }
+                  (b["Width"] ?? 0) >= minWidth, (b["Height"] ?? 0) >= minHeight,
+                  isVermutWine(pid: pid, root: enginesRoot) else { continue }
             return pid
         }
         return nil
+    }
+
+    static func isVermutWine(pid: pid_t, root: String) -> Bool {
+        var buf = [CChar](repeating: 0, count: 4096)
+        guard proc_pidpath(pid, &buf, UInt32(buf.count)) > 0 else { return false }
+        let path = String(cString: buf)
+        return path.hasPrefix(root) && path.lowercased().contains("wine")
     }
 
     @MainActor
