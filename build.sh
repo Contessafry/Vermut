@@ -177,6 +177,18 @@ if [ "$missing" -ne 0 ]; then
 fi
 echo "Brand assets verified in $APP_BUNDLE/Contents/Resources/BrandAssets"
 
+# Ad-hoc sign the fully assembled bundle. The linker's ad-hoc signature does not
+# seal resources or bind Info.plist; with a quarantine flag (browser download)
+# macOS then reports the app as "damaged". A proper ad-hoc signature gives the
+# normal "unidentified developer" Gatekeeper prompt instead.
+echo "Signing $APP_BUNDLE (ad-hoc)..."
+xattr -cr "$APP_BUNDLE"
+codesign --force --deep --sign - --timestamp=none "$APP_BUNDLE"
+if ! codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"; then
+    echo "Error: codesign verification failed for $APP_BUNDLE"
+    exit 1
+fi
+
 echo ""
 echo "✅ Build complete!"
 echo "App bundle created at: $APP_BUNDLE"
