@@ -286,6 +286,9 @@ final class AppState: ObservableObject {
                     }
                 )
 
+                if store == .steam {
+                    try await runSteamFirstUpdate(config: bottleConfig)
+                }
                 storeStatuses[store] = .installed
                 refreshLibrary()
                 refreshBottleMetrics()
@@ -328,6 +331,28 @@ final class AppState: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Steam's bootstrapper downloads the real client on first launch and shows
+    /// transient errors meanwhile. Start it ourselves, keep the card in a neutral
+    /// "Updating" state, and only report failure if it never becomes ready.
+    private func runSteamFirstUpdate(config: BottleConfiguration) async throws {
+        let prefix = PathManager.shared.prefixURL(for: .steam)
+        if SteamReadiness.isClientReady(inPrefix: prefix) { return }
+        storeStatuses[.steam] = .installing(.updatingClient)
+        var launchError: Error?
+        do {
+            try await WineManager.shared.launchStore(.steam, config: config)
+        } catch {
+            launchError = error  // transient while bootstrapping; judged at timeout
+        }
+        let deadline = Date().addingTimeInterval(20 * 60)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            if SteamReadiness.isClientReady(inPrefix: prefix) { return }
+            try await Task.sleep(nanoseconds: 3_000_000_000)
+        }
+        throw launchError ?? WineError.installerTimedOut(.steam)
     }
 
     func launchStore(_ store: GameStore) {

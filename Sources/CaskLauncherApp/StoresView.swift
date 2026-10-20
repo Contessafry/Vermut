@@ -358,6 +358,17 @@ struct ActivityCard: View {
                     actionTitle: "Cancel",
                     action: { appState.cancelInstall(store) }
                 )
+            case .installing(.updatingClient):
+                return ActivityItem(
+                    id: store.identifier + "-upd",
+                    kind: .info,
+                    symbol: "arrow.triangle.2.circlepath",
+                    title: "Updating \(store.rawValue)",
+                    detail: "First-run update. \(store.rawValue) will be ready in a few minutes.",
+                    time: "now",
+                    actionTitle: "Cancel",
+                    action: { appState.cancelInstall(store) }
+                )
             case .installing(.awaitingWindow):
                 return ActivityItem(
                     id: store.identifier + "-wiz",

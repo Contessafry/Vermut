@@ -74,6 +74,8 @@ public enum GameStore: String, CaseIterable, Identifiable, Sendable {
 public enum InstallerPhase: String, Sendable, Equatable {
     case settingUp
     case awaitingWindow
+    /// Store installed; its client is downloading its first self-update.
+    case updatingClient
 }
 
 public enum StoreStatus: Sendable, Equatable {
