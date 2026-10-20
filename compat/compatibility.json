@@ -1,20 +1,5 @@
 {
-  "games": [
-    {
-      "store": "steam",
-      "gameId": "620",
-      "gameName": "Portal 2",
-      "byGraphics": {
-        "dxmt": {
-          "perfect": 1,
-          "issues": 0,
-          "broken": 0
-        }
-      },
-      "totalReports": 1,
-      "recommended": "dxmt"
-    }
-  ],
-  "generated": 1792487507,
-  "reportCount": 1
+  "games": [],
+  "generated": 1792487589,
+  "reportCount": 0
 }
