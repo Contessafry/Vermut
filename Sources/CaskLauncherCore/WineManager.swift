@@ -430,6 +430,9 @@ public final class WineManager: @unchecked Sendable {
             )
         }
         let executableName = URL(fileURLWithPath: store.executablePath).lastPathComponent
+        if store == .steam {
+            return PrefixRuntime.isBottleSteamRunning(prefixPath: prefixURL.path, processLines: PrefixRuntime.processPIDLines())
+        }
         return PrefixRuntime.isRunning(prefix: prefixURL, executableName: executableName)
     }
 
@@ -882,6 +885,18 @@ public enum PrefixRuntime {
         processLines.contains { line in
             line.contains(executableName) && line.contains(prefixPath)
         }
+    }
+
+    /// Wine hides WINEPREFIX from Windows processes' ps lines ("C:\\...\\steam.exe"),
+    /// so Steam counts as running when its Windows steam.exe is up and this
+    /// bottle's wine/wineserver is alive.
+    public static func isBottleSteamRunning(prefixPath: String, processLines: [String]) -> Bool {
+        if isStoreProcessRunning(executableName: "steam.exe", prefixPath: prefixPath, processLines: processLines) { return true }
+        let steamUp = processLines.contains { line in
+            let l = line.lowercased()
+            return l.contains("c:\\") && l.contains("\\steam\\steam.exe")
+        }
+        return steamUp && hasWineProcess(prefixPath: prefixPath, processLines: processLines)
     }
 
     /// Any wine/wineserver process whose environment or argv names this prefix.
