@@ -134,7 +134,7 @@ struct AppShell: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(VermutMotion.sheet, value: appState.compatFeedbackSession)
+        .animation(VermutMotion.panel, value: appState.compatFeedbackSession)
         .sheet(item: $appState.bottleToDelete) { store in
             DeleteBottleSheet(store: store) {
                 appState.bottleToDelete = nil
