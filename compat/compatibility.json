@@ -2,6 +2,34 @@
   "games": [
     {
       "store": "steam",
+      "gameId": "1245620",
+      "gameName": "ELDEN RING",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "steam",
+      "gameId": "4557380",
+      "gameName": "Batomon Showdown",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 1,
+          "issues": 0,
+          "broken": 0
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "steam",
       "gameId": "588950",
       "gameName": "Kingsway",
       "byGraphics": {
@@ -15,6 +43,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1792567508,
-  "reportCount": 1
+  "generated": 1792617542,
+  "reportCount": 3
 }
