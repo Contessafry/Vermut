@@ -91,4 +91,24 @@ public enum SettingInheritance {
             source: resolved.source
         )
     }
+
+    /// Log level chain. When every tier is Automatic, `storeDefault` is used
+    /// (Epic → Errors, others → Off) and attributed to `.global`.
+    public static func resolveLogLevel(
+        game: String? = nil,
+        bottle: String? = nil,
+        global: String,
+        storeDefault: WineLogLevel = .off
+    ) -> EffectiveSetting<WineLogLevel> {
+        if let game, !isAutomatic(game) {
+            return EffectiveSetting(value: WineLogLevel.resolved(from: game), source: .game)
+        }
+        if let bottle, !isAutomatic(bottle) {
+            return EffectiveSetting(value: WineLogLevel.resolved(from: bottle), source: .bottle)
+        }
+        if !isAutomatic(global) {
+            return EffectiveSetting(value: WineLogLevel.resolved(from: global), source: .global)
+        }
+        return EffectiveSetting(value: storeDefault, source: .global)
+    }
 }

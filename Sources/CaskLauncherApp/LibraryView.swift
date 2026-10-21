@@ -24,6 +24,13 @@ struct LibraryView: View {
     private var epicCount: Int { appState.installedGames.filter { $0.store == .epic }.count }
     private var gogCount: Int { appState.installedGames.filter { $0.store == .gog }.count }
 
+    private var inspectorPresented: Binding<Bool> {
+        Binding(
+            get: { appState.showingGameSettingsInspector && appState.selectedLibraryGame != nil },
+            set: { appState.showingGameSettingsInspector = $0 }
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ViewThatFits(in: .horizontal) {
@@ -70,6 +77,37 @@ struct LibraryView: View {
             }
         }
         .background(Color.Vermut.background)
+        .inspector(isPresented: inspectorPresented) {
+            if let game = appState.selectedLibraryGame {
+                GameSettingsInspector(game: game)
+                    .inspectorColumnWidth(min: 320, ideal: 360, max: 420)
+            } else {
+                Text(String(localized: "Select a game to edit its settings.", comment: "Empty inspector"))
+                    .font(VermutType.body)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+                    .padding(VermutSpace.s4)
+                    .inspectorColumnWidth(min: 320, ideal: 360, max: 420)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    if appState.selectedLibraryGameId == nil {
+                        appState.selectedLibraryGameId = games.first?.id
+                    }
+                    appState.showingGameSettingsInspector.toggle()
+                } label: {
+                    Label(
+                        String(localized: "Game Settings", comment: "Toolbar inspector toggle"),
+                        systemImage: "sidebar.right"
+                    )
+                }
+                .help(String(localized: "Game Settings (⌥⌘I)", comment: "Toolbar help"))
+                .disabled(games.isEmpty)
+                .accessibilityLabel(String(localized: "Game Settings", comment: "a11y toolbar"))
+                .accessibilityHint(String(localized: "Opens per-game settings inspector", comment: "a11y"))
+            }
+        }
         .onAppear {
             appState.refreshLibrary()
             if let store = appState.libraryFilterStore {
@@ -228,10 +266,34 @@ struct LibraryGameTile: View {
             }
         }
         .onTapGesture {
+            appState.selectedLibraryGameId = game.id
             if game.isInstalled {
                 appState.launchGame(game)
             } else if game.store == .epic {
                 appState.installEpicGame(game)
+            }
+        }
+        .contextMenu {
+            Button(String(localized: "Game Settings", comment: "Context menu")) {
+                appState.openGameSettings(for: game)
+            }
+            if game.isInstalled {
+                Button(String(localized: "Play", comment: "Context menu")) {
+                    appState.selectedLibraryGameId = game.id
+                    appState.launchGame(game)
+                }
+            } else if game.store == .epic {
+                Button(String(localized: "Install", comment: "Context menu")) {
+                    appState.installEpicGame(game)
+                }
+            }
+        }
+        .overlay {
+            if appState.selectedLibraryGameId == game.id && appState.showingGameSettingsInspector {
+                RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous)
+                    .strokeBorder(Color.Vermut.info, lineWidth: 2)
+                    .padding(-2)
+                    .allowsHitTesting(false)
             }
         }
         .accessibilityElement(children: .combine)

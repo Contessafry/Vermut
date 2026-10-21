@@ -187,12 +187,14 @@ public enum WineEngine: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public struct BottleConfiguration: Codable, Sendable {
+public struct BottleConfiguration: Codable, Sendable, Equatable {
     /// `SettingInheritance.automatic` or a `WineEngine.rawValue`.
     public var engine: String
     public var graphicsBackend: String
     /// `SettingInheritance.automatic` or a DXMT tag such as `v0.80`.
     public var dxmtVersion: String
+    /// `SettingInheritance.automatic` or a `WineLogLevel.rawValue`.
+    public var logLevel: String
     public var enableHiDPI: Bool
     public var windowsVersion: String
 
@@ -200,18 +202,20 @@ public struct BottleConfiguration: Codable, Sendable {
         engine: String = SettingInheritance.automatic,
         graphicsBackend: String = GraphicsBackend.dxmt.rawValue,
         dxmtVersion: String = SettingInheritance.automatic,
+        logLevel: String = SettingInheritance.automatic,
         enableHiDPI: Bool = true,
         windowsVersion: String = "win10"
     ) {
         self.engine = engine
         self.graphicsBackend = graphicsBackend
         self.dxmtVersion = dxmtVersion
+        self.logLevel = logLevel
         self.enableHiDPI = enableHiDPI
         self.windowsVersion = windowsVersion
     }
 
     enum CodingKeys: String, CodingKey {
-        case engine, graphicsBackend, dxmtVersion, enableHiDPI, windowsVersion
+        case engine, graphicsBackend, dxmtVersion, logLevel, enableHiDPI, windowsVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -220,6 +224,8 @@ public struct BottleConfiguration: Codable, Sendable {
         graphicsBackend = try container.decodeIfPresent(String.self, forKey: .graphicsBackend)
             ?? GraphicsBackend.dxmt.rawValue
         dxmtVersion = try container.decodeIfPresent(String.self, forKey: .dxmtVersion)
+            ?? SettingInheritance.automatic
+        logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel)
             ?? SettingInheritance.automatic
         enableHiDPI = try container.decodeIfPresent(Bool.self, forKey: .enableHiDPI) ?? true
         windowsVersion = try container.decodeIfPresent(String.self, forKey: .windowsVersion) ?? "win10"
@@ -231,6 +237,8 @@ public struct AppConfiguration: Codable, Sendable {
     public var defaultGraphicsBackend: String
     /// Global default DXMT tag (first launch: pinned catalog default, currently v0.80).
     public var defaultDXMTVersion: String
+    /// Global default log level (`WineLogLevel.rawValue`). Automatic tiers fall back to store soft-defaults.
+    public var defaultLogLevel: String
     /// User-selected `redist/lib` (or parent) path for Apple D3DMetal. Never bundled.
     public var d3dMetalLibraryPath: String?
     /// In-app update feed: Stable (default) or Beta (GitHub pre-releases).
@@ -246,6 +254,7 @@ public struct AppConfiguration: Codable, Sendable {
         defaultEngine: String = WineEngine.defaultEngine.rawValue,
         defaultGraphicsBackend: String = GraphicsBackend.dxmt.rawValue,
         defaultDXMTVersion: String = "v0.80",
+        defaultLogLevel: String = WineLogLevel.off.rawValue,
         d3dMetalLibraryPath: String? = nil,
         updateChannel: String = UpdateChannel.stable.rawValue,
         enableHiDPI: Bool = true,
@@ -254,6 +263,7 @@ public struct AppConfiguration: Codable, Sendable {
         self.defaultEngine = defaultEngine
         self.defaultGraphicsBackend = defaultGraphicsBackend
         self.defaultDXMTVersion = defaultDXMTVersion
+        self.defaultLogLevel = defaultLogLevel
         self.d3dMetalLibraryPath = d3dMetalLibraryPath
         self.updateChannel = updateChannel
         self.enableHiDPI = enableHiDPI
@@ -261,7 +271,7 @@ public struct AppConfiguration: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case defaultEngine, defaultGraphicsBackend, defaultDXMTVersion
+        case defaultEngine, defaultGraphicsBackend, defaultDXMTVersion, defaultLogLevel
         case d3dMetalLibraryPath, updateChannel, enableHiDPI, windowsVersion
     }
 
@@ -273,6 +283,8 @@ public struct AppConfiguration: Codable, Sendable {
             ?? GraphicsBackend.dxmt.rawValue
         defaultDXMTVersion = try container.decodeIfPresent(String.self, forKey: .defaultDXMTVersion)
             ?? "v0.80"
+        defaultLogLevel = try container.decodeIfPresent(String.self, forKey: .defaultLogLevel)
+            ?? WineLogLevel.off.rawValue
         d3dMetalLibraryPath = try container.decodeIfPresent(String.self, forKey: .d3dMetalLibraryPath)
         updateChannel = try container.decodeIfPresent(String.self, forKey: .updateChannel)
             ?? UpdateChannel.stable.rawValue

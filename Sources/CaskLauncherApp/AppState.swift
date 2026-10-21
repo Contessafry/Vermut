@@ -51,6 +51,11 @@ final class AppState: ObservableObject {
     @Published var showingEpicAuth = false
     @Published var gameDownloads: [String: GameDownload] = [:]
     @Published var libraryFilterStore: GameStore?
+    /// Library selection for the Game Settings inspector (⌥⌘I).
+    @Published var selectedLibraryGameId: String?
+    @Published var showingGameSettingsInspector = false
+    /// Last engine/graphics applied to the Steam bottle session (for restart decisions).
+    @Published var steamRuntimeProfile: BottleRuntimeProfile?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
     @Published var availableUpdate: (version: String, url: String, releaseNotes: String?, isPrerelease: Bool)?
@@ -271,11 +276,15 @@ final class AppState: ObservableObject {
     }
 
     func updateStoreStatus(_ store: GameStore) {
+        let running = WineManager.shared.isStoreRunning(store)
         storeStatuses[store] = StoreStatus.refreshed(
             current: storeStatuses[store],
-            isRunning: WineManager.shared.isStoreRunning(store),
+            isRunning: running,
             isInstalled: WineManager.shared.isStoreInstalled(store)
         )
+        if store == .steam, !running {
+            steamRuntimeProfile = nil
+        }
     }
 
     func retryStore(_ store: GameStore) {
@@ -502,7 +511,15 @@ final class AppState: ObservableObject {
                 try WineManager.shared.saveBottleConfig(bottleConfig, for: store)
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
-                if store == .steam { bringSteamWindowForward() }
+                if store == .steam {
+                    let backend = GraphicsBackend(rawValue: bottleConfig.graphicsBackend) ?? .dxmt
+                    let inherited = WineEngine.resolved(from: bottleConfig.engine)
+                    steamRuntimeProfile = BottleRuntimeProfile(
+                        engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
+                        graphics: backend
+                    )
+                    bringSteamWindowForward()
+                }
 
                 Task {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -581,12 +598,35 @@ final class AppState: ObservableObject {
     }
 
     func launchGame(_ game: InstalledGame) {
+        let resolved = resolveLaunchSettings(for: game)
+        let launchConfig = resolved.launchConfiguration
+        let wineDebug = WineLogLevel.effectiveWineDebug(level: resolved.logLevel.value)
+
+        if resolved.requiresStagingInstall,
+           !EngineManager.shared.isEngineInstalled(.staging) {
+            infoAlertTitle = String(localized: "Wine Staging required", comment: "DXVK needs Staging")
+            infoAlertMessage = String(
+                localized: "DXVK needs Wine Staging (Vermut Wine has no Vulkan loader). Download it from Settings › Wine Engines, then play again.",
+                comment: "Offer Staging download before DXVK launch"
+            )
+            settingsTab = .wineEngines
+            return
+        }
+
         if game.store == .epic {
             Task {
                 do {
-                    let bottleConfig = StoreRecipe.normalized(loadBottle(.epic), for: .epic)
-                    startGameSession(store: game.store, gameId: game.appId, gameName: game.name, config: bottleConfig)
-                    try await WineManager.shared.launchEpicGame(appName: game.appId, config: bottleConfig)
+                    startGameSession(
+                        store: game.store,
+                        gameId: game.appId,
+                        gameName: game.name,
+                        resolved: resolved
+                    )
+                    try await WineManager.shared.launchEpicGame(
+                        appName: game.appId,
+                        config: launchConfig,
+                        wineDebug: wineDebug
+                    )
                     storeStatuses[.epic] = .running
                     Task {
                         try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -598,10 +638,142 @@ final class AppState: ObservableObject {
             }
             return
         }
-        
-        let bottleConfig = loadBottle(game.store)
-        startGameSession(store: game.store, gameId: game.appId, gameName: game.name, config: bottleConfig)
-        launchStore(game.store)
+
+        if game.store == .steam {
+            launchSteamGame(game, resolved: resolved, launchConfig: launchConfig)
+            return
+        }
+
+        startGameSession(
+            store: game.store,
+            gameId: game.appId,
+            gameName: game.name,
+            resolved: resolved
+        )
+        Task {
+            do {
+                try await WineManager.shared.launchStore(
+                    game.store,
+                    config: launchConfig,
+                    wineDebug: wineDebug
+                )
+                storeStatuses[game.store] = .running
+                Task {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    updateStoreStatus(game.store)
+                }
+            } catch {
+                storeStatuses[game.store] = .error(error.localizedDescription)
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Play a Steam title with `-applaunch`. Client WINEDEBUG stays `-all` (Verbose does not flood Steam).
+    private func launchSteamGame(
+        _ game: InstalledGame,
+        resolved: ResolvedLaunchSettings,
+        launchConfig: BottleConfiguration
+    ) {
+        let needed = BottleRuntimeProfile(resolved: resolved)
+        let running = WineManager.shared.isStoreRunning(.steam)
+        let processEngine = running ? WineManager.shared.runningSteamEngine() : nil
+        let restart = SteamGameLaunch.needsClientRestart(
+            isRunning: running,
+            runningProfile: steamRuntimeProfile,
+            runningEngineFromProcess: processEngine,
+            needed: needed
+        )
+
+        if restart {
+            infoAlertTitle = String(localized: "Steam will restart", comment: "Engine mismatch title")
+            infoAlertMessage = SteamGameLaunch.restartInfoMessage(neededEngine: needed.engine)
+        }
+
+        startGameSession(
+            store: game.store,
+            gameId: game.appId,
+            gameName: game.name,
+            resolved: resolved
+        )
+
+        Task {
+            do {
+                if restart {
+                    try? WineManager.shared.stopStore(.steam)
+                    steamRuntimeProfile = nil
+                    // Let wineserver exit before starting with the game engine.
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                }
+                try await WineManager.shared.launchSteamGame(
+                    appId: game.appId,
+                    config: launchConfig
+                )
+                steamRuntimeProfile = needed
+                storeStatuses[.steam] = .running
+                bringSteamWindowForward()
+                Task {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    updateStoreStatus(.steam)
+                }
+            } catch {
+                storeStatuses[.steam] = .error(error.localizedDescription)
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Settings → bottle → game resolution for one library title.
+    func resolveLaunchSettings(for game: InstalledGame) -> ResolvedLaunchSettings {
+        let bottle = StoreRecipe.normalized(loadBottle(game.store), for: game.store, global: configuration)
+        let gameConfig = loadGameSettings(for: game)
+        return StoreRecipe.resolveLaunchSettings(
+            game: gameConfig,
+            bottle: bottle,
+            global: configuration,
+            store: game.store
+        )
+    }
+
+    func loadGameSettings(for game: InstalledGame) -> GameConfiguration {
+        GameSettingsStore.load(store: game.store, appId: game.appId)
+    }
+
+    func saveGameSettings(_ config: GameConfiguration, for game: InstalledGame) {
+        do {
+            try GameSettingsStore.save(config, store: game.store, appId: game.appId)
+        } catch {
+            errorMessage = "Failed to save game settings: \(error.localizedDescription)"
+        }
+    }
+
+    func resetGameSettings(for game: InstalledGame) {
+        do {
+            try GameSettingsStore.reset(store: game.store, appId: game.appId)
+        } catch {
+            errorMessage = "Failed to reset game settings: \(error.localizedDescription)"
+        }
+    }
+
+    func openGameSettings(for game: InstalledGame) {
+        selectedLibraryGameId = game.id
+        section = .library
+        showingGameSettingsInspector = true
+    }
+
+    func toggleGameSettingsInspector() {
+        if section != .library {
+            section = .library
+        }
+        if selectedLibraryGameId == nil {
+            selectedLibraryGameId = installedGames.first?.id
+        }
+        showingGameSettingsInspector.toggle()
+    }
+
+    var selectedLibraryGame: InstalledGame? {
+        guard let id = selectedLibraryGameId else { return nil }
+        return installedGames.first { $0.id == id }
     }
 
     func installEpicGame(_ game: InstalledGame) {
@@ -796,24 +968,58 @@ final class AppState: ObservableObject {
                 for (store, running, installed) in probes {
                     self.storeStatuses[store] = StoreStatus.refreshed(
                         current: self.storeStatuses[store], isRunning: running, isInstalled: installed)
+                    if store == .steam, !running {
+                        self.steamRuntimeProfile = nil
+                    }
                 }
             }
         }
     }
     
-    private func startGameSession(store: GameStore, gameId: String, gameName: String?, config: BottleConfiguration) {
+    private func startGameSession(
+        store: GameStore,
+        gameId: String,
+        gameName: String?,
+        resolved: ResolvedLaunchSettings
+    ) {
         guard CompatibilityService.shared.isPromptEnabled else { return }
-        
-        let engine = WineEngine.resolved(from: config.engine)
-        let graphics = GraphicsBackend(rawValue: config.graphicsBackend) ?? .wined3d
-        
+
         GameSessionTracker.shared.startSession(
             store: store,
             gameId: gameId,
             gameName: gameName,
-            engine: engine.rawValue,
-            graphics: graphicsIdentifier(graphics)
+            engine: resolved.engine.value.rawValue,
+            graphics: graphicsIdentifier(resolved.graphics.value)
         )
+    }
+
+    private func startGameSession(store: GameStore, gameId: String, gameName: String?, config: BottleConfiguration) {
+        let resolved = ResolvedLaunchSettings(
+            engine: EffectiveSetting(value: WineEngine.resolved(from: config.engine), source: .bottle),
+            graphics: EffectiveSetting(
+                value: GraphicsBackend(rawValue: config.graphicsBackend) ?? .wined3d,
+                source: .bottle
+            ),
+            dxmtVersion: EffectiveSetting(
+                value: ComponentVersion.canonicalTag(
+                    SettingInheritance.isAutomatic(config.dxmtVersion)
+                        ? configuration.defaultDXMTVersion
+                        : config.dxmtVersion
+                ),
+                // Keep `.global` when Automatic so launchConfiguration does not pin DXMT.
+                source: SettingInheritance.isAutomatic(config.dxmtVersion) ? .global : .bottle
+            ),
+            logLevel: EffectiveSetting(
+                value: WineLogLevel.resolved(
+                    from: SettingInheritance.isAutomatic(config.logLevel)
+                        ? configuration.defaultLogLevel
+                        : config.logLevel
+                ),
+                source: SettingInheritance.isAutomatic(config.logLevel) ? .global : .bottle
+            ),
+            bottleBase: config
+        )
+        startGameSession(store: store, gameId: gameId, gameName: gameName, resolved: resolved)
     }
     
     private func graphicsIdentifier(_ backend: GraphicsBackend) -> String {

@@ -41,6 +41,8 @@ public enum StoreRecipe {
                     engine: SettingInheritance.automatic,
                     graphicsBackend: app.defaultGraphicsBackend,
                     dxmtVersion: SettingInheritance.automatic,
+                    // Keep err+all so DXVK / Win64 faults still show (matches prior Epic default).
+                    logLevel: WineLogLevel.errors.rawValue,
                     enableHiDPI: false,
                     windowsVersion: "win10"
                 ),
@@ -69,15 +71,13 @@ public enum StoreRecipe {
             config.windowsVersion = "win10"
             config.enableHiDPI = false
             let backend = GraphicsBackend(rawValue: config.graphicsBackend) ?? .dxmt
-            let engine = SettingInheritance.resolveEngine(
+            let inherited = SettingInheritance.resolveEngine(
                 bottle: config.engine,
                 global: app.defaultEngine
-            ).value
-            // Grapple-wine has no Vulkan loader — pin staging when DXVK is chosen explicitly.
-            if backend == .dxvk, engine == .grappleWine, SettingInheritance.isAutomatic(config.engine) {
-                config.engine = WineEngine.staging.rawValue
-            } else if backend == .dxvk, engine == .grappleWine {
-                config.engine = WineEngine.staging.rawValue
+            )
+            let applied = EngineGraphicsPolicy.apply(inherited: inherited, backend: backend)
+            if applied.forcedForDXVK {
+                config.engine = applied.engine.value.rawValue
             }
         }
         if store == .gog {
@@ -92,21 +92,70 @@ public enum StoreRecipe {
         return config
     }
 
-    /// Effective Wine engine for a bottle, honouring Automatic → Settings.
+    /// Effective Wine engine for a bottle (and optional game), honouring Automatic → Settings.
     public static func effectiveEngine(
         _ config: BottleConfiguration,
-        global: AppConfiguration
+        global: AppConfiguration,
+        game: GameConfiguration? = nil
     ) -> EffectiveSetting<WineEngine> {
-        SettingInheritance.resolveEngine(bottle: config.engine, global: global.defaultEngine)
+        SettingInheritance.resolveEngine(
+            game: game?.engine,
+            bottle: config.engine,
+            global: global.defaultEngine
+        )
+    }
+
+    public static func effectiveGraphics(
+        _ config: BottleConfiguration,
+        global: AppConfiguration,
+        game: GameConfiguration? = nil
+    ) -> EffectiveSetting<GraphicsBackend> {
+        SettingInheritance.resolveGraphics(
+            game: game?.graphicsBackend,
+            bottle: config.graphicsBackend,
+            global: global.defaultGraphicsBackend
+        )
     }
 
     public static func effectiveDXMTVersion(
         _ config: BottleConfiguration,
-        global: AppConfiguration
+        global: AppConfiguration,
+        game: GameConfiguration? = nil
     ) -> EffectiveSetting<String> {
         SettingInheritance.resolveDXMTVersion(
+            game: game?.dxmtVersion,
             bottle: config.dxmtVersion,
             global: global.defaultDXMTVersion
+        )
+    }
+
+    public static func effectiveLogLevel(
+        _ config: BottleConfiguration,
+        global: AppConfiguration,
+        store: GameStore,
+        game: GameConfiguration? = nil
+    ) -> EffectiveSetting<WineLogLevel> {
+        SettingInheritance.resolveLogLevel(
+            game: game?.logLevel,
+            bottle: config.logLevel,
+            global: global.defaultLogLevel,
+            storeDefault: WineLogLevel.storeDefault(for: store)
+        )
+    }
+
+    /// Full Settings → bottle → game resolution for launching one title.
+    public static func resolveLaunchSettings(
+        game: GameConfiguration?,
+        bottle: BottleConfiguration,
+        global: AppConfiguration,
+        store: GameStore
+    ) -> ResolvedLaunchSettings {
+        let normalized = normalized(bottle, for: store, global: global)
+        return GameSettingsResolver.resolve(
+            game: game,
+            bottle: normalized,
+            global: global,
+            store: store
         )
     }
 }

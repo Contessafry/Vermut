@@ -45,6 +45,27 @@ public final class PathManager: @unchecked Sendable {
     public func bottleConfigURL(for store: GameStore) -> URL {
         bottleURL(for: store).appendingPathComponent("bottle.json")
     }
+
+    /// Per-game overrides: `bottles/<store>/games/<appId>.json`.
+    public func gamesDirectoryURL(for store: GameStore) -> URL {
+        bottleURL(for: store).appendingPathComponent("games", isDirectory: true)
+    }
+
+    public func gameConfigURL(for store: GameStore, appId: String) -> URL {
+        let safe = Self.sanitizedGameFileName(appId)
+        return gamesDirectoryURL(for: store).appendingPathComponent("\(safe).json")
+    }
+
+    /// Keeps app ids filesystem-safe while remaining stable for round-trips.
+    public static func sanitizedGameFileName(_ appId: String) -> String {
+        let trimmed = appId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "unknown" }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        let scalars = trimmed.unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "_"
+        }
+        return String(scalars)
+    }
     
     public func logURL(for store: GameStore) -> URL {
         bottleLogsURL(for: store).appendingPathComponent("\(store.identifier).log")

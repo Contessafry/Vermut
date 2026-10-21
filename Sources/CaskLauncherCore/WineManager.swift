@@ -23,15 +23,14 @@ public final class WineManager: @unchecked Sendable {
         (try? ConfigurationManager.shared.loadConfiguration()) ?? AppConfiguration()
     }
 
-    /// Resolves Automatic → Settings, then DXVK→staging when needed.
+    /// Resolves Automatic → Settings, then DXVK→Staging via `EngineGraphicsPolicy`.
     private func resolvedEngine(for store: GameStore, config: BottleConfiguration) -> WineEngine {
         let global = appConfiguration()
-        var engine = StoreRecipe.effectiveEngine(config, global: global).value
-        let backend = graphicsBackend(config)
-        if backend == .dxvk, engine == .grappleWine {
-            engine = .staging
-        }
-        return engine
+        let inherited = StoreRecipe.effectiveEngine(config, global: global)
+        return EngineGraphicsPolicy.apply(
+            inherited: inherited,
+            backend: graphicsBackend(config)
+        ).engine.value
     }
 
     public func createPrefix(for store: GameStore, config: BottleConfiguration) async throws {
@@ -254,9 +253,10 @@ public final class WineManager: @unchecked Sendable {
         try throwIfInstallCancelled(.epic)
         onSettingUp?()
         var config = config
-        if graphicsBackend(config) == .dxvk {
+        let epicEngine = resolvedEngine(for: .epic, config: config)
+        if epicEngine == .staging {
             try await ensureEngineInstalled(.staging)
-            config.engine = WineEngine.staging.rawValue
+            config.engine = epicEngine.rawValue
         }
         try await createPrefix(for: .epic, config: config)
         try throwIfInstallCancelled(.epic)
@@ -325,7 +325,29 @@ public final class WineManager: @unchecked Sendable {
         return body()
     }
 
-    public func launchStore(_ store: GameStore, config: BottleConfiguration, firstRunUpdate: Bool = false) async throws {
+    public func launchStore(
+        _ store: GameStore,
+        config: BottleConfiguration,
+        wineDebug: String? = nil,
+        firstRunUpdate: Bool = false
+    ) async throws {
+        try await launchStore(
+            store,
+            config: config,
+            wineDebug: wineDebug,
+            firstRunUpdate: firstRunUpdate,
+            steamAppId: nil
+        )
+    }
+
+    /// Launch Steam, optionally starting a specific game via `-applaunch <appId>`.
+    public func launchStore(
+        _ store: GameStore,
+        config: BottleConfiguration,
+        wineDebug: String? = nil,
+        firstRunUpdate: Bool = false,
+        steamAppId: String?
+    ) async throws {
         if store == .epic {
             return
         }
@@ -356,7 +378,7 @@ public final class WineManager: @unchecked Sendable {
         }
 
         let wineBinary = layout.launcherBinary(forWindowsExecutable: executablePath)
-        var environment = buildEnvironment(for: store, config: config)
+        var environment = buildEnvironment(for: store, config: config, wineDebug: wineDebug)
         environment["WINEPREFIX"] = prefixURL.path
         environment["WINELOADER"] = wineBinary.path
 
@@ -364,23 +386,24 @@ public final class WineManager: @unchecked Sendable {
             store: store,
             executable: executablePath,
             wineLibDir: layout.wineLibDir,
-            firstRunUpdate: firstRunUpdate
+            firstRunUpdate: firstRunUpdate,
+            steamAppId: store == .steam ? steamAppId : nil
         )
         for (key, value) in recipe.environment {
             environment[key] = value
         }
-        if let debug = ProcessInfo.processInfo.environment["VERMUT_WINEDEBUG"] {
-            environment["WINEDEBUG"] = debug
-        }
+        // Preferred debug (game or client), then VERMUT_WINEDEBUG (host override always wins).
+        applyWineDebug(&environment, preferred: wineDebug)
 
         let logURL = PathManager.shared.logURL(for: store)
+        let appSuffix = steamAppId.map { " applaunch=\($0)" } ?? ""
         appendLaunchLog(
             StoreLaunchRecipe.launchLogLine(
                 store: store,
                 engine: engine,
                 wine: wineBinary,
                 wineserver: layout.wineserverExecutable
-            ) + " exe=\(executablePath.path)",
+            ) + " exe=\(executablePath.path) winedebug=\(environment["WINEDEBUG"] ?? "")\(appSuffix)",
             to: logURL
         )
         appendLaunchLog(
@@ -401,13 +424,43 @@ public final class WineManager: @unchecked Sendable {
         )
     }
 
-    public func launchEpicGame(appName: String, config: BottleConfiguration) async throws {
-        var config = StoreRecipe.normalized(config, for: .epic)
-        if graphicsBackend(config) == .dxvk {
-            try await ensureEngineInstalled(.staging)
-            config.engine = WineEngine.staging.rawValue
+    /// Launch a Steam title (`-applaunch`). Client WINEDEBUG stays quiet (`-all`).
+    public func launchSteamGame(
+        appId: String,
+        config: BottleConfiguration
+    ) async throws {
+        try await launchStore(
+            .steam,
+            config: config,
+            wineDebug: SteamGameLaunch.clientWineDebug(),
+            steamAppId: appId
+        )
+    }
+
+    /// Best-effort engine of the live Steam wineserver (from process paths).
+    public func runningSteamEngine() -> WineEngine? {
+        let prefix = PathManager.shared.prefixURL(for: .steam).path
+        var roots: [WineEngine: String] = [:]
+        for engine in WineEngine.allCases {
+            roots[engine] = PathManager.shared.engineURL(for: engine).path
         }
+        return SteamGameLaunch.detectRunningEngine(
+            prefixPath: prefix,
+            processLines: PrefixRuntime.processPIDLines() + PrefixRuntime.processArgumentLines(),
+            engineInstallPaths: roots
+        )
+    }
+
+    public func launchEpicGame(
+        appName: String,
+        config: BottleConfiguration,
+        wineDebug: String? = nil
+    ) async throws {
+        var config = StoreRecipe.normalized(config, for: .epic)
         let engine = resolvedEngine(for: .epic, config: config)
+        if engine == .staging {
+            try await ensureEngineInstalled(.staging)
+        }
         config.engine = engine.rawValue
         try await createPrefix(for: .epic, config: config)
         try applyEpicGraphics(config: config)
@@ -416,16 +469,17 @@ public final class WineManager: @unchecked Sendable {
         }
         let wine = layout.wine64Executable ?? layout.wineExecutable
         let prefixURL = PathManager.shared.prefixURL(for: .epic)
-        var environment = buildEnvironment(for: .epic, config: config)
+        var environment = buildEnvironment(for: .epic, config: config, wineDebug: wineDebug)
         environment["WINEPREFIX"] = prefixURL.path
         environment["WINELOADER"] = wine.path
         environment["WINEARCH"] = "win64"
         if graphicsBackend(config) == .dxvk {
             environment["WINEDLLOVERRIDES"] = EpicVulkanPolicy.dxvkOverrideString
         }
+        applyWineDebug(&environment, preferred: wineDebug)
         let logURL = PathManager.shared.logURL(for: .epic)
         appendLaunchLog(
-            "Vermut: launching epic game \(appName) engine=\(engine.rawValue) wine=\(wine.path) prefix=\(prefixURL.path)",
+            "Vermut: launching epic game \(appName) engine=\(engine.rawValue) wine=\(wine.path) prefix=\(prefixURL.path) winedebug=\(environment["WINEDEBUG"] ?? "")",
             to: logURL
         )
         try LegendaryManager.shared.launch(
@@ -883,7 +937,11 @@ public final class WineManager: @unchecked Sendable {
         return pid
     }
 
-    private func buildEnvironment(for store: GameStore, config: BottleConfiguration) -> [String: String] {
+    private func buildEnvironment(
+        for store: GameStore,
+        config: BottleConfiguration,
+        wineDebug: String? = nil
+    ) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
 
         let engine = resolvedEngine(for: store, config: config)
@@ -895,8 +953,18 @@ public final class WineManager: @unchecked Sendable {
             env["WINEDLLPATH"] = layout.wineLibDir.path
         }
 
-        env["WINEDEBUG"] = ProcessInfo.processInfo.environment["VERMUT_WINEDEBUG"] ?? "-all"
+        applyWineDebug(&env, preferred: wineDebug)
         return env
+    }
+
+    /// Sets `WINEDEBUG` from preferred level, then `VERMUT_WINEDEBUG` if present.
+    private func applyWineDebug(_ env: inout [String: String], preferred: String?) {
+        env["WINEDEBUG"] = preferred ?? "-all"
+        if let override = ProcessInfo.processInfo.environment["VERMUT_WINEDEBUG"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty {
+            env["WINEDEBUG"] = override
+        }
     }
 
     private func graphicsBackend(_ config: BottleConfiguration) -> GraphicsBackend {

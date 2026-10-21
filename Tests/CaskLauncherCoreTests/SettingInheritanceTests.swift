@@ -49,4 +49,22 @@ final class SettingInheritanceTests: XCTestCase {
         XCTAssertEqual(effective.value, "v0.80")
         XCTAssertEqual(effective.source, .global)
     }
+
+    func testResolveGraphicsChain() {
+        let fromGame = SettingInheritance.resolveGraphics(
+            game: GraphicsBackend.dxvk.rawValue,
+            bottle: GraphicsBackend.dxmt.rawValue,
+            global: GraphicsBackend.wined3d.rawValue
+        )
+        XCTAssertEqual(fromGame.value, .dxvk)
+        XCTAssertEqual(fromGame.source, .game)
+
+        let fromBottle = SettingInheritance.resolveGraphics(
+            game: SettingInheritance.automatic,
+            bottle: GraphicsBackend.dxmt.rawValue,
+            global: GraphicsBackend.wined3d.rawValue
+        )
+        XCTAssertEqual(fromBottle.value, .dxmt)
+        XCTAssertEqual(fromBottle.source, .bottle)
+    }
 }
