@@ -153,15 +153,29 @@ public enum WineEngine: String, CaseIterable, Identifiable, Sendable {
     /// Shown in the UI. Internal id remains `grapple-wine`.
     public var userFacingName: String {
         switch self {
-        case .grappleWine: return "Vermut Wine 11 (DXMT build)"
-        case .staging: return "Wine Staging 11"
-        case .devel: return "Wine Devel 11"
+        case .grappleWine: return "Vermut Wine"
+        case .staging: return "Wine Staging 11.18"
+        case .devel: return "Wine Devel 11.18"
+        }
+    }
+
+    /// Second line in engine pickers / Settings › Wine Engines.
+    public var subtitle: String {
+        switch self {
+        case .grappleWine: return "Recommended · included"
+        case .staging: return "Gcenx · WineHQ · experimental patches"
+        case .devel: return "Gcenx · WineHQ · development"
         }
     }
 
     /// DXMT needs winemac Metal views; only the CrossOver-based grapple-wine build exports them.
     public var supportsDXMT: Bool {
         self == .grappleWine
+    }
+
+    /// Gcenx staging/devel builds expect a system GStreamer.framework.
+    public var requiresGStreamer: Bool {
+        self == .staging || self == .devel
     }
 
     var githubAssetPrefix: String {
@@ -174,40 +188,86 @@ public enum WineEngine: String, CaseIterable, Identifiable, Sendable {
 }
 
 public struct BottleConfiguration: Codable, Sendable {
+    /// `SettingInheritance.automatic` or a `WineEngine.rawValue`.
     public var engine: String
     public var graphicsBackend: String
+    /// `SettingInheritance.automatic` or a DXMT tag such as `v0.80`.
+    public var dxmtVersion: String
     public var enableHiDPI: Bool
     public var windowsVersion: String
 
     public init(
-        engine: String = WineEngine.defaultEngine.rawValue,
+        engine: String = SettingInheritance.automatic,
         graphicsBackend: String = GraphicsBackend.dxmt.rawValue,
+        dxmtVersion: String = SettingInheritance.automatic,
         enableHiDPI: Bool = true,
         windowsVersion: String = "win10"
     ) {
         self.engine = engine
         self.graphicsBackend = graphicsBackend
+        self.dxmtVersion = dxmtVersion
         self.enableHiDPI = enableHiDPI
         self.windowsVersion = windowsVersion
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case engine, graphicsBackend, dxmtVersion, enableHiDPI, windowsVersion
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        engine = try container.decodeIfPresent(String.self, forKey: .engine) ?? SettingInheritance.automatic
+        graphicsBackend = try container.decodeIfPresent(String.self, forKey: .graphicsBackend)
+            ?? GraphicsBackend.dxmt.rawValue
+        dxmtVersion = try container.decodeIfPresent(String.self, forKey: .dxmtVersion)
+            ?? SettingInheritance.automatic
+        enableHiDPI = try container.decodeIfPresent(Bool.self, forKey: .enableHiDPI) ?? true
+        windowsVersion = try container.decodeIfPresent(String.self, forKey: .windowsVersion) ?? "win10"
     }
 }
 
 public struct AppConfiguration: Codable, Sendable {
     public var defaultEngine: String
     public var defaultGraphicsBackend: String
+    /// Global default DXMT tag (first launch: pinned catalog default, currently v0.80).
+    public var defaultDXMTVersion: String
+    /// User-selected `redist/lib` (or parent) path for Apple D3DMetal. Never bundled.
+    public var d3dMetalLibraryPath: String?
     public var enableHiDPI: Bool
     public var windowsVersion: String
 
     public init(
         defaultEngine: String = WineEngine.defaultEngine.rawValue,
         defaultGraphicsBackend: String = GraphicsBackend.dxmt.rawValue,
+        defaultDXMTVersion: String = "v0.80",
+        d3dMetalLibraryPath: String? = nil,
         enableHiDPI: Bool = true,
         windowsVersion: String = "win10"
     ) {
         self.defaultEngine = defaultEngine
         self.defaultGraphicsBackend = defaultGraphicsBackend
+        self.defaultDXMTVersion = defaultDXMTVersion
+        self.d3dMetalLibraryPath = d3dMetalLibraryPath
         self.enableHiDPI = enableHiDPI
         self.windowsVersion = windowsVersion
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case defaultEngine, defaultGraphicsBackend, defaultDXMTVersion
+        case d3dMetalLibraryPath, enableHiDPI, windowsVersion
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        defaultEngine = try container.decodeIfPresent(String.self, forKey: .defaultEngine)
+            ?? WineEngine.defaultEngine.rawValue
+        defaultGraphicsBackend = try container.decodeIfPresent(String.self, forKey: .defaultGraphicsBackend)
+            ?? GraphicsBackend.dxmt.rawValue
+        defaultDXMTVersion = try container.decodeIfPresent(String.self, forKey: .defaultDXMTVersion)
+            ?? "v0.80"
+        d3dMetalLibraryPath = try container.decodeIfPresent(String.self, forKey: .d3dMetalLibraryPath)
+        enableHiDPI = try container.decodeIfPresent(Bool.self, forKey: .enableHiDPI) ?? true
+        windowsVersion = try container.decodeIfPresent(String.self, forKey: .windowsVersion) ?? "win10"
     }
 
     /// Returns true when `defaultEngine` was rewritten from an unknown/legacy value.

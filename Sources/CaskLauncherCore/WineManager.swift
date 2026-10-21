@@ -19,9 +19,24 @@ public final class WineManager: @unchecked Sendable {
 
     private init() {}
 
+    private func appConfiguration() -> AppConfiguration {
+        (try? ConfigurationManager.shared.loadConfiguration()) ?? AppConfiguration()
+    }
+
+    /// Resolves Automatic → Settings, then DXVK→staging when needed.
+    private func resolvedEngine(for store: GameStore, config: BottleConfiguration) -> WineEngine {
+        let global = appConfiguration()
+        var engine = StoreRecipe.effectiveEngine(config, global: global).value
+        let backend = graphicsBackend(config)
+        if backend == .dxvk, engine == .grappleWine {
+            engine = .staging
+        }
+        return engine
+    }
+
     public func createPrefix(for store: GameStore, config: BottleConfiguration) async throws {
-        guard let engine = WineEngine(rawValue: config.engine),
-              let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+        let engine = resolvedEngine(for: store, config: config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
             throw WineError.wineNotInstalled
         }
 
@@ -140,8 +155,8 @@ public final class WineManager: @unchecked Sendable {
         try await createPrefix(for: store, config: config)
         try throwIfInstallCancelled(store)
 
-        guard let engine = WineEngine(rawValue: config.engine),
-              let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+        let engine = resolvedEngine(for: store, config: config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
             throw WineError.wineNotInstalled
         }
 
@@ -264,7 +279,7 @@ public final class WineManager: @unchecked Sendable {
         }
         process?.terminate()
         if let config = try? loadBottleConfig(for: store) {
-            let engine = WineEngine.resolved(from: config.engine)
+            let engine = resolvedEngine(for: store, config: config)
             try? killPrefix(prefix: PathManager.shared.prefixURL(for: store), engine: engine)
         }
     }
@@ -274,7 +289,7 @@ public final class WineManager: @unchecked Sendable {
             (try? loadBottleConfig(for: store)) ?? BottleConfiguration(),
             for: store
         )
-        let engine = WineEngine.resolved(from: config.engine)
+        let engine = resolvedEngine(for: store, config: config)
         guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
             throw WineError.wineNotInstalled
         }
@@ -315,8 +330,7 @@ public final class WineManager: @unchecked Sendable {
             return
         }
         var config = StoreRecipe.normalized(config, for: store)
-        let engine = WineEngine.resolved(from: config.engine)
-        config.engine = engine.rawValue
+        let engine = resolvedEngine(for: store, config: config)
         guard let layout = PathManager.shared.engineLayout(for: engine) else {
             throw WineError.wineNotInstalled
         }
@@ -383,8 +397,7 @@ public final class WineManager: @unchecked Sendable {
             try await ensureEngineInstalled(.staging)
             config.engine = WineEngine.staging.rawValue
         }
-        let engine = WineEngine.resolved(from: config.engine)
-        config.engine = engine.rawValue
+        let engine = resolvedEngine(for: .epic, config: config)
         try await createPrefix(for: .epic, config: config)
         try applyEpicGraphics(config: config)
         guard let layout = PathManager.shared.engineLayout(for: engine) else {
@@ -414,7 +427,7 @@ public final class WineManager: @unchecked Sendable {
 
     public func stopStore(_ store: GameStore) throws {
         let config = try loadBottleConfig(for: store)
-        let engine = WineEngine.resolved(from: config.engine)
+        let engine = resolvedEngine(for: store, config: config)
         guard PathManager.shared.wineserverExecutable(engine: engine) != nil else {
             throw WineError.wineNotInstalled
         }
@@ -464,8 +477,8 @@ public final class WineManager: @unchecked Sendable {
     }
 
     public func launchExecutable(at path: String, config: BottleConfiguration) throws {
-        guard let engine = WineEngine(rawValue: config.engine),
-              let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+        let engine = resolvedEngine(for: .steam, config: config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
             throw WineError.wineNotInstalled
         }
 
@@ -584,7 +597,7 @@ public final class WineManager: @unchecked Sendable {
     }
 
     private func applyEpicGraphics(config: BottleConfiguration) throws {
-        let engine = WineEngine.resolved(from: config.engine)
+        let engine = resolvedEngine(for: .epic, config: config)
         try configureLauncherBottle(for: .epic, config: config, engine: engine)
     }
 
@@ -615,7 +628,14 @@ public final class WineManager: @unchecked Sendable {
     ) throws {
         guard StoreRecipe.allowsNativeGraphics(store) else { return }
         guard let layout = PathManager.shared.engineLayout(for: engine) else { return }
-        let overlay = layout.bundledDXMTOverlay() ?? PathManager.shared.dxmtOverlay()
+        let global = appConfiguration()
+        let dxmtTag = StoreRecipe.effectiveDXMTVersion(config, global: global).value
+        let versioned = OverlayLayout.resolve(
+            installRoot: DXMTVersionManager.shared.installURL(for: dxmtTag)
+        )
+        let overlay = layout.bundledDXMTOverlay()
+            ?? versioned
+            ?? PathManager.shared.dxmtOverlay()
         guard let overlay else { return }
 
         if engine.supportsDXMT {
@@ -849,8 +869,8 @@ public final class WineManager: @unchecked Sendable {
     private func buildEnvironment(for store: GameStore, config: BottleConfiguration) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
 
-        if let engine = WineEngine(rawValue: config.engine),
-           let layout = PathManager.shared.engineLayout(for: engine) {
+        let engine = resolvedEngine(for: store, config: config)
+        if let layout = PathManager.shared.engineLayout(for: engine) {
             let bin = layout.binDir.path
             env["PATH"] = bin + ":" + (env["PATH"] ?? "")
             env["WINELOADER"] = layout.wineExecutable.path

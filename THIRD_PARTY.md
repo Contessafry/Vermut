@@ -31,13 +31,15 @@ Wine itself is LGPL, and we download it as a separate component (not statically 
 
 **What it is**: DXMT translates DirectX 10/11 API calls to Apple's Metal graphics API, enabling Windows games to run with native graphics performance on macOS.
 
-**Version**: 2.0.2  
-**License**: LGPL 2.1+  
+**Default version**: v0.80 (users can install and switch between releases side by side)  
+**License**: LGPL 2.1+ **from v0.80 onward** (earlier tags may use a different licence; Vermut defaults to and recommends v0.80+)  
 **Source**: https://github.com/3Shain/dxmt  
-**Downloaded from**: GitHub Releases (3Shain/dxmt)
+**Downloaded from**: GitHub Releases (3Shain/dxmt), SHA-256 verified when the release publishes a digest  
 
-**DXMT Copyright**: Copyright (c) 2024 DXMT Contributors  
-**License URL**: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+**DXMT Copyright**: Copyright (c) 2024–2026 DXMT Contributors  
+**License URL**: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html  
+
+Vermut stores each DXMT build under `Application Support/Vermut/engines/dxmt/versions/<tag>/` and keeps an active-version pointer so users can roll back without re-downloading.
 
 ### DXVK + MoltenVK (Optional - DirectX to Vulkan to Metal)
 

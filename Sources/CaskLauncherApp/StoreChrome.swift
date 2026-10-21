@@ -75,7 +75,8 @@ extension WineEngine {
 
 enum BottleLabels {
     static func engineName(_ config: BottleConfiguration) -> String {
-        WineEngine.resolved(from: config.engine).userFacingName
+        let global = (try? ConfigurationManager.shared.loadConfiguration()) ?? AppConfiguration()
+        StoreRecipe.effectiveEngine(config, global: global).value.userFacingName
     }
 
     static func graphicsName(_ config: BottleConfiguration, store: GameStore) -> String {

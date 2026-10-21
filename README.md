@@ -119,9 +119,9 @@ Older builds used a different Application Support folder name; Vermut migrates i
 
 | Engine | Role |
 | --- | --- |
-| **Vermut Wine 11 (DXMT build)** | Default. Wine 11 / CrossOver 26.3 LGPL build; `winemac` exports the Metal views DXMT needs. Source: [MartijnBud/grapple-releases](https://github.com/MartijnBud/grapple-releases). |
-| **Wine Staging 11** | Fallback from [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds). Used automatically for DXVK bottles (the DXMT Wine 11 build has no Vulkan loader). |
-| **Wine Devel 11** | Same Gcenx source, development branch. |
+| **Vermut Wine** | Default. Wine 11 / CrossOver 26.3 LGPL build; `winemac` exports the Metal views DXMT needs. Source: [MartijnBud/grapple-releases](https://github.com/MartijnBud/grapple-releases). |
+| **Wine Staging 11.18** | Gcenx WineHQ build from [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds). Used automatically for DXVK bottles (Vermut Wine has no Vulkan loader). Requires system GStreamer.framework. |
+| **Wine Devel 11.18** | Same Gcenx source, development branch. Requires system GStreamer.framework. |
 
 | Graphics | Notes |
 | --- | --- |

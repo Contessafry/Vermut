@@ -712,7 +712,11 @@ final class AppState: ObservableObject {
 
     func saveConfiguration() {
         do {
+            configuration.defaultDXMTVersion = ComponentVersion.canonicalTag(configuration.defaultDXMTVersion)
             try ConfigurationManager.shared.saveConfiguration(configuration)
+            if DXMTVersionManager.shared.isInstalled(configuration.defaultDXMTVersion) {
+                try? DXMTVersionManager.shared.setActiveVersion(configuration.defaultDXMTVersion)
+            }
         } catch {
             errorMessage = "Failed to save configuration: \(error.localizedDescription)"
         }

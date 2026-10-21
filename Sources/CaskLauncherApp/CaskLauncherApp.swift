@@ -33,7 +33,7 @@ struct CaskLauncherApp: App {
                             .applicationVersion: VermutProject.version,
                             .version: VermutProject.version,
                             .credits: NSAttributedString(
-                                string: "\(VermutProject.tagline)\nOpen-source Windows game store launcher for macOS.\nEpic Games uses Legendary (GPLv3)."
+                                string: "\(VermutProject.tagline)\nOpen-source Windows game store launcher for macOS.\nEpic Games uses Legendary (GPLv3).\nDXMT from v0.80 is LGPL 2.1+ (3Shain/dxmt).\nWine engines are LGPL 2.1+."
                             )
                         ]
                     )

@@ -23,7 +23,7 @@ swift test
 On a Mac, `./build.sh` also produces `Vermut.app`.
 
 - Keep product copy as **Vermut**. Swift package targets may stay `CaskLauncherCore` / `CaskLauncherApp`.
-- Do not show `grapple` in UI strings. The engine picker must say **Vermut Wine 11 (DXMT build)**. Internal ids such as `grapple-wine` are fine.
+- Do not show `grapple` in UI strings. The engine picker must say **Vermut Wine**. Internal ids such as `grapple-wine` are fine.
 - Put business logic in `Sources/CaskLauncherCore` with a unit test. Keep SwiftUI in `Sources/CaskLauncherApp`.
 - Do not change Steam’s launch recipe unless you re-tested Steam on a Mac.
 - Epic Games goes through Legendary. Do not reintroduce the Windows Epic Games Launcher.

@@ -49,14 +49,27 @@ public final class EngineManager: @unchecked Sendable {
         try fileManager.removeItem(at: downloadLocation)
     }
 
-    public func downloadDXMT(progress: @escaping @Sendable (Double) -> Void) async throws {
-        let dxmtURL = PathManager.shared.dxmtURL()
+    /// Downloads DXMT into a side-by-side version folder and optionally activates it.
+    /// Default tag is `v0.80` (LGPL baseline).
+    public func downloadDXMT(
+        version tag: String? = nil,
+        activate: Bool = true,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        let manager = DXMTVersionManager.shared
+        let preferred = tag.map(ComponentVersion.canonicalTag) ?? DXMTVersionManager.defaultVersionTag
+        let dxmtURL = manager.installURL(for: preferred)
         if OverlayLayout.resolve(installRoot: dxmtURL)?.hasD3D11 == true {
+            if activate {
+                try manager.setActiveVersion(preferred)
+            } else {
+                manager.markInstalled(tag: preferred, asActive: manager.activeVersionTag == nil)
+            }
             progress(1.0)
             return
         }
 
-        let component = await ComponentCatalog.resolveDXMT()
+        let component = await ComponentCatalog.resolveDXMT(tag: preferred)
         let downloadLocation = PathManager.shared.cacheURL.appendingPathComponent(component.filename)
 
         try await DownloadClient.download(
@@ -77,12 +90,26 @@ public final class EngineManager: @unchecked Sendable {
             throw EngineError.overlayNotFound("DXMT", dxmtURL.path)
         }
 
-        if let overlay = OverlayLayout.resolve(installRoot: dxmtURL),
+        if activate {
+            try manager.setActiveVersion(ComponentVersion.canonicalTag(component.version))
+        } else {
+            manager.markInstalled(tag: component.version, asActive: manager.activeVersionTag == nil)
+        }
+
+        if let overlay = OverlayLayout.resolve(installRoot: manager.activeOverlayURL()),
            let layout = PathManager.shared.engineLayout(for: .grappleWine) {
             try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
         }
 
         try fileManager.removeItem(at: downloadLocation)
+    }
+
+    public func setActiveDXMTVersion(_ tag: String) throws {
+        try DXMTVersionManager.shared.setActiveVersion(tag)
+        if let overlay = OverlayLayout.resolve(installRoot: DXMTVersionManager.shared.activeOverlayURL()),
+           let layout = PathManager.shared.engineLayout(for: .grappleWine) {
+            try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+        }
     }
 
     public func downloadDXVK(progress: @escaping @Sendable (Double) -> Void) async throws {
@@ -189,7 +216,7 @@ public enum EngineError: LocalizedError {
         case .extractionFailed:
             return "Failed to extract archive (tar exited with an error)"
         case .wineBinaryNotFound(let root):
-            return "Wine was extracted to \(root) but no wine binary was found. Expected Vermut Wine 11 (DXMT build) or a Wine Staging/Devel layout."
+            return "Wine was extracted to \(root) but no wine binary was found. Expected Vermut Wine or a Wine Staging/Devel layout."
         case .overlayNotFound(let name, let root):
             return "\(name) was extracted to \(root) but d3d11.dll was not found in an x86_64-windows or i386-windows folder."
         case .engineNotFound:

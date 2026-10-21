@@ -50,7 +50,7 @@ public enum EpicStoreCopy {
     public static let blurb = "Your Epic library, via Legendary. Windows games run in this bottle."
     public static let signedOutBadge = "Signed out"
     public static let signedInDescription = "Games install into this bottle and launch with Legendary."
-    public static let graphicsHelp = "DXMT on Vermut Wine 11, or DXVK on Wine Staging (this DXMT Wine build has no Vulkan loader)"
+    public static let graphicsHelp = "DXMT on Vermut Wine, or DXVK on Wine Staging (Vermut Wine has no Vulkan loader)"
 
     public static func signedInBadge(account: String) -> String {
         "Signed in · \(account)"

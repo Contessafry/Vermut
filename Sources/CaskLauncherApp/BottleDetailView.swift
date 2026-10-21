@@ -306,7 +306,8 @@ struct BottleDetailView: View {
     }
 
     private var dllSummary: String {
-        let engine = WineEngine.resolved(from: config.engine)
+        let global = appState.configuration
+        let engine = StoreRecipe.effectiveEngine(config, global: global).value
         let backend = GraphicsBackend(rawValue: config.graphicsBackend) ?? .wined3d
         return DllOverridePolicy.userFacingSummary(engine: engine, backend: backend, store: store)
     }

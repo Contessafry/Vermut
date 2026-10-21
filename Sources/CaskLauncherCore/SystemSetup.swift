@@ -42,6 +42,7 @@ public final class SystemSetup: @unchecked Sendable {
     }
     
     public func checkDXMTInstalled() -> Bool {
+        _ = DXMTVersionManager.shared.migrateLegacyFlatInstallIfNeeded()
         if PathManager.shared.isDXMTInstalled() {
             return true
         }

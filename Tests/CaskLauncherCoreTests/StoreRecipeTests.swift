@@ -147,10 +147,14 @@ final class StoreRecipeTests: XCTestCase {
         XCTAssertEqual(steam.windowsVersion, "win10")
 
         let epic = StoreRecipe.bottleConfiguration(from: app, for: .epic)
-        XCTAssertEqual(epic.engine, WineEngine.grappleWine.rawValue)
+        XCTAssertEqual(epic.engine, SettingInheritance.automatic)
         XCTAssertEqual(epic.graphicsBackend, GraphicsBackend.dxmt.rawValue)
         XCTAssertFalse(epic.enableHiDPI)
         XCTAssertEqual(epic.windowsVersion, "win10")
+        XCTAssertEqual(
+            StoreRecipe.effectiveEngine(epic, global: app).value,
+            .grappleWine
+        )
         let dxvkOnGrapple = StoreRecipe.normalized(
             BottleConfiguration(
                 engine: WineEngine.grappleWine.rawValue,

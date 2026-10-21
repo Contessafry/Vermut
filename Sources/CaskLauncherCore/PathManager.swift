@@ -58,8 +58,14 @@ public final class PathManager: @unchecked Sendable {
         enginesURL.appendingPathComponent(engine.id)
     }
     
+    /// Active DXMT overlay root (versioned under `engines/dxmt/versions/<tag>/`).
     public func dxmtURL() -> URL {
-        enginesURL.appendingPathComponent("dxmt")
+        DXMTVersionManager.shared.activeOverlayURL()
+    }
+
+    /// Parent folder for DXMT version installs and the active-version pointer.
+    public func dxmtStoreURL() -> URL {
+        enginesURL.appendingPathComponent("dxmt", isDirectory: true)
     }
     
     public func dxvkURL() -> URL {
