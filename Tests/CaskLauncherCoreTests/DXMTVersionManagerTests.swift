@@ -28,6 +28,8 @@ final class DXMTVersionManagerTests: XCTestCase {
     }
 
     func testVisibleRemoteKeepsInstalledOutsideWindow() {
+        // Remote window is newest + 5 previous (indices 0…5 → v0.80…v0.75).
+        // v0.73 is in the remote list but outside that window; installed must keep it.
         let manager = DXMTVersionManager()
         let remote: [ResolvedComponent] = (0..<8).map { index in
             let tag = "v0.\(80 - index)"
@@ -42,9 +44,10 @@ final class DXMTVersionManagerTests: XCTestCase {
         let visible = manager.visibleRemoteTags(
             from: remote,
             defaultTag: "v0.80",
-            installed: ["v0.70"]
+            installed: ["v0.73"]
         )
-        XCTAssertTrue(visible.contains { ComponentVersion.canonicalTag($0.version) == "v0.70" })
+        XCTAssertTrue(visible.contains { ComponentVersion.canonicalTag($0.version) == "v0.73" })
+        XCTAssertGreaterThanOrEqual(visible.count, 7)
     }
 
     func testMergeCatalogMarksDefaultAndSuggestsNewer() {

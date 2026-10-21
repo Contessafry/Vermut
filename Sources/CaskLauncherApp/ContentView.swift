@@ -28,6 +28,15 @@ struct ContentView: View {
                 Text(error)
             }
         }
+        .alert(appState.infoAlertTitle, isPresented: infoPresented) {
+            Button("OK", role: .cancel) {
+                appState.dismissInfoAlert()
+            }
+        } message: {
+            if let info = appState.infoAlertMessage {
+                Text(info)
+            }
+        }
         .fileImporter(
             isPresented: $appState.showingFilePicker,
             allowedContentTypes: [.item]
@@ -49,6 +58,13 @@ struct ContentView: View {
         Binding(
             get: { appState.errorMessage != nil && appState.isSetupComplete && !appState.showOnboarding },
             set: { if !$0 { appState.errorMessage = nil } }
+        )
+    }
+
+    private var infoPresented: Binding<Bool> {
+        Binding(
+            get: { appState.infoAlertMessage != nil && appState.isSetupComplete && !appState.showOnboarding },
+            set: { if !$0 { appState.dismissInfoAlert() } }
         )
     }
 }

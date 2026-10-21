@@ -24,8 +24,9 @@ final class GStreamerProbeTests: XCTestCase {
         XCTAssertTrue(WineEngine.devel.requiresGStreamer)
     }
 
+    @MainActor
     func testPickerStatusLabelForMissingEngine() {
-        // grapple may or may not be installed in CI; label must be non-empty.
+        // WineEnginesViewModel is @MainActor; label must be non-empty.
         let label = WineEnginesViewModel.pickerStatusLabel(for: .staging)
         XCTAssertFalse(label.isEmpty)
     }

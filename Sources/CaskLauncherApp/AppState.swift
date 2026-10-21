@@ -29,6 +29,9 @@ final class AppState: ObservableObject {
     @Published var setupMessage = ""
     @Published var configuration: AppConfiguration
     @Published var errorMessage: String?
+    /// Neutral one-shot notice (e.g. "You're up to date"). Never shared with `errorMessage`.
+    @Published var infoAlertMessage: String?
+    @Published var infoAlertTitle: String = "You're up to date"
     @Published var setupFailed = false
     @Published var setupPhase: SetupPhase = .checking
     @Published var showOnboarding = true
@@ -932,7 +935,10 @@ final class AppState: ObservableObject {
     }
     
     func checkForUpdateManually() async {
-        await MainActor.run { isCheckingForUpdate = true }
+        await MainActor.run {
+            isCheckingForUpdate = true
+            infoAlertMessage = nil
+        }
         let channel = configuration.resolvedUpdateChannel
         let result = await UpdateChecker.shared.checkForUpdate(
             currentVersion: VermutProject.version,
@@ -943,12 +949,23 @@ final class AppState: ObservableObject {
             isCheckingForUpdate = false
             if case .updateAvailable(let version, let url, let notes, let isPre) = result {
                 availableUpdate = (version, url, notes, isPre)
+                infoAlertMessage = nil
             } else if case .upToDate = result {
-                errorMessage = "You already have the latest version."
+                availableUpdate = nil
+                errorMessage = nil
+                // Neutral info alert — never reuse errorMessage (that alert title is "Something went wrong").
+                infoAlertTitle = "You're up to date"
+                infoAlertMessage = "Vermut \(VermutProject.version) is the latest on the \(channel.userFacingName) channel."
             } else {
+                availableUpdate = nil
+                infoAlertMessage = nil
                 errorMessage = "Could not check for updates. Check your network connection."
             }
         }
+    }
+
+    func dismissInfoAlert() {
+        infoAlertMessage = nil
     }
     
     func dismissUpdate() {
@@ -968,13 +985,14 @@ final class AppState: ObservableObject {
         if !runningStoresList.isEmpty {
             await MainActor.run {
                 let storeNames = runningStoresList.map { $0.rawValue }.joined(separator: ", ")
-                errorMessage = "Chiudi \(storeNames) prima di aggiornare."
+                errorMessage = "Quit \(storeNames) before updating."
             }
             return
         }
         
         await MainActor.run {
-            errorMessage = "Aggiornamento in corso…"
+            infoAlertTitle = "Updating"
+            infoAlertMessage = "Downloading and installing the update…"
         }
         
         let script = "curl -fsSL https://raw.githubusercontent.com/Contessafry/Vermut/main/install.sh | bash"
@@ -996,12 +1014,14 @@ final class AppState: ObservableObject {
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 let output = String(data: data, encoding: .utf8) ?? "Unknown error"
                 await MainActor.run {
-                    errorMessage = "Aggiornamento fallito: \(output)"
+                    infoAlertMessage = nil
+                    errorMessage = "Update failed: \(output)"
                 }
             }
         } catch {
             await MainActor.run {
-                errorMessage = "Aggiornamento fallito: \(error.localizedDescription)"
+                infoAlertMessage = nil
+                errorMessage = "Update failed: \(error.localizedDescription)"
             }
         }
     }

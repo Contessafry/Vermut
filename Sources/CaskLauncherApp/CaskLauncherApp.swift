@@ -41,7 +41,7 @@ struct CaskLauncherApp: App {
                 
                 Divider()
                 
-                Button("Controlla aggiornamenti") {
+                Button("Check for Updates…") {
                     Task {
                         await appState.checkForUpdateManually()
                     }

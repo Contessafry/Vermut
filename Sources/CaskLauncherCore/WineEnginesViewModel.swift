@@ -41,7 +41,7 @@ public final class WineEnginesViewModel: ObservableObject {
     @Published public var pendingDownload: WineEngine?
 
     /// Approximate download size shown before confirming (from fallback assets when known).
-    public static let approximateDownloadBytes: [WineEngine: Int64] = [
+    nonisolated public static let approximateDownloadBytes: [WineEngine: Int64] = [
         .staging: 210_000_000,
         .devel: 210_000_000
     ]
@@ -120,14 +120,15 @@ public final class WineEnginesViewModel: ObservableObject {
         return "\(mb)The bottle keeps using the current engine until the download finishes."
     }
 
-    public static func formatBytes(_ bytes: Int64) -> String {
+    nonisolated public static func formatBytes(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useMB, .useGB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
     }
 
-    public static func pickerStatusLabel(for engine: WineEngine) -> String {
+    /// Pure status label for pickers; `nonisolated` so tests and menu builders can call it freely.
+    nonisolated public static func pickerStatusLabel(for engine: WineEngine) -> String {
         if engine == .grappleWine {
             return EngineManager.shared.isEngineInstalled(engine) ? "Included" : "Download"
         }
