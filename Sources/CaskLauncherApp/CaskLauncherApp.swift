@@ -54,6 +54,13 @@ struct CaskLauncherApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+            CommandGroup(after: .sidebar) {
+                Button(String(localized: "Game Settings", comment: "View menu inspector")) {
+                    appState.toggleGameSettingsInspector()
+                }
+                .keyboardShortcut("i", modifiers: [.option, .command])
+                .disabled(appState.installedGames.isEmpty)
+            }
         }
     }
 }
