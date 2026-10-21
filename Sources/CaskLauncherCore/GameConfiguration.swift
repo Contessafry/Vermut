@@ -66,19 +66,23 @@ public struct ResolvedLaunchSettings: Equatable, Sendable {
     public var logLevel: EffectiveSetting<WineLogLevel>
     /// Bottle fields for this launch (HiDPI / Windows version from the bottle).
     public var bottleBase: BottleConfiguration
+    /// True when Staging was selected because DXVK cannot run on Vermut Wine.
+    public var engineForcedForDXVK: Bool
 
     public init(
         engine: EffectiveSetting<WineEngine>,
         graphics: EffectiveSetting<GraphicsBackend>,
         dxmtVersion: EffectiveSetting<String>,
         logLevel: EffectiveSetting<WineLogLevel>,
-        bottleBase: BottleConfiguration
+        bottleBase: BottleConfiguration,
+        engineForcedForDXVK: Bool = false
     ) {
         self.engine = engine
         self.graphics = graphics
         self.dxmtVersion = dxmtVersion
         self.logLevel = logLevel
         self.bottleBase = bottleBase
+        self.engineForcedForDXVK = engineForcedForDXVK
     }
 
     /// Whether DXMT was explicitly pinned on the game or bottle (not Automatic inherit).
@@ -109,7 +113,13 @@ public struct ResolvedLaunchSettings: Equatable, Sendable {
     /// Compact profile string for compat reports / session tracking.
     public var profileSummary: String {
         let dxmtPart = dxmtIsPinned ? dxmtVersion.value : "automatic"
-        return "engine=\(engine.value.rawValue);graphics=\(graphics.value.shortLabel);dxmt=\(dxmtPart);log=\(logLevel.value.rawValue)"
+        let forced = engineForcedForDXVK ? ";dxvk→staging" : ""
+        return "engine=\(engine.value.rawValue);graphics=\(graphics.value.shortLabel);dxmt=\(dxmtPart);log=\(logLevel.value.rawValue)\(forced)"
+    }
+
+    /// Staging must be on disk before a DXVK launch that forced it.
+    public var requiresStagingInstall: Bool {
+        engineForcedForDXVK || (graphics.value == .dxvk && engine.value == .staging)
     }
 }
 
@@ -153,30 +163,42 @@ public enum GameSettingsResolver {
             graphicsValue = EffectiveSetting(value: .wined3d, source: graphics.source)
         }
 
-        // Engine is exactly what inheritance resolves — no DXVK→staging rewrite here.
-        // (WineManager may still remap at launch for Vulkan; Automatic must match main.)
+        let applied = EngineGraphicsPolicy.apply(inherited: engine, backend: graphicsValue.value)
         return ResolvedLaunchSettings(
-            engine: engine,
+            engine: applied.engine,
             graphics: graphicsValue,
             dxmtVersion: dxmt,
             logLevel: logLevel,
-            bottleBase: bottle
+            bottleBase: bottle,
+            engineForcedForDXVK: applied.forcedForDXVK
         )
     }
 
     /// Parent-scope Automatic label for a game picker (bottle effective value).
+    /// When `effectiveGraphics` is DXVK and the parent engine is Vermut Wine, shows Staging
+    /// (required by DXVK) so the inspector matches launch.
     public static func automaticEngineLabel(
         bottle: BottleConfiguration,
         global: AppConfiguration,
-        store: GameStore
+        store: GameStore,
+        effectiveGraphics: GraphicsBackend? = nil
     ) -> String {
         let parent = SettingInheritance.resolveEngine(
             bottle: bottle.engine,
             global: global.defaultEngine
         )
+        let backend = effectiveGraphics
+            ?? SettingInheritance.resolveGraphics(
+                bottle: bottle.graphicsBackend,
+                global: global.defaultGraphicsBackend
+            ).value
+        let applied = EngineGraphicsPolicy.apply(inherited: parent, backend: backend)
+        let display = applied.forcedForDXVK
+            ? EngineGraphicsPolicy.stagingRequiredByDXVKLabel
+            : applied.engine.value.userFacingName
         return SettingInheritance.automaticLabel(
             scope: store.shortNameForInheritance,
-            effectiveDisplay: parent.value.userFacingName
+            effectiveDisplay: display
         )
     }
 

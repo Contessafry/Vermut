@@ -24,8 +24,10 @@ final class GameSettingsResolverTests: XCTestCase {
             global: global,
             store: .steam
         )
-        XCTAssertEqual(resolved.engine.value, .grappleWine)
+        // Bottle graphics is DXVK → EngineGraphicsPolicy forces Staging (shared with WineManager).
+        XCTAssertEqual(resolved.engine.value, .staging)
         XCTAssertEqual(resolved.engine.source, .global)
+        XCTAssertTrue(resolved.engineForcedForDXVK)
         XCTAssertEqual(resolved.graphics.value, .dxvk)
         XCTAssertEqual(resolved.graphics.source, .bottle)
         XCTAssertEqual(resolved.dxmtVersion.value, "v0.80")
@@ -57,7 +59,7 @@ final class GameSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolved.logLevel.source, .game)
     }
 
-    func testDXVKDoesNotRewriteInheritedEngine() {
+    func testDXVKForcesStagingMatchingLaunchAndUI() {
         let game = GameConfiguration(
             engine: WineEngine.grappleWine.rawValue,
             graphicsBackend: GraphicsBackend.dxvk.rawValue
@@ -69,8 +71,27 @@ final class GameSettingsResolverTests: XCTestCase {
             store: .steam
         )
         XCTAssertEqual(resolved.graphics.value, .dxvk)
-        XCTAssertEqual(resolved.engine.value, .grappleWine)
-        XCTAssertEqual(resolved.engine.source, .game)
+        XCTAssertEqual(resolved.engine.value, .staging)
+        XCTAssertTrue(resolved.engineForcedForDXVK)
+        XCTAssertEqual(resolved.launchConfiguration.engine, WineEngine.staging.rawValue)
+
+        let label = GameSettingsResolver.automaticEngineLabel(
+            bottle: BottleConfiguration(
+                engine: SettingInheritance.automatic,
+                graphicsBackend: GraphicsBackend.dxvk.rawValue
+            ),
+            global: global,
+            store: .steam,
+            effectiveGraphics: .dxvk
+        )
+        XCTAssertEqual(
+            label,
+            "Automatic (Steam: \(EngineGraphicsPolicy.stagingRequiredByDXVKLabel))"
+        )
+        XCTAssertEqual(
+            EngineGraphicsPolicy.graphicsPickerLabel(for: .dxvk),
+            "DXVK · Uses Wine Staging"
+        )
     }
 
     func testGOGLocksWineD3D() {
@@ -161,9 +182,24 @@ final class GameSettingsResolverTests: XCTestCase {
         let engineLabel = GameSettingsResolver.automaticEngineLabel(
             bottle: bottle,
             global: global,
-            store: .steam
+            store: .steam,
+            effectiveGraphics: .dxvk
         )
-        XCTAssertEqual(engineLabel, "Automatic (Steam: Vermut Wine)")
+        XCTAssertEqual(
+            engineLabel,
+            "Automatic (Steam: \(EngineGraphicsPolicy.stagingRequiredByDXVKLabel))"
+        )
+
+        let engineLabelDXMT = GameSettingsResolver.automaticEngineLabel(
+            bottle: BottleConfiguration(
+                engine: SettingInheritance.automatic,
+                graphicsBackend: GraphicsBackend.dxmt.rawValue
+            ),
+            global: global,
+            store: .steam,
+            effectiveGraphics: .dxmt
+        )
+        XCTAssertEqual(engineLabelDXMT, "Automatic (Steam: Vermut Wine)")
 
         let graphicsLabel = GameSettingsResolver.automaticGraphicsLabel(
             bottle: bottle,

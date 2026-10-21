@@ -31,6 +31,15 @@ struct GameSettingsInspector: View {
         return game.store == .gog ? .wined3d : resolved
     }
 
+    private var resolvedPreview: ResolvedLaunchSettings {
+        GameSettingsResolver.resolve(
+            game: config,
+            bottle: bottle,
+            global: global,
+            store: game.store
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: VermutSpace.s4) {
@@ -123,10 +132,16 @@ struct GameSettingsInspector: View {
     }
 
     private var engineSection: some View {
-        settingRow(
+        let help: String? = resolvedPreview.engineForcedForDXVK
+            ? String(
+                localized: "Wine Staging is required for DXVK (Vermut Wine has no Vulkan loader).",
+                comment: "DXVK forces Staging help"
+            )
+            : nil
+        return settingRow(
             title: String(localized: "Wine engine", comment: "Game settings field"),
             field: \.engine,
-            helpWhenAutomatic: nil,
+            helpWhenAutomatic: help,
             accessibilityLabel: engineAccessibilityLabel
         ) {
             Picker("", selection: engineSelection) {
@@ -134,13 +149,20 @@ struct GameSettingsInspector: View {
                     GameSettingsResolver.automaticEngineLabel(
                         bottle: bottle,
                         global: global,
-                        store: game.store
+                        store: game.store,
+                        effectiveGraphics: effectiveGraphics
                     )
                 )
                 .tag(SettingInheritance.automatic)
                 ForEach(WineEngine.allCases) { engine in
-                    Text("\(engine.userFacingName) · \(WineEnginesViewModel.pickerStatusLabel(for: engine))")
-                        .tag(engine.rawValue)
+                    Text(
+                        EngineGraphicsPolicy.enginePickerLabel(
+                            for: engine,
+                            effectiveBackend: effectiveGraphics,
+                            statusSuffix: WineEnginesViewModel.pickerStatusLabel(for: engine)
+                        )
+                    )
+                    .tag(engine.rawValue)
                 }
             }
             .labelsHidden()
@@ -165,7 +187,7 @@ struct GameSettingsInspector: View {
                 )
                 .tag(SettingInheritance.automatic)
                 ForEach(GraphicsBackend.allCases) { backend in
-                    Text(backend.shortLabel)
+                    Text(EngineGraphicsPolicy.graphicsPickerLabel(for: backend))
                         .tag(backend.rawValue)
                 }
             }
@@ -482,8 +504,11 @@ struct GameSettingsInspector: View {
             value = GameSettingsResolver.automaticEngineLabel(
                 bottle: bottle,
                 global: global,
-                store: game.store
+                store: game.store,
+                effectiveGraphics: effectiveGraphics
             )
+        } else if resolvedPreview.engineForcedForDXVK {
+            value = EngineGraphicsPolicy.stagingRequiredByDXVKLabel
         } else {
             value = WineEngine(rawValue: config.engine)?.userFacingName ?? config.engine
         }

@@ -588,6 +588,17 @@ final class AppState: ObservableObject {
         let launchConfig = resolved.launchConfiguration
         let wineDebug = WineLogLevel.effectiveWineDebug(level: resolved.logLevel.value)
 
+        if resolved.requiresStagingInstall,
+           !EngineManager.shared.isEngineInstalled(.staging) {
+            infoAlertTitle = String(localized: "Wine Staging required", comment: "DXVK needs Staging")
+            infoAlertMessage = String(
+                localized: "DXVK needs Wine Staging (Vermut Wine has no Vulkan loader). Download it from Settings › Wine Engines, then play again.",
+                comment: "Offer Staging download before DXVK launch"
+            )
+            settingsTab = .wineEngines
+            return
+        }
+
         if game.store == .epic {
             Task {
                 do {

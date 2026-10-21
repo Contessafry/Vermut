@@ -23,15 +23,14 @@ public final class WineManager: @unchecked Sendable {
         (try? ConfigurationManager.shared.loadConfiguration()) ?? AppConfiguration()
     }
 
-    /// Resolves Automatic → Settings, then DXVK→staging when needed.
+    /// Resolves Automatic → Settings, then DXVK→Staging via `EngineGraphicsPolicy`.
     private func resolvedEngine(for store: GameStore, config: BottleConfiguration) -> WineEngine {
         let global = appConfiguration()
-        var engine = StoreRecipe.effectiveEngine(config, global: global).value
-        let backend = graphicsBackend(config)
-        if backend == .dxvk, engine == .grappleWine {
-            engine = .staging
-        }
-        return engine
+        let inherited = StoreRecipe.effectiveEngine(config, global: global)
+        return EngineGraphicsPolicy.apply(
+            inherited: inherited,
+            backend: graphicsBackend(config)
+        ).engine.value
     }
 
     public func createPrefix(for store: GameStore, config: BottleConfiguration) async throws {
@@ -254,9 +253,10 @@ public final class WineManager: @unchecked Sendable {
         try throwIfInstallCancelled(.epic)
         onSettingUp?()
         var config = config
-        if graphicsBackend(config) == .dxvk {
+        let epicEngine = resolvedEngine(for: .epic, config: config)
+        if epicEngine == .staging {
             try await ensureEngineInstalled(.staging)
-            config.engine = WineEngine.staging.rawValue
+            config.engine = epicEngine.rawValue
         }
         try await createPrefix(for: .epic, config: config)
         try throwIfInstallCancelled(.epic)
@@ -411,11 +411,10 @@ public final class WineManager: @unchecked Sendable {
         wineDebug: String? = nil
     ) async throws {
         var config = StoreRecipe.normalized(config, for: .epic)
-        if graphicsBackend(config) == .dxvk {
-            try await ensureEngineInstalled(.staging)
-            config.engine = WineEngine.staging.rawValue
-        }
         let engine = resolvedEngine(for: .epic, config: config)
+        if engine == .staging {
+            try await ensureEngineInstalled(.staging)
+        }
         config.engine = engine.rawValue
         try await createPrefix(for: .epic, config: config)
         try applyEpicGraphics(config: config)

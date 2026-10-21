@@ -71,15 +71,13 @@ public enum StoreRecipe {
             config.windowsVersion = "win10"
             config.enableHiDPI = false
             let backend = GraphicsBackend(rawValue: config.graphicsBackend) ?? .dxmt
-            let engine = SettingInheritance.resolveEngine(
+            let inherited = SettingInheritance.resolveEngine(
                 bottle: config.engine,
                 global: app.defaultEngine
-            ).value
-            // Grapple-wine has no Vulkan loader — pin staging when DXVK is chosen explicitly.
-            if backend == .dxvk, engine == .grappleWine, SettingInheritance.isAutomatic(config.engine) {
-                config.engine = WineEngine.staging.rawValue
-            } else if backend == .dxvk, engine == .grappleWine {
-                config.engine = WineEngine.staging.rawValue
+            )
+            let applied = EngineGraphicsPolicy.apply(inherited: inherited, backend: backend)
+            if applied.forcedForDXVK {
+                config.engine = applied.engine.value.rawValue
             }
         }
         if store == .gog {
