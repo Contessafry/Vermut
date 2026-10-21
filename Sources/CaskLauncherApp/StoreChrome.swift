@@ -58,17 +58,6 @@ extension GameStore {
     }
 }
 
-extension GraphicsBackend {
-    var shortLabel: String {
-        switch self {
-        case .dxmt: return "DXMT"
-        case .dxvk: return "DXVK"
-        case .d3dmetal: return "D3DMetal"
-        case .wined3d: return "WineD3D"
-        }
-    }
-}
-
 extension WineEngine {
     var compactLabel: String { userFacingName }
 }
