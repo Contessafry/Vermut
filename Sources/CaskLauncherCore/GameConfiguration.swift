@@ -153,13 +153,10 @@ public enum GameSettingsResolver {
             graphicsValue = EffectiveSetting(value: .wined3d, source: graphics.source)
         }
 
-        var engineValue = engine
-        if graphicsValue.value == .dxvk, engineValue.value == .grappleWine {
-            engineValue = EffectiveSetting(value: .staging, source: engineValue.source)
-        }
-
+        // Engine is exactly what inheritance resolves — no DXVK→staging rewrite here.
+        // (WineManager may still remap at launch for Vulkan; Automatic must match main.)
         return ResolvedLaunchSettings(
-            engine: engineValue,
+            engine: engine,
             graphics: graphicsValue,
             dxmtVersion: dxmt,
             logLevel: logLevel,

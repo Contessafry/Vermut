@@ -57,7 +57,7 @@ final class GameSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolved.logLevel.source, .game)
     }
 
-    func testDXVKForcesStagingWhenEngineIsGrappleWine() {
+    func testDXVKDoesNotRewriteInheritedEngine() {
         let game = GameConfiguration(
             engine: WineEngine.grappleWine.rawValue,
             graphicsBackend: GraphicsBackend.dxvk.rawValue
@@ -69,7 +69,8 @@ final class GameSettingsResolverTests: XCTestCase {
             store: .steam
         )
         XCTAssertEqual(resolved.graphics.value, .dxvk)
-        XCTAssertEqual(resolved.engine.value, .staging)
+        XCTAssertEqual(resolved.engine.value, .grappleWine)
+        XCTAssertEqual(resolved.engine.source, .game)
     }
 
     func testGOGLocksWineD3D() {

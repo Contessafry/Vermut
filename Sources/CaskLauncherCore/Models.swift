@@ -187,7 +187,7 @@ public enum WineEngine: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public struct BottleConfiguration: Codable, Sendable {
+public struct BottleConfiguration: Codable, Sendable, Equatable {
     /// `SettingInheritance.automatic` or a `WineEngine.rawValue`.
     public var engine: String
     public var graphicsBackend: String
