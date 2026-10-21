@@ -41,6 +41,8 @@ public enum StoreRecipe {
                     engine: SettingInheritance.automatic,
                     graphicsBackend: app.defaultGraphicsBackend,
                     dxmtVersion: SettingInheritance.automatic,
+                    // Keep err+all so DXVK / Win64 faults still show (matches prior Epic default).
+                    logLevel: WineLogLevel.errors.rawValue,
                     enableHiDPI: false,
                     windowsVersion: "win10"
                 ),
@@ -92,21 +94,70 @@ public enum StoreRecipe {
         return config
     }
 
-    /// Effective Wine engine for a bottle, honouring Automatic → Settings.
+    /// Effective Wine engine for a bottle (and optional game), honouring Automatic → Settings.
     public static func effectiveEngine(
         _ config: BottleConfiguration,
-        global: AppConfiguration
+        global: AppConfiguration,
+        game: GameConfiguration? = nil
     ) -> EffectiveSetting<WineEngine> {
-        SettingInheritance.resolveEngine(bottle: config.engine, global: global.defaultEngine)
+        SettingInheritance.resolveEngine(
+            game: game?.engine,
+            bottle: config.engine,
+            global: global.defaultEngine
+        )
+    }
+
+    public static func effectiveGraphics(
+        _ config: BottleConfiguration,
+        global: AppConfiguration,
+        game: GameConfiguration? = nil
+    ) -> EffectiveSetting<GraphicsBackend> {
+        SettingInheritance.resolveGraphics(
+            game: game?.graphicsBackend,
+            bottle: config.graphicsBackend,
+            global: global.defaultGraphicsBackend
+        )
     }
 
     public static func effectiveDXMTVersion(
         _ config: BottleConfiguration,
-        global: AppConfiguration
+        global: AppConfiguration,
+        game: GameConfiguration? = nil
     ) -> EffectiveSetting<String> {
         SettingInheritance.resolveDXMTVersion(
+            game: game?.dxmtVersion,
             bottle: config.dxmtVersion,
             global: global.defaultDXMTVersion
+        )
+    }
+
+    public static func effectiveLogLevel(
+        _ config: BottleConfiguration,
+        global: AppConfiguration,
+        store: GameStore,
+        game: GameConfiguration? = nil
+    ) -> EffectiveSetting<WineLogLevel> {
+        SettingInheritance.resolveLogLevel(
+            game: game?.logLevel,
+            bottle: config.logLevel,
+            global: global.defaultLogLevel,
+            storeDefault: WineLogLevel.storeDefault(for: store)
+        )
+    }
+
+    /// Full Settings → bottle → game resolution for launching one title.
+    public static func resolveLaunchSettings(
+        game: GameConfiguration?,
+        bottle: BottleConfiguration,
+        global: AppConfiguration,
+        store: GameStore
+    ) -> ResolvedLaunchSettings {
+        let normalized = normalized(bottle, for: store, global: global)
+        return GameSettingsResolver.resolve(
+            game: game,
+            bottle: normalized,
+            global: global,
+            store: store
         )
     }
 }
