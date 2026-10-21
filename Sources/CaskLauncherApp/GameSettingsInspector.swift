@@ -279,13 +279,19 @@ struct GameSettingsInspector: View {
     }
 
     private var logLevelSection: some View {
-        settingRow(
-            title: String(localized: "Log level", comment: "Game settings field"),
-            field: \.logLevel,
-            helpWhenAutomatic: String(
+        let steamNote = game.store == .steam
+            ? String(
+                localized: "“Verbose” slows the game down — use it only when reporting a problem. On Steam, Verbose does not apply to the Steam client (client logs stay quiet).",
+                comment: "Log level help Steam"
+            )
+            : String(
                 localized: "“Verbose” slows the game down — use it only when reporting a problem.",
                 comment: "Log level help"
-            ),
+            )
+        return settingRow(
+            title: String(localized: "Log level", comment: "Game settings field"),
+            field: \.logLevel,
+            helpWhenAutomatic: steamNote,
             accessibilityLabel: logLevelAccessibilityLabel
         ) {
             Picker("", selection: logLevelSelection) {

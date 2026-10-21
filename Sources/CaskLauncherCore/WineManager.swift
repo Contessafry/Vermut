@@ -331,6 +331,23 @@ public final class WineManager: @unchecked Sendable {
         wineDebug: String? = nil,
         firstRunUpdate: Bool = false
     ) async throws {
+        try await launchStore(
+            store,
+            config: config,
+            wineDebug: wineDebug,
+            firstRunUpdate: firstRunUpdate,
+            steamAppId: nil
+        )
+    }
+
+    /// Launch Steam, optionally starting a specific game via `-applaunch <appId>`.
+    public func launchStore(
+        _ store: GameStore,
+        config: BottleConfiguration,
+        wineDebug: String? = nil,
+        firstRunUpdate: Bool = false,
+        steamAppId: String?
+    ) async throws {
         if store == .epic {
             return
         }
@@ -369,22 +386,24 @@ public final class WineManager: @unchecked Sendable {
             store: store,
             executable: executablePath,
             wineLibDir: layout.wineLibDir,
-            firstRunUpdate: firstRunUpdate
+            firstRunUpdate: firstRunUpdate,
+            steamAppId: store == .steam ? steamAppId : nil
         )
         for (key, value) in recipe.environment {
             environment[key] = value
         }
-        // Per-game / bottle log level, then VERMUT_WINEDEBUG (host override always wins).
+        // Preferred debug (game or client), then VERMUT_WINEDEBUG (host override always wins).
         applyWineDebug(&environment, preferred: wineDebug)
 
         let logURL = PathManager.shared.logURL(for: store)
+        let appSuffix = steamAppId.map { " applaunch=\($0)" } ?? ""
         appendLaunchLog(
             StoreLaunchRecipe.launchLogLine(
                 store: store,
                 engine: engine,
                 wine: wineBinary,
                 wineserver: layout.wineserverExecutable
-            ) + " exe=\(executablePath.path) winedebug=\(environment["WINEDEBUG"] ?? "")",
+            ) + " exe=\(executablePath.path) winedebug=\(environment["WINEDEBUG"] ?? "")\(appSuffix)",
             to: logURL
         )
         appendLaunchLog(
@@ -402,6 +421,33 @@ public final class WineManager: @unchecked Sendable {
             environment: environment,
             workingDirectory: recipe.workingDirectory,
             logURL: logURL
+        )
+    }
+
+    /// Launch a Steam title (`-applaunch`). Client WINEDEBUG stays quiet (`-all`).
+    public func launchSteamGame(
+        appId: String,
+        config: BottleConfiguration
+    ) async throws {
+        try await launchStore(
+            .steam,
+            config: config,
+            wineDebug: SteamGameLaunch.clientWineDebug(),
+            steamAppId: appId
+        )
+    }
+
+    /// Best-effort engine of the live Steam wineserver (from process paths).
+    public func runningSteamEngine() -> WineEngine? {
+        let prefix = PathManager.shared.prefixURL(for: .steam).path
+        var roots: [WineEngine: String] = [:]
+        for engine in WineEngine.allCases {
+            roots[engine] = PathManager.shared.engineURL(for: engine).path
+        }
+        return SteamGameLaunch.detectRunningEngine(
+            prefixPath: prefix,
+            processLines: PrefixRuntime.processPIDLines() + PrefixRuntime.processArgumentLines(),
+            engineInstallPaths: roots
         )
     }
 

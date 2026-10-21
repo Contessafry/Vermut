@@ -54,6 +54,8 @@ final class AppState: ObservableObject {
     /// Library selection for the Game Settings inspector (⌥⌘I).
     @Published var selectedLibraryGameId: String?
     @Published var showingGameSettingsInspector = false
+    /// Last engine/graphics applied to the Steam bottle session (for restart decisions).
+    @Published var steamRuntimeProfile: BottleRuntimeProfile?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
     @Published var availableUpdate: (version: String, url: String, releaseNotes: String?, isPrerelease: Bool)?
@@ -274,11 +276,15 @@ final class AppState: ObservableObject {
     }
 
     func updateStoreStatus(_ store: GameStore) {
+        let running = WineManager.shared.isStoreRunning(store)
         storeStatuses[store] = StoreStatus.refreshed(
             current: storeStatuses[store],
-            isRunning: WineManager.shared.isStoreRunning(store),
+            isRunning: running,
             isInstalled: WineManager.shared.isStoreInstalled(store)
         )
+        if store == .steam, !running {
+            steamRuntimeProfile = nil
+        }
     }
 
     func retryStore(_ store: GameStore) {
@@ -505,7 +511,15 @@ final class AppState: ObservableObject {
                 try WineManager.shared.saveBottleConfig(bottleConfig, for: store)
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
-                if store == .steam { bringSteamWindowForward() }
+                if store == .steam {
+                    let backend = GraphicsBackend(rawValue: bottleConfig.graphicsBackend) ?? .dxmt
+                    let inherited = WineEngine.resolved(from: bottleConfig.engine)
+                    steamRuntimeProfile = BottleRuntimeProfile(
+                        engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
+                        graphics: backend
+                    )
+                    bringSteamWindowForward()
+                }
 
                 Task {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -625,13 +639,17 @@ final class AppState: ObservableObject {
             return
         }
 
+        if game.store == .steam {
+            launchSteamGame(game, resolved: resolved, launchConfig: launchConfig)
+            return
+        }
+
         startGameSession(
             store: game.store,
             gameId: game.appId,
             gameName: game.name,
             resolved: resolved
         )
-        // Apply per-game engine/graphics/log for this launch without rewriting bottle.json.
         Task {
             do {
                 try await WineManager.shared.launchStore(
@@ -640,13 +658,66 @@ final class AppState: ObservableObject {
                     wineDebug: wineDebug
                 )
                 storeStatuses[game.store] = .running
-                if game.store == .steam { bringSteamWindowForward() }
                 Task {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                     updateStoreStatus(game.store)
                 }
             } catch {
                 storeStatuses[game.store] = .error(error.localizedDescription)
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Play a Steam title with `-applaunch`. Client WINEDEBUG stays `-all` (Verbose does not flood Steam).
+    private func launchSteamGame(
+        _ game: InstalledGame,
+        resolved: ResolvedLaunchSettings,
+        launchConfig: BottleConfiguration
+    ) {
+        let needed = BottleRuntimeProfile(resolved: resolved)
+        let running = WineManager.shared.isStoreRunning(.steam)
+        let processEngine = running ? WineManager.shared.runningSteamEngine() : nil
+        let restart = SteamGameLaunch.needsClientRestart(
+            isRunning: running,
+            runningProfile: steamRuntimeProfile,
+            runningEngineFromProcess: processEngine,
+            needed: needed
+        )
+
+        if restart {
+            infoAlertTitle = String(localized: "Steam will restart", comment: "Engine mismatch title")
+            infoAlertMessage = SteamGameLaunch.restartInfoMessage(neededEngine: needed.engine)
+        }
+
+        startGameSession(
+            store: game.store,
+            gameId: game.appId,
+            gameName: game.name,
+            resolved: resolved
+        )
+
+        Task {
+            do {
+                if restart {
+                    try? WineManager.shared.stopStore(.steam)
+                    steamRuntimeProfile = nil
+                    // Let wineserver exit before starting with the game engine.
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                }
+                try await WineManager.shared.launchSteamGame(
+                    appId: game.appId,
+                    config: launchConfig
+                )
+                steamRuntimeProfile = needed
+                storeStatuses[.steam] = .running
+                bringSteamWindowForward()
+                Task {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    updateStoreStatus(.steam)
+                }
+            } catch {
+                storeStatuses[.steam] = .error(error.localizedDescription)
                 errorMessage = error.localizedDescription
             }
         }
@@ -897,6 +968,9 @@ final class AppState: ObservableObject {
                 for (store, running, installed) in probes {
                     self.storeStatuses[store] = StoreStatus.refreshed(
                         current: self.storeStatuses[store], isRunning: running, isInstalled: installed)
+                    if store == .steam, !running {
+                        self.steamRuntimeProfile = nil
+                    }
                 }
             }
         }
