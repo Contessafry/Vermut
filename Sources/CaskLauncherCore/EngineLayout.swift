@@ -275,6 +275,10 @@ public struct OverlayLayout: Equatable, Sendable {
         return dirs
     }
 
+    /// Child folder names that must never be treated as nested overlay roots.
+    /// `engines/dxmt/versions/<tag>/` lives under the DXMT store directory.
+    private static let skippedOverlayChildNames: Set<String> = ["versions"]
+
     private static func overlayRootCandidates(installRoot: URL, fileManager: FileManager) -> [URL] {
         var roots = [installRoot]
         if let items = try? fileManager.contentsOfDirectory(
@@ -283,6 +287,7 @@ public struct OverlayLayout: Equatable, Sendable {
             options: [.skipsHiddenFiles]
         ) {
             for item in items {
+                if skippedOverlayChildNames.contains(item.lastPathComponent) { continue }
                 var isDir: ObjCBool = false
                 if fileManager.fileExists(atPath: item.path, isDirectory: &isDir), isDir.boolValue {
                     roots.append(item)

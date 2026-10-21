@@ -199,6 +199,52 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         "Vermut: launching \(store.identifier) with engine=\(engine.rawValue) wine=\(wine.path) wineserver=\(wineserver.path)"
     }
 
+    /// Keys logged at launch for Mac QA diffs. No secrets / tokens / home paths beyond Wine paths.
+    public static let launchEnvironmentLogKeys: [String] = [
+        "WINEPREFIX",
+        "WINELOADER",
+        "WINESERVER",
+        "WINEDLLPATH",
+        "WINEDEBUG",
+        "WINEESYNC",
+        "WINEMSYNC",
+        "WINEDLLOVERRIDES",
+        "WINEARCH",
+        "PATH"
+    ]
+
+    /// One capped bottle-log line: resolved engine root + selected Wine env (PATH summarized).
+    public static func launchEnvironmentSummary(
+        engineRoot: URL,
+        wine: URL,
+        environment: [String: String]
+    ) -> String {
+        var parts: [String] = [
+            "Vermut: launch-env",
+            "engineRoot=\(engineRoot.path)",
+            "wine=\(wine.path)"
+        ]
+        for key in launchEnvironmentLogKeys.sorted() {
+            guard let raw = environment[key] else { continue }
+            if key == "PATH" {
+                parts.append("PATH=\(summarizeLaunchPATH(raw, wineBin: wine.deletingLastPathComponent().path))")
+            } else {
+                parts.append("\(key)=\(raw)")
+            }
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// Whether the Wine `bin` directory leads PATH (avoids dumping the full host PATH).
+    public static func summarizeLaunchPATH(_ path: String, wineBin: String) -> String {
+        let entries = path.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        guard let first = entries.first else { return "(empty)" }
+        if first == wineBin || path.hasPrefix(wineBin + ":") {
+            return "wine-bin-first+\(max(0, entries.count - 1))-more"
+        }
+        return "wine-bin-not-first first=\(first)"
+    }
+
     public static let syncEnvironmentKeys = ["WINEESYNC", "WINEMSYNC"]
 
     /// Sync mode a store runs with. Every wine process sharing the prefix's

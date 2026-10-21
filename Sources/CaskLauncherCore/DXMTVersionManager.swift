@@ -83,17 +83,20 @@ public final class DXMTVersionManager: @unchecked Sendable {
             .appendingPathComponent(stateFileName)
     }
 
-    /// Currently selected default DXMT (global). Falls back to pinned tag.
-    public var activeVersionTag: String? {
-        get {
-            guard let data = try? Data(contentsOf: stateURL),
-                  let tag = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !tag.isEmpty else {
-                return migrateLegacyFlatInstallIfNeeded()
-            }
-            return ComponentVersion.canonicalTag(tag)
+    /// Stored active tag only (no migration side effects — safe during Steam launch).
+    public var storedActiveVersionTag: String? {
+        guard let data = try? Data(contentsOf: stateURL),
+              let tag = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !tag.isEmpty else {
+            return nil
         }
+        return ComponentVersion.canonicalTag(tag)
+    }
+
+    /// Currently selected default DXMT. Does not migrate on read.
+    public var activeVersionTag: String? {
+        get { storedActiveVersionTag }
         set {
             let root = stateURL.deletingLastPathComponent()
             try? fileManager.createDirectory(at: root, withIntermediateDirectories: true)
@@ -105,19 +108,26 @@ public final class DXMTVersionManager: @unchecked Sendable {
         }
     }
 
+    /// One-shot legacy migration; call from setup, never from the Steam launch path.
+    @discardableResult
+    public func ensureMigrated() -> String? {
+        if let stored = storedActiveVersionTag { return stored }
+        return migrateLegacyFlatInstallIfNeeded()
+    }
+
     public func installURL(for tag: String) -> URL {
         versionsRootURL.appendingPathComponent(ComponentVersion.canonicalTag(tag), isDirectory: true)
     }
 
-    /// Overlay root used by Wine / PathManager.
+    /// Overlay root for the active DXMT build (versioned, else classic flat `engines/dxmt`).
     public func activeOverlayURL() -> URL {
-        if let tag = activeVersionTag {
+        if let tag = storedActiveVersionTag {
             let url = installURL(for: tag)
             if OverlayLayout.resolve(installRoot: url, fileManager: fileManager)?.hasD3D11 == true {
                 return url
             }
         }
-        let legacy = PathManager.shared.enginesURL.appendingPathComponent("dxmt", isDirectory: true)
+        let legacy = PathManager.shared.dxmtURL()
         if OverlayLayout.resolve(installRoot: legacy, fileManager: fileManager)?.hasD3D11 == true {
             return legacy
         }
@@ -303,13 +313,14 @@ public final class DXMTVersionManager: @unchecked Sendable {
 
     @discardableResult
     public func migrateLegacyFlatInstallIfNeeded() -> String? {
-        let legacyRoot = PathManager.shared.enginesURL.appendingPathComponent("dxmt", isDirectory: true)
+        let legacyRoot = PathManager.shared.dxmtURL()
         let versionsDir = versionsRootURL
-        guard OverlayLayout.resolve(installRoot: legacyRoot, fileManager: fileManager)?.hasD3D11 == true else {
+        // Require a *flat* overlay directly under engines/dxmt (not versions/<tag>).
+        guard hasFlatOverlay(at: legacyRoot) else {
             return nil
         }
         if !installedVersions().isEmpty {
-            return activeVersionTag
+            return storedActiveVersionTag
         }
         let destination = installURL(for: Self.defaultVersionTag)
         if OverlayLayout.resolve(installRoot: destination, fileManager: fileManager)?.hasD3D11 != true {
@@ -329,6 +340,14 @@ public final class DXMTVersionManager: @unchecked Sendable {
             return Self.defaultVersionTag
         }
         return nil
+    }
+
+    /// True when `root` itself contains windows/unix overlay dirs (pre-versioned layout).
+    private func hasFlatOverlay(at root: URL) -> Bool {
+        let markers = ["x86_64-windows", "x64", "i386-windows", "x32", "x86_64-unix"]
+        return markers.contains {
+            existingDir(root.appendingPathComponent($0), fileManager) != nil
+        }
     }
 }
 

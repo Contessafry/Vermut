@@ -331,6 +331,8 @@ public final class WineManager: @unchecked Sendable {
         }
         var config = StoreRecipe.normalized(config, for: store)
         let engine = resolvedEngine(for: store, config: config)
+        // Concrete engine id so buildEnvironment / logs match main (1.1.3) after Automatic resolve.
+        config.engine = engine.rawValue
         guard let layout = PathManager.shared.engineLayout(for: engine) else {
             throw WineError.wineNotInstalled
         }
@@ -381,6 +383,14 @@ public final class WineManager: @unchecked Sendable {
             ) + " exe=\(executablePath.path)",
             to: logURL
         )
+        appendLaunchLog(
+            StoreLaunchRecipe.launchEnvironmentSummary(
+                engineRoot: PathManager.shared.engineURL(for: engine),
+                wine: wineBinary,
+                environment: environment
+            ),
+            to: logURL
+        )
 
         try launchDetached(
             executable: wineBinary,
@@ -398,6 +408,7 @@ public final class WineManager: @unchecked Sendable {
             config.engine = WineEngine.staging.rawValue
         }
         let engine = resolvedEngine(for: .epic, config: config)
+        config.engine = engine.rawValue
         try await createPrefix(for: .epic, config: config)
         try applyEpicGraphics(config: config)
         guard let layout = PathManager.shared.engineLayout(for: engine) else {
@@ -628,14 +639,20 @@ public final class WineManager: @unchecked Sendable {
     ) throws {
         guard StoreRecipe.allowsNativeGraphics(store) else { return }
         guard let layout = PathManager.shared.engineLayout(for: engine) else { return }
-        let global = appConfiguration()
-        let dxmtTag = StoreRecipe.effectiveDXMTVersion(config, global: global).value
-        let versioned = OverlayLayout.resolve(
-            installRoot: DXMTVersionManager.shared.installURL(for: dxmtTag)
-        )
-        let overlay = layout.bundledDXMTOverlay()
-            ?? versioned
-            ?? PathManager.shared.dxmtOverlay()
+        // Automatic: byte-compatible with main — bundledDXMTOverlay() ?? dxmtOverlay()
+        // (flat engines/dxmt first). Never force AppConfiguration.defaultDXMTVersion ("v0.80")
+        // into the prefix when the bottle still says Automatic.
+        let overlay: OverlayLayout?
+        if SettingInheritance.isAutomatic(config.dxmtVersion) {
+            overlay = layout.bundledDXMTOverlay() ?? PathManager.shared.dxmtOverlay()
+        } else {
+            let tag = StoreRecipe.effectiveDXMTVersion(config, global: appConfiguration()).value
+            let versioned = OverlayLayout.resolve(
+                installRoot: DXMTVersionManager.shared.installURL(for: tag),
+                fileManager: fileManager
+            )
+            overlay = versioned ?? layout.bundledDXMTOverlay() ?? PathManager.shared.dxmtOverlay()
+        }
         guard let overlay else { return }
 
         if engine.supportsDXMT {

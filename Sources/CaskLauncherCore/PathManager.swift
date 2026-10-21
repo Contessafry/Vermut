@@ -58,14 +58,15 @@ public final class PathManager: @unchecked Sendable {
         enginesURL.appendingPathComponent(engine.id)
     }
     
-    /// Active DXMT overlay root (versioned under `engines/dxmt/versions/<tag>/`).
+    /// Classic DXMT store root (`engines/dxmt`). Same path as 1.1.3 / main.
+    /// Side-by-side builds live in `engines/dxmt/versions/<tag>/`.
     public func dxmtURL() -> URL {
-        DXMTVersionManager.shared.activeOverlayURL()
+        enginesURL.appendingPathComponent("dxmt", isDirectory: true)
     }
 
     /// Parent folder for DXMT version installs and the active-version pointer.
     public func dxmtStoreURL() -> URL {
-        enginesURL.appendingPathComponent("dxmt", isDirectory: true)
+        dxmtURL()
     }
     
     public func dxvkURL() -> URL {
@@ -108,8 +109,21 @@ public final class PathManager: @unchecked Sendable {
         engineLayout(for: engine)?.wineserverExecutable
     }
 
+    /// DXMT overlay for Automatic launches — same order as main 1.1.3 when a flat
+    /// `engines/dxmt` tree exists; falls back to the active side-by-side install only
+    /// after migration emptied the classic root.
     public func dxmtOverlay() -> OverlayLayout? {
-        OverlayLayout.resolve(installRoot: dxmtURL(), fileManager: fileManager)
+        if let flat = OverlayLayout.resolve(installRoot: dxmtURL(), fileManager: fileManager),
+           flat.hasD3D11 {
+            return flat
+        }
+        if let active = OverlayLayout.resolve(
+            installRoot: DXMTVersionManager.shared.activeOverlayURL(),
+            fileManager: fileManager
+        ), active.hasD3D11 {
+            return active
+        }
+        return nil
     }
 
     public func dxvkOverlay() -> OverlayLayout? {

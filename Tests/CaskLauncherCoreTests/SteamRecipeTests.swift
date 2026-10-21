@@ -74,6 +74,48 @@ final class SteamRecipeTests: XCTestCase {
         XCTAssertFalse(line.contains("engines/staging"))
     }
 
+    func testLaunchEnvironmentSummaryListsWineVarsWithoutDumpingFullPATH() {
+        let engineRoot = URL(fileURLWithPath: "/engines/grapple-wine")
+        let wine = URL(fileURLWithPath: "/engines/grapple-wine/bin/wine")
+        let wineBin = wine.deletingLastPathComponent().path
+        let env: [String: String] = [
+            "WINEPREFIX": "/bottles/steam/prefix",
+            "WINELOADER": wine.path,
+            "WINESERVER": "/engines/grapple-wine/bin/wineserver",
+            "WINEDLLPATH": "/engines/grapple-wine/lib/wine",
+            "WINEDEBUG": "-all",
+            "WINEESYNC": "1",
+            "WINEMSYNC": "1",
+            "WINEDLLOVERRIDES": "gameoverlayrenderer,gameoverlayrenderer64=d",
+            "PATH": "\(wineBin):/usr/bin:/bin",
+            "HOME": "/Users/secret",
+            "TOKEN": "should-not-appear"
+        ]
+        let line = StoreLaunchRecipe.launchEnvironmentSummary(
+            engineRoot: engineRoot,
+            wine: wine,
+            environment: env
+        )
+        XCTAssertTrue(line.hasPrefix("Vermut: launch-env "))
+        XCTAssertTrue(line.contains("engineRoot=\(engineRoot.path)"))
+        XCTAssertTrue(line.contains("wine=\(wine.path)"))
+        XCTAssertTrue(line.contains("WINEPREFIX=/bottles/steam/prefix"))
+        XCTAssertTrue(line.contains("WINEESYNC=1"))
+        XCTAssertTrue(line.contains("PATH=wine-bin-first+2-more"))
+        XCTAssertFalse(line.contains("/usr/bin"))
+        XCTAssertFalse(line.contains("TOKEN"))
+        XCTAssertFalse(line.contains("should-not-appear"))
+        XCTAssertFalse(line.contains("HOME="))
+    }
+
+    func testSummarizeLaunchPATHDetectsWineBinNotFirst() {
+        let summary = StoreLaunchRecipe.summarizeLaunchPATH(
+            "/usr/bin:/engines/grapple-wine/bin",
+            wineBin: "/engines/grapple-wine/bin"
+        )
+        XCTAssertEqual(summary, "wine-bin-not-first first=/usr/bin")
+    }
+
     func testSteamLaunchArgumentsAndEnvironment() {
         let wineLib = URL(fileURLWithPath: "/engines/grapple-wine/grapple-wine/lib/wine")
         let steam = URL(fileURLWithPath: "/bottles/steam/prefix/drive_c/Program Files (x86)/Steam/steam.exe")
