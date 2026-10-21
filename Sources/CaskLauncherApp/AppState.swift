@@ -35,6 +35,8 @@ final class AppState: ObservableObject {
     @Published var isCheckingSetup = true
     @Published var onboardingStoreSelection: Set<GameStore> = [.steam]
     @Published var section: AppSection = .stores
+    /// Preferred Settings tab when opening Settings (e.g. Components for D3DMetal guide).
+    @Published var settingsTab: SettingsTab = .general
     @Published var searchQuery = ""
     @Published var showingFilePicker = false
     @Published var installedGames: [InstalledGame] = []

@@ -46,7 +46,21 @@ public final class Diagnostics: @unchecked Sendable {
         report += "--------------------\n"
         report += "DXMT: \(PathManager.shared.dxmtLibraryPath() != nil ? "Installed" : "Not installed")\n"
         report += "DXVK: \(PathManager.shared.dxvkLibraryPath() != nil ? "Installed" : "Not installed")\n"
-        report += "D3DMetal (GPTK): \(SystemSetup.shared.checkD3DMetalInstalled() ? "Installed" : "Not installed")\n"
+        let d3d = D3DMetalDetector.detect(
+            customPath: (try? ConfigurationManager.shared.loadConfiguration())?.d3dMetalLibraryPath
+        )
+        switch d3d.presence {
+        case .found(let version, let root):
+            report += "D3DMetal (GPTK): Found\(version.map { " · \($0)" } ?? "") at \(root.path)\n"
+        case .unsupported(let version, let root):
+            report += "D3DMetal (GPTK): Unsupported\(version.map { " · \($0)" } ?? "") at \(root.path)\n"
+        case .invalid(let reason):
+            report += "D3DMetal (GPTK): Invalid — \(reason)\n"
+        case .unavailableOnIntel:
+            report += "D3DMetal (GPTK): Unavailable on Intel\n"
+        case .notFound:
+            report += "D3DMetal (GPTK): Not found\n"
+        }
         report += "\n"
         
         report += "Store Installations:\n"

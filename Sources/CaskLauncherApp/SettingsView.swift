@@ -23,8 +23,14 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
-    @State private var tab: SettingsTab = .general
     @State private var confirmReset: GameStore?
+
+    private var tab: Binding<SettingsTab> {
+        Binding(
+            get: { appState.settingsTab },
+            set: { appState.settingsTab = $0 }
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -40,7 +46,7 @@ struct SettingsView: View {
 
             ScrollView {
                 Group {
-                    switch tab {
+                    switch tab.wrappedValue {
                     case .general:
                         generalPane
                     case .wineEngines:
@@ -74,20 +80,20 @@ struct SettingsView: View {
             HStack(spacing: VermutSpace.s6) {
                 ForEach(SettingsTab.allCases) { item in
                     Button {
-                        tab = item
+                        appState.settingsTab = item
                     } label: {
                         VStack(spacing: VermutSpace.s2) {
                             Text(item.title)
                                 .font(VermutType.bodyEmphasis)
-                                .foregroundStyle(tab == item ? Color.Vermut.foreground : Color.Vermut.mutedForeground)
+                                .foregroundStyle(appState.settingsTab == item ? Color.Vermut.foreground : Color.Vermut.mutedForeground)
                                 .lineLimit(1)
                             Rectangle()
-                                .fill(tab == item ? Color.Vermut.foreground : Color.clear)
+                                .fill(appState.settingsTab == item ? Color.Vermut.foreground : Color.clear)
                                 .frame(height: 2)
                         }
                     }
                     .buttonStyle(.plain)
-                    .animation(VermutMotion.selection, value: tab)
+                    .animation(VermutMotion.selection, value: appState.settingsTab)
                 }
             }
         }

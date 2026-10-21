@@ -122,10 +122,10 @@ Outlined “Vermut” in **Bricolage Grotesque** (OFL), wght 700 / wdth 85 / ops
 
 **Important**: Apple's D3DMetal translation layer (part of Game Porting Toolkit) is **NOT** included, bundled, or downloaded by Vermut. It is proprietary Apple software.
 
-If a user has manually installed Apple's Game Porting Toolkit on their system, Vermut can detect it and allow the user to select it as an optional graphics backend for DirectX 12 games. This is similar to how an application might detect and use system-provided frameworks.
+If a user has manually installed Apple's Game Porting Toolkit, Vermut can detect it (preferred folder: `~/Library/Application Support/Vermut/D3DMetal`, plus common GPTK locations — **not** the copy inside CrossOver.app) and allow selecting it as an optional graphics backend for DirectX 12 games. Minimum supported D3DMetal version: **2.0**. Users may also point Vermut at a `redist/lib` folder via Settings › Components.
 
 **Apple GPTK License**: Proprietary (Apple)  
-**Installation**: User must install separately via Apple Developer portal
+**Installation**: User must install separately via [Apple Developer downloads](https://developer.apple.com/download/all/?q=game%20porting%20toolkit)
 
 ## License Compatibility
 

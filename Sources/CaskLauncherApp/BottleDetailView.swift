@@ -72,26 +72,28 @@ struct BottleDetailView: View {
             )
         ) {
             Button("Download") {
-                // Keep current engine until download finishes (spec: next launch after ready).
+                if let engine = enginesModel.pendingDownload {
+                    pendingEngineAfterDownload = engine
+                }
+                // Keep current engine until download finishes (spec: applies on next launch).
                 enginesModel.confirmPendingDownload()
             }
-            Button("Cancel", role: .cancel) { enginesModel.cancelPendingDownload() }
+            Button("Cancel", role: .cancel) {
+                pendingEngineAfterDownload = nil
+                enginesModel.cancelPendingDownload()
+            }
         } message: {
             if let engine = enginesModel.pendingDownload {
                 Text(enginesModel.confirmSheetMessage(for: engine))
             }
         }
         .onAppear { enginesModel.refresh() }
-        .onChange(of: enginesModel.rows) { _, rows in
-            // After a requested engine finishes installing, select it on this bottle.
-            for row in rows {
-                if case .installed = row.state,
-                   enginesModel.busyEngine == nil,
-                   !EngineManager.shared.isEngineInstalled(
-                       StoreRecipe.effectiveEngine(config, global: appState.configuration).value
-                   ) || SettingInheritance.isAutomatic(config.engine) {
-                    break
-                }
+        .onChange(of: enginesModel.busyEngine) { _, busy in
+            guard busy == nil, let pending = pendingEngineAfterDownload else { return }
+            if EngineManager.shared.isEngineInstalled(pending) {
+                config.engine = pending.rawValue
+                persist()
+                pendingEngineAfterDownload = nil
             }
         }
     }
@@ -405,15 +407,24 @@ struct BottleDetailView: View {
             formRow(
                 "D3DMetal",
                 help: appState.hasD3DMetal
-                    ? "Installed on this Mac"
-                    : "Install Apple's Game Porting Toolkit to enable",
+                    ? "Detected on this Mac"
+                    : "Install Apple’s Game Porting Toolkit, then point Vermut to redist/lib in Settings › Components",
                 width: width
             ) {
-                VermutBadge(
-                    kind: appState.hasD3DMetal ? .success : .neutral,
-                    text: appState.hasD3DMetal ? "Installed" : "Not found",
-                    showsDot: appState.hasD3DMetal
-                )
+                HStack(spacing: VermutSpace.s2) {
+                    VermutBadge(
+                        kind: appState.hasD3DMetal ? .success : .neutral,
+                        text: appState.hasD3DMetal ? "Found" : "Not found",
+                        showsDot: appState.hasD3DMetal
+                    )
+                    if !appState.hasD3DMetal {
+                        Button("Open guide") {
+                            appState.settingsTab = .components
+                            appState.section = .settings
+                        }
+                        .buttonStyle(VermutButtonStyle(kind: .outline, height: VermutHeight.buttonSmall, radius: VermutRadius.xsPlus, font: VermutType.callout, horizontalPadding: VermutSpace.s2))
+                    }
+                }
             }
         }
     }
@@ -581,7 +592,7 @@ struct BottleDetailView: View {
 
     private func backendHelp(_ backend: GraphicsBackend) -> String {
         if backend == .d3dmetal && !appState.hasD3DMetal {
-            return "Install Apple's Game Porting Toolkit to enable"
+            return "Install the Game Porting Toolkit to use it. Open the guide in Settings › Components."
         }
         if !backendEnabled(backend) {
             return graphicsHelp
