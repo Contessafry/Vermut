@@ -7,6 +7,8 @@ struct BottleDetailView: View {
     @State private var tab: BottleTab = .general
     @State private var config: BottleConfiguration
     @State private var confirmDelete = false
+    @State private var pendingEngineAfterDownload: WineEngine?
+    @StateObject private var enginesModel = WineEnginesViewModel()
 
     init(store: GameStore) {
         self.store = store
@@ -62,6 +64,102 @@ struct BottleDetailView: View {
                 confirmDelete = false
             }
         }
+        .alert(
+            enginesModel.pendingDownload.map { enginesModel.confirmSheetTitle(for: $0) } ?? "Download engine?",
+            isPresented: Binding(
+                get: { enginesModel.pendingDownload != nil },
+                set: { if !$0 { enginesModel.cancelPendingDownload() } }
+            )
+        ) {
+            Button("Download") {
+                // Keep current engine until download finishes (spec: next launch after ready).
+                enginesModel.confirmPendingDownload()
+            }
+            Button("Cancel", role: .cancel) { enginesModel.cancelPendingDownload() }
+        } message: {
+            if let engine = enginesModel.pendingDownload {
+                Text(enginesModel.confirmSheetMessage(for: engine))
+            }
+        }
+        .onAppear { enginesModel.refresh() }
+        .onChange(of: enginesModel.rows) { _, rows in
+            // After a requested engine finishes installing, select it on this bottle.
+            for row in rows {
+                if case .installed = row.state,
+                   enginesModel.busyEngine == nil,
+                   !EngineManager.shared.isEngineInstalled(
+                       StoreRecipe.effectiveEngine(config, global: appState.configuration).value
+                   ) || SettingInheritance.isAutomatic(config.engine) {
+                    break
+                }
+            }
+        }
+    }
+
+    private var wineEnginePicker: some View {
+        Picker("", selection: engineSelection) {
+            Text(
+                SettingInheritance.automaticLabel(
+                    scope: "default",
+                    effectiveDisplay: WineEngine.resolved(from: appState.configuration.defaultEngine).userFacingName
+                )
+            )
+            .tag(SettingInheritance.automatic)
+
+            ForEach(WineEngine.allCases) { engine in
+                Text("\(engine.userFacingName) · \(WineEnginesViewModel.pickerStatusLabel(for: engine))")
+                    .tag(engine.rawValue)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(minWidth: 220, maxWidth: 320, minHeight: VermutHeight.field)
+        .accessibilityLabel("Wine engine")
+    }
+
+    private var engineSelection: Binding<String> {
+        Binding(
+            get: {
+                SettingInheritance.isAutomatic(config.engine)
+                    ? SettingInheritance.automatic
+                    : config.engine
+            },
+            set: { newValue in
+                if newValue == SettingInheritance.automatic {
+                    config.engine = SettingInheritance.automatic
+                    persist()
+                    return
+                }
+                guard let engine = WineEngine(rawValue: newValue) else { return }
+                if EngineManager.shared.isEngineInstalled(engine) || engine == .grappleWine {
+                    config.engine = engine.rawValue
+                    persist()
+                } else {
+                    enginesModel.requestDownload(engine)
+                }
+            }
+        )
+    }
+
+    private var effectiveEngineLine: String {
+        let effective = StoreRecipe.effectiveEngine(config, global: appState.configuration)
+        let inherited: String
+        switch effective.source {
+        case .global: inherited = "inherited from Settings"
+        case .bottle: inherited = "set on this bottle"
+        case .game: inherited = "set for this game"
+        }
+        return "\(effective.value.userFacingName) · \(inherited)"
+    }
+
+    private var selectedEngineRequiresGStreamer: Bool {
+        StoreRecipe.effectiveEngine(config, global: appState.configuration).value.requiresGStreamer
+    }
+
+    private var gstreamerWarning: String? {
+        let status = GStreamerProbe.probe()
+        guard !status.isPresent else { return nil }
+        return status.userFacingMessage
     }
 
     private func header(width: CGFloat) -> some View {
@@ -237,16 +335,50 @@ struct BottleDetailView: View {
 
             sectionTitle("Wine")
                 .padding(.top, VermutSpace.s6)
-            formRow("Wine version", help: "Used the next time you open this store", width: width) {
-                Picker("", selection: $config.engine) {
-                    ForEach(WineEngine.allCases) { engine in
-                        Text(engine.userFacingName).tag(engine.rawValue)
-                    }
+            Text("Applies to the whole \(store.shortName) bottle. Individual games can override it later.")
+                .font(VermutType.captionRegular)
+                .foregroundStyle(Color.Vermut.mutedForeground)
+                .padding(.bottom, VermutSpace.s2)
+            formRow("Wine engine", help: "Used the next time you open this store", width: width) {
+                wineEnginePicker
+            }
+            formRow("Version in use", help: "", width: width) {
+                Text(effectiveEngineLine)
+                    .font(VermutType.mono)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(alignment: .top, spacing: VermutSpace.s2) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(Color.Vermut.info)
+                Text("Changing the engine does not affect games or saves. If the store is open, the change applies on the next launch.")
+                    .font(VermutType.body)
+                    .foregroundStyle(Color.Vermut.infoSubtleForeground)
+                    .lineSpacing(2)
+            }
+            .padding(.vertical, VermutSpace.s2)
+            if case .running = status {
+                HStack(alignment: .top, spacing: VermutSpace.s2) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(Color.Vermut.warning)
+                    Text("\(store.rawValue) is running. The new engine will be used when you reopen \(store.shortName).")
+                        .font(VermutType.body)
+                        .foregroundStyle(Color.Vermut.warningSubtleForeground)
+                        .lineSpacing(2)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(minWidth: 200, maxWidth: 280, minHeight: VermutHeight.field)
-                .onChange(of: config.engine) { _, _ in persist() }
+                .padding(.vertical, VermutSpace.s2)
+            }
+            if let gstreamerWarning, selectedEngineRequiresGStreamer {
+                HStack(alignment: .top, spacing: VermutSpace.s2) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(Color.Vermut.warning)
+                    Text(gstreamerWarning)
+                        .font(VermutType.body)
+                        .foregroundStyle(Color.Vermut.warningSubtleForeground)
+                        .lineSpacing(2)
+                }
+                .padding(.vertical, VermutSpace.s2)
             }
             formRow("DLL overrides", help: "How this bottle loads Direct3D", width: width) {
                 Text(dllSummary)
