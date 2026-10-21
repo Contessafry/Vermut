@@ -119,14 +119,28 @@ struct AppShell: View {
                         .accessibilityHidden(true)
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) {
-                        if let session = appState.compatFeedbackSession {
-                            CompatFeedbackBanner(
-                                session: session,
-                                autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
-                                onDismiss: { appState.dismissCompatFeedback() }
-                            )
-                            .padding(VermutSpace.s6)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        VStack(spacing: 0) {
+                            if let update = appState.availableUpdate {
+                                UpdateBanner(
+                                    version: update.version,
+                                    url: update.url,
+                                    onDismiss: { appState.dismissUpdate() },
+                                    onUpdate: { appState.performUpdate() }
+                                )
+                                .padding(.horizontal, VermutSpace.s6)
+                                .padding(.top, VermutSpace.s3)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+                            
+                            if let session = appState.compatFeedbackSession {
+                                CompatFeedbackBanner(
+                                    session: session,
+                                    autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
+                                    onDismiss: { appState.dismissCompatFeedback() }
+                                )
+                                .padding(VermutSpace.s6)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
                         }
                     }
             }
@@ -134,6 +148,7 @@ struct AppShell: View {
         .navigationSplitViewStyle(.balanced)
         .background(Color.Vermut.background)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : VermutMotion.panel, value: appState.section)
+        .animation(VermutMotion.panel, value: appState.availableUpdate?.version)
         .animation(VermutMotion.panel, value: appState.compatFeedbackSession)
         .sheet(item: $appState.bottleToDelete) { store in
             DeleteBottleSheet(store: store) {

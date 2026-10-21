@@ -38,6 +38,15 @@ struct CaskLauncherApp: App {
                         ]
                     )
                 }
+                
+                Divider()
+                
+                Button("Controlla aggiornamenti") {
+                    Task {
+                        await appState.checkForUpdateManually()
+                    }
+                }
+                .disabled(appState.isCheckingForUpdate)
             }
             CommandGroup(after: .appSettings) {
                 Button("Settings…") {

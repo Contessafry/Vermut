@@ -48,6 +48,8 @@ final class AppState: ObservableObject {
     @Published var libraryFilterStore: GameStore?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
+    @Published var availableUpdate: (version: String, url: String, releaseNotes: String?)?
+    @Published var isCheckingForUpdate = false
     /// Fine-grained Steam first-run stage shown while status is .installing(.updatingClient).
     @Published var steamStage: SteamSetupStage?
     /// No visible Steam progress for a while: neutral "Still working…" + Retry.
@@ -91,6 +93,7 @@ final class AppState: ObservableObject {
 
         Task {
             await checkSetup()
+            await checkForUpdateOnLaunch()
         }
         
         startSessionMonitoring()
@@ -907,5 +910,96 @@ final class AppState: ObservableObject {
     func getCompatibility(for game: InstalledGame) -> GameCompatibility? {
         let key = "\(game.store.identifier):\(game.appId)"
         return compatibilityData[key]
+    }
+    
+    func checkForUpdateOnLaunch() async {
+        let result = await UpdateChecker.shared.checkForUpdate(currentVersion: VermutProject.version)
+        await MainActor.run {
+            if case .updateAvailable(let version, let url, let notes) = result {
+                availableUpdate = (version, url, notes)
+            }
+        }
+    }
+    
+    func checkForUpdateManually() async {
+        await MainActor.run { isCheckingForUpdate = true }
+        let result = await UpdateChecker.shared.checkForUpdate(
+            currentVersion: VermutProject.version,
+            force: true
+        )
+        await MainActor.run {
+            isCheckingForUpdate = false
+            if case .updateAvailable(let version, let url, let notes) = result {
+                availableUpdate = (version, url, notes)
+            } else if case .upToDate = result {
+                errorMessage = "Hai già l'ultima versione disponibile."
+            } else {
+                errorMessage = "Impossibile controllare gli aggiornamenti. Verifica la connessione di rete."
+            }
+        }
+    }
+    
+    func dismissUpdate() {
+        guard let update = availableUpdate else { return }
+        UpdateChecker.shared.dismissUpdate(version: update.version)
+        availableUpdate = nil
+    }
+    
+    func performUpdate() {
+        Task {
+            await updateApp()
+        }
+    }
+    
+    private func updateApp() async {
+        let runningStoresList = runningStores
+        if !runningStoresList.isEmpty {
+            await MainActor.run {
+                let storeNames = runningStoresList.map { $0.rawValue }.joined(separator: ", ")
+                errorMessage = "Chiudi \(storeNames) prima di aggiornare."
+            }
+            return
+        }
+        
+        await MainActor.run {
+            errorMessage = "Aggiornamento in corso…"
+        }
+        
+        let script = "curl -fsSL https://raw.githubusercontent.com/Contessafry/Vermut/main/install.sh | bash"
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/bash")
+        task.arguments = ["-c", script]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            if task.terminationStatus == 0 {
+                relaunchApp()
+            } else {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? "Unknown error"
+                await MainActor.run {
+                    errorMessage = "Aggiornamento fallito: \(output)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = "Aggiornamento fallito: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    private func relaunchApp() {
+        let bundlePath = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = [bundlePath]
+        try? task.run()
+        NSApplication.shared.terminate(nil)
     }
 }
