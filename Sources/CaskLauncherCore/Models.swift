@@ -3,7 +3,7 @@ import Foundation
 /// Public project identity. Product name is Vermut; Swift targets stay CaskLauncher*.
 public enum VermutProject {
     public static let name = "Vermut"
-    public static let version = "1.2.0-beta.1"
+    public static let version = "1.2.0-beta.2"
     /// Library empty state. GOG is "Coming soon", so it is not offered here.
     public static let libraryEmptyMessage = "Install Steam or Epic from Stores to see your games here."
     public static let tagline = "Pour. Click. Play."
