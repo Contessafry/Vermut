@@ -157,6 +157,27 @@ You must accept each store’s own terms when you sign in. Vermut does not crack
 
 Compatibility varies by title. Some games will not run.
 
+## Update channels
+
+Vermut checks GitHub Releases for updates (Settings › General › **Update channel**):
+
+| Channel | Behaviour |
+| --- | --- |
+| **Stable** (default) | Only non–pre-release releases (`/releases/latest`). Switching back from Beta never suggests a downgrade — it waits for the next stable that is newer than what you have. |
+| **Beta** | Considers all releases including pre-releases (`/releases`), and offers the highest SemVer (e.g. `1.2.0` > `1.2.0-beta.2` > `1.2.0-beta.1`). |
+
+A small **Beta** badge (info style, not red) appears when the offered or installed version is a pre-release.
+
+### Publishing a beta
+
+1. Tag the commit `vX.Y.Z-beta.N` (example: `v1.2.0-beta.1`).
+2. Create a GitHub Release for that tag.
+3. Check **Set as a pre-release**.
+4. Do **not** check “Set as the latest release”.
+5. Users on the Beta channel will see it; Stable users will not.
+
+Promote to Stable later with a normal release tag `vX.Y.Z` (no `-beta`) and leave pre-release unchecked.
+
 ## Contributing
 
 Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).

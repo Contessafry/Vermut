@@ -124,6 +124,7 @@ struct AppShell: View {
                                 UpdateBanner(
                                     version: update.version,
                                     url: update.url,
+                                    isPrerelease: update.isPrerelease,
                                     onDismiss: { appState.dismissUpdate() },
                                     onUpdate: { appState.performUpdate() }
                                 )

@@ -3,12 +3,13 @@ import CaskLauncherCore
 
 struct UpdateBanner: View {
     @EnvironmentObject var appState: AppState
-    
+
     let version: String
     let url: String
+    var isPrerelease: Bool = false
     let onDismiss: () -> Void
     let onUpdate: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: VermutSpace.s4) {
@@ -16,37 +17,42 @@ struct UpdateBanner: View {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 20))
                         .foregroundStyle(Color.Vermut.info)
-                    
+
                     VStack(alignment: .leading, spacing: VermutSpace.s1) {
-                        Text("È disponibile \(version)")
-                            .font(VermutType.bodyEmphasis)
-                            .foregroundStyle(Color.Vermut.foreground)
-                        
-                        Text("Aggiornamento disponibile per Vermut")
+                        HStack(spacing: VermutSpace.s2) {
+                            Text("\(version) is available")
+                                .font(VermutType.bodyEmphasis)
+                                .foregroundStyle(Color.Vermut.foreground)
+                            if isPrerelease {
+                                VermutBadge(kind: .info, text: "Beta")
+                            }
+                        }
+
+                        Text("Update available for Vermut")
                             .font(VermutType.captionRegular)
                             .foregroundStyle(Color.Vermut.mutedForeground)
                     }
                 }
-                
+
                 Spacer(minLength: VermutSpace.s3)
-                
+
                 HStack(spacing: VermutSpace.s2) {
                     Button {
                         NSWorkspace.shared.open(URL(string: url)!)
                     } label: {
-                        Text("Note di rilascio")
+                        Text("Release notes")
                             .font(VermutType.bodyEmphasis)
                     }
                     .buttonStyle(VermutButtonStyle(kind: .outline))
-                    
+
                     Button {
                         onUpdate()
                     } label: {
-                        Text("Aggiorna")
+                        Text("Update")
                             .font(VermutType.bodyEmphasis)
                     }
                     .buttonStyle(VermutButtonStyle(kind: .primary))
-                    
+
                     Button {
                         onDismiss()
                     } label: {
@@ -56,6 +62,7 @@ struct UpdateBanner: View {
                             .frame(width: 24, height: 24)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss")
                 }
             }
         }

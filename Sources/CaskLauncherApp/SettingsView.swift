@@ -145,6 +145,20 @@ struct SettingsView: View {
                         .foregroundStyle(Color.Vermut.mutedForeground)
                 }
 
+                settingsRow(
+                    "Update channel",
+                    help: "Stable uses GitHub releases only. Beta also offers pre-releases. Switching back to Stable never suggests a downgrade."
+                ) {
+                    Picker("", selection: $appState.configuration.updateChannel) {
+                        ForEach(UpdateChannel.allCases) { channel in
+                            Text(channel.userFacingName).tag(channel.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(minWidth: 140, minHeight: VermutHeight.field)
+                }
+
                 settingsRow("Retina mode", help: "New bottles render at native resolution") {
                     Toggle("", isOn: $appState.configuration.enableHiDPI)
                         .labelsHidden()
@@ -165,6 +179,12 @@ struct SettingsView: View {
             }
             .onChange(of: appState.configuration.defaultEngine) { _, _ in appState.saveConfiguration() }
             .onChange(of: appState.configuration.defaultGraphicsBackend) { _, _ in appState.saveConfiguration() }
+            .onChange(of: appState.configuration.updateChannel) { _, _ in
+                appState.saveConfiguration()
+                UpdateChecker.shared.clearDismissed()
+                appState.availableUpdate = nil
+                Task { await appState.checkForUpdateManually() }
+            }
             .onChange(of: appState.configuration.enableHiDPI) { _, _ in appState.saveConfiguration() }
             .onChange(of: appState.configuration.windowsVersion) { _, _ in appState.saveConfiguration() }
             .frame(maxWidth: 640, alignment: .leading)
@@ -244,11 +264,16 @@ struct SettingsView: View {
             Text("Pour. Click. Play.")
                 .font(VermutType.bodyEmphasis)
                 .foregroundStyle(Color.Vermut.foreground)
-            Text("Vermut \(appState.appVersion) · Free and open source")
-                .font(VermutType.body)
-                .foregroundStyle(Color.Vermut.mutedForeground)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: VermutSpace.s2) {
+                Text("Vermut \(appState.appVersion) · Free and open source")
+                    .font(VermutType.body)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+                if SemVer.tagIsPrerelease(VermutProject.version) {
+                    VermutBadge(kind: .info, text: "Beta")
+                }
+            }
+            .lineSpacing(2)
+            .fixedSize(horizontal: false, vertical: true)
             Text("Epic Games uses Legendary (\(LegendaryCLI.licenceName)), a free Epic store client by derrod. Vermut runs it as a separate process.")
                 .font(VermutType.body)
                 .foregroundStyle(Color.Vermut.mutedForeground)

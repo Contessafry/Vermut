@@ -233,14 +233,21 @@ public struct AppConfiguration: Codable, Sendable {
     public var defaultDXMTVersion: String
     /// User-selected `redist/lib` (or parent) path for Apple D3DMetal. Never bundled.
     public var d3dMetalLibraryPath: String?
+    /// In-app update feed: Stable (default) or Beta (GitHub pre-releases).
+    public var updateChannel: String
     public var enableHiDPI: Bool
     public var windowsVersion: String
+
+    public var resolvedUpdateChannel: UpdateChannel {
+        UpdateChannel.resolved(from: updateChannel)
+    }
 
     public init(
         defaultEngine: String = WineEngine.defaultEngine.rawValue,
         defaultGraphicsBackend: String = GraphicsBackend.dxmt.rawValue,
         defaultDXMTVersion: String = "v0.80",
         d3dMetalLibraryPath: String? = nil,
+        updateChannel: String = UpdateChannel.stable.rawValue,
         enableHiDPI: Bool = true,
         windowsVersion: String = "win10"
     ) {
@@ -248,13 +255,14 @@ public struct AppConfiguration: Codable, Sendable {
         self.defaultGraphicsBackend = defaultGraphicsBackend
         self.defaultDXMTVersion = defaultDXMTVersion
         self.d3dMetalLibraryPath = d3dMetalLibraryPath
+        self.updateChannel = updateChannel
         self.enableHiDPI = enableHiDPI
         self.windowsVersion = windowsVersion
     }
 
     enum CodingKeys: String, CodingKey {
         case defaultEngine, defaultGraphicsBackend, defaultDXMTVersion
-        case d3dMetalLibraryPath, enableHiDPI, windowsVersion
+        case d3dMetalLibraryPath, updateChannel, enableHiDPI, windowsVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -266,6 +274,8 @@ public struct AppConfiguration: Codable, Sendable {
         defaultDXMTVersion = try container.decodeIfPresent(String.self, forKey: .defaultDXMTVersion)
             ?? "v0.80"
         d3dMetalLibraryPath = try container.decodeIfPresent(String.self, forKey: .d3dMetalLibraryPath)
+        updateChannel = try container.decodeIfPresent(String.self, forKey: .updateChannel)
+            ?? UpdateChannel.stable.rawValue
         enableHiDPI = try container.decodeIfPresent(Bool.self, forKey: .enableHiDPI) ?? true
         windowsVersion = try container.decodeIfPresent(String.self, forKey: .windowsVersion) ?? "win10"
     }

@@ -29,6 +29,18 @@ On a Mac, `./build.sh` also produces `Vermut.app`.
 - Epic Games goes through Legendary. Do not reintroduce the Windows Epic Games Launcher.
 - Run `swift test` (Linux Swift 6 is enough for core). On a Mac, also launch `Vermut.app`.
 
+## Publishing a beta release
+
+The in-app updater’s **Beta** channel reads GitHub Releases with `prerelease: true`.
+
+1. Bump nothing in `main` unless you intend to ship — betas use a pre-release tag only.
+2. Tag: `vX.Y.Z-beta.N` (SemVer pre-release), e.g. `v1.2.0-beta.1`.
+3. On GitHub → Releases → Draft a new release → choose that tag.
+4. Check **Set as a pre-release**. Leave “latest release” unchecked.
+5. Publish. Stable-channel users keep using `/releases/latest`; Beta users get the highest SemVer including pre-releases.
+
+When the beta is ready for everyone, publish `vX.Y.Z` as a normal (non–pre-release) release.
+
 ## Code of conduct
 
 Be respectful. No harassment, personal attacks, or trolling.

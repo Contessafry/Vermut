@@ -50,7 +50,7 @@ final class AppState: ObservableObject {
     @Published var libraryFilterStore: GameStore?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
-    @Published var availableUpdate: (version: String, url: String, releaseNotes: String?)?
+    @Published var availableUpdate: (version: String, url: String, releaseNotes: String?, isPrerelease: Bool)?
     @Published var isCheckingForUpdate = false
     /// Fine-grained Steam first-run stage shown while status is .installing(.updatingClient).
     @Published var steamStage: SteamSetupStage?
@@ -919,28 +919,34 @@ final class AppState: ObservableObject {
     }
     
     func checkForUpdateOnLaunch() async {
-        let result = await UpdateChecker.shared.checkForUpdate(currentVersion: VermutProject.version)
+        let channel = configuration.resolvedUpdateChannel
+        let result = await UpdateChecker.shared.checkForUpdate(
+            currentVersion: VermutProject.version,
+            channel: channel
+        )
         await MainActor.run {
-            if case .updateAvailable(let version, let url, let notes) = result {
-                availableUpdate = (version, url, notes)
+            if case .updateAvailable(let version, let url, let notes, let isPre) = result {
+                availableUpdate = (version, url, notes, isPre)
             }
         }
     }
     
     func checkForUpdateManually() async {
         await MainActor.run { isCheckingForUpdate = true }
+        let channel = configuration.resolvedUpdateChannel
         let result = await UpdateChecker.shared.checkForUpdate(
             currentVersion: VermutProject.version,
+            channel: channel,
             force: true
         )
         await MainActor.run {
             isCheckingForUpdate = false
-            if case .updateAvailable(let version, let url, let notes) = result {
-                availableUpdate = (version, url, notes)
+            if case .updateAvailable(let version, let url, let notes, let isPre) = result {
+                availableUpdate = (version, url, notes, isPre)
             } else if case .upToDate = result {
-                errorMessage = "Hai già l'ultima versione disponibile."
+                errorMessage = "You already have the latest version."
             } else {
-                errorMessage = "Impossibile controllare gli aggiornamenti. Verifica la connessione di rete."
+                errorMessage = "Could not check for updates. Check your network connection."
             }
         }
     }
