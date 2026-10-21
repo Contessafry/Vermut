@@ -186,8 +186,14 @@ struct GameSettingsInspector: View {
             accessibilityLabel: dxmtAccessibilityLabel
         ) {
             Picker("", selection: dxmtSelection) {
-                Text(GameSettingsResolver.automaticDXMTLabel(bottle: bottle, global: global))
-                    .tag(SettingInheritance.automatic)
+                Text(
+                    GameSettingsResolver.automaticDXMTLabel(
+                        bottle: bottle,
+                        global: global,
+                        store: game.store
+                    )
+                )
+                .tag(SettingInheritance.automatic)
                 ForEach(DXMTVersionManager.shared.installedVersions(), id: \.self) { tag in
                     Text(tag).tag(tag)
                 }
@@ -506,7 +512,11 @@ struct GameSettingsInspector: View {
 
     private var dxmtAccessibilityLabel: String {
         let value = SettingInheritance.isAutomatic(config.dxmtVersion)
-            ? GameSettingsResolver.automaticDXMTLabel(bottle: bottle, global: global)
+            ? GameSettingsResolver.automaticDXMTLabel(
+                bottle: bottle,
+                global: global,
+                store: game.store
+            )
             : config.dxmtVersion
         return String(localized: "DXMT version, \(value)", comment: "a11y")
     }

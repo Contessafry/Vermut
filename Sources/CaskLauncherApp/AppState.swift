@@ -921,7 +921,8 @@ final class AppState: ObservableObject {
                         ? configuration.defaultDXMTVersion
                         : config.dxmtVersion
                 ),
-                source: .bottle
+                // Keep `.global` when Automatic so launchConfiguration does not pin DXMT.
+                source: SettingInheritance.isAutomatic(config.dxmtVersion) ? .global : .bottle
             ),
             logLevel: EffectiveSetting(
                 value: WineLogLevel.resolved(
@@ -929,7 +930,7 @@ final class AppState: ObservableObject {
                         ? configuration.defaultLogLevel
                         : config.logLevel
                 ),
-                source: .bottle
+                source: SettingInheritance.isAutomatic(config.logLevel) ? .global : .bottle
             ),
             bottleBase: config
         )

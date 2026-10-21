@@ -201,14 +201,22 @@ public enum GameSettingsResolver {
 
     public static func automaticDXMTLabel(
         bottle: BottleConfiguration,
-        global: AppConfiguration
+        global: AppConfiguration,
+        store: GameStore
     ) -> String {
+        // Bottle Automatic → main parity (bundled / flat engines/dxmt), not a pinned catalog tag.
+        if SettingInheritance.isAutomatic(bottle.dxmtVersion) {
+            return SettingInheritance.automaticLabel(
+                scope: store.shortNameForInheritance,
+                effectiveDisplay: "bundled"
+            )
+        }
         let parent = SettingInheritance.resolveDXMTVersion(
             bottle: bottle.dxmtVersion,
             global: global.defaultDXMTVersion
         )
         return SettingInheritance.automaticLabel(
-            scope: "default",
+            scope: store.shortNameForInheritance,
             effectiveDisplay: parent.value
         )
     }

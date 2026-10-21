@@ -117,9 +117,43 @@ final class GameSettingsResolverTests: XCTestCase {
         XCTAssertEqual(launch.engine, WineEngine.staging.rawValue)
         XCTAssertEqual(launch.graphicsBackend, GraphicsBackend.dxvk.rawValue)
         XCTAssertEqual(launch.dxmtVersion, "v0.80")
+        XCTAssertTrue(resolved.dxmtIsPinned)
         XCTAssertEqual(resolved.wineDebug, "err+all,fixme-all")
         XCTAssertTrue(resolved.profileSummary.contains("staging"))
         XCTAssertTrue(resolved.profileSummary.contains("DXVK"))
+    }
+
+    /// Game + bottle Automatic must not pin defaultDXMTVersion — WineManager uses
+    /// bundled ?? flat engines/dxmt (main 1.1.3 parity).
+    func testLaunchConfigurationKeepsAutomaticDXMT() {
+        let resolved = GameSettingsResolver.resolve(
+            game: .automatic,
+            bottle: bottle,
+            global: global,
+            store: .steam
+        )
+        XCTAssertFalse(resolved.dxmtIsPinned)
+        XCTAssertEqual(resolved.dxmtVersion.source, .global)
+        XCTAssertEqual(resolved.dxmtVersion.value, "v0.80") // display / catalog default
+        XCTAssertEqual(resolved.launchConfiguration.dxmtVersion, SettingInheritance.automatic)
+        XCTAssertTrue(resolved.profileSummary.contains("dxmt=automatic"))
+    }
+
+    func testPinnedBottleDXMTPropagatesWhenGameAutomatic() {
+        let pinnedBottle = BottleConfiguration(
+            engine: SettingInheritance.automatic,
+            graphicsBackend: GraphicsBackend.dxmt.rawValue,
+            dxmtVersion: "v0.74"
+        )
+        let resolved = GameSettingsResolver.resolve(
+            game: .automatic,
+            bottle: pinnedBottle,
+            global: global,
+            store: .steam
+        )
+        XCTAssertTrue(resolved.dxmtIsPinned)
+        XCTAssertEqual(resolved.dxmtVersion.source, .bottle)
+        XCTAssertEqual(resolved.launchConfiguration.dxmtVersion, "v0.74")
     }
 
     func testAutomaticLabelsShowParentEffectiveValue() {
@@ -137,8 +171,20 @@ final class GameSettingsResolverTests: XCTestCase {
         )
         XCTAssertEqual(graphicsLabel, "Automatic (Steam: DXVK)")
 
-        let dxmtLabel = GameSettingsResolver.automaticDXMTLabel(bottle: bottle, global: global)
-        XCTAssertEqual(dxmtLabel, "Automatic (default: v0.80)")
+        let dxmtLabel = GameSettingsResolver.automaticDXMTLabel(
+            bottle: bottle,
+            global: global,
+            store: .steam
+        )
+        XCTAssertEqual(dxmtLabel, "Automatic (Steam: bundled)")
+
+        let pinnedBottle = BottleConfiguration(dxmtVersion: "v0.74")
+        let pinnedLabel = GameSettingsResolver.automaticDXMTLabel(
+            bottle: pinnedBottle,
+            global: global,
+            store: .steam
+        )
+        XCTAssertEqual(pinnedLabel, "Automatic (Steam: v0.74)")
 
         let logLabel = GameSettingsResolver.automaticLogLevelLabel(
             bottle: bottle,
