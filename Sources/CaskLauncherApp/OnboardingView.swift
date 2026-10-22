@@ -326,9 +326,21 @@ struct OnboardingView: View {
 
     private var stepCaption: String {
         if appState.setupFailed { return "Setup" }
+        // Four steps: Permissions → Rosetta → Wine → Stores (ready).
+        // When Rosetta is already installed, skip its number so the counter
+        // goes 1 → 2 (Wine) instead of jumping 1 → 3.
         if onPermissions { return "Setup · step 1 of 4" }
         if !appState.isSetupComplete {
-            return appState.setupPhase == .rosetta ? "Setup · step 2 of 4" : "Setup · step 3 of 4"
+            switch appState.setupPhase {
+            case .rosetta:
+                return "Setup · step 2 of 4"
+            case .engine:
+                return appState.rosettaSetupSkipped
+                    ? "Setup · step 2 of 4"
+                    : "Setup · step 3 of 4"
+            default:
+                return "Setup · step 3 of 4"
+            }
         }
         return "Setup · step 4 of 4"
     }

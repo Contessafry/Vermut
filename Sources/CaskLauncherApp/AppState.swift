@@ -46,6 +46,8 @@ final class AppState: ObservableObject {
     @Published var installedGames: [InstalledGame] = []
     @Published var bottleSizes: [GameStore: Int64] = [:]
     @Published var hasRosetta = false
+    /// True when Rosetta was already present so onboarding never showed the Rosetta step.
+    @Published var rosettaSetupSkipped = false
     @Published var hasD3DMetal = false
     @Published var bottleToDelete: GameStore?
     @Published var epicAccount: LegendaryAccount?
@@ -212,10 +214,13 @@ final class AppState: ObservableObject {
             let rosetta = try await SystemSetup.shared.checkRosetta()
             hasRosetta = rosetta
             if !rosetta {
+                rosettaSetupSkipped = false
                 setupPhase = .rosetta
                 setupMessage = "Installing Rosetta 2…"
                 try await SystemSetup.shared.installRosetta()
                 hasRosetta = true
+            } else {
+                rosettaSetupSkipped = true
             }
 
             if !SystemSetup.shared.checkWineInstalled() {
