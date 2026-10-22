@@ -2,6 +2,20 @@
   "games": [
     {
       "store": "steam",
+      "gameId": "4557380",
+      "gameName": "Batomon Showdown",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 2,
+          "issues": 0,
+          "broken": 0
+        }
+      },
+      "totalReports": 2,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "steam",
       "gameId": "1245620",
       "gameName": "ELDEN RING",
       "byGraphics": {
@@ -9,20 +23,6 @@
           "perfect": 0,
           "issues": 0,
           "broken": 1
-        }
-      },
-      "totalReports": 1,
-      "recommended": "dxmt"
-    },
-    {
-      "store": "steam",
-      "gameId": "4557380",
-      "gameName": "Batomon Showdown",
-      "byGraphics": {
-        "dxmt": {
-          "perfect": 1,
-          "issues": 0,
-          "broken": 0
         }
       },
       "totalReports": 1,
@@ -43,6 +43,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1792653933,
-  "reportCount": 3
+  "generated": 1792656541,
+  "reportCount": 4
 }
