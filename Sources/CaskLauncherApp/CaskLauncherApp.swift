@@ -83,19 +83,19 @@ final class VermutAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         didReplyToTerminate = false
-        let state = appState
-        // Never block the main thread — synchronous lsof/wineserver work caused
-        // 100s+ quits and AppleScript -1712 timeouts. Cleanup runs off-main with
-        // PrefixProcessTerminator's ~10s budget; reply promptly either way.
-        DispatchQueue.global(qos: .userInitiated).async {
-            WineManager.shared.stopAllVermutManagedProcesses()
-            DispatchQueue.main.async {
-                state?.noteQuitCleanupFinished()
-                self.replyToTerminate()
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+        // Never block the main thread — cleanup runs detached with the terminator's
+        // ~10s budget; reply promptly either way (avoids AppleScript -1712).
+        Task { @MainActor [weak self] in
+            await Task.detached(priority: .userInitiated) {
+                WineManager.shared.stopAllVermutManagedProcesses()
+            }.value
+            guard let self else { return }
+            self.appState?.noteQuitCleanupFinished()
             self.replyToTerminate()
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            self?.replyToTerminate()
         }
         return .terminateLater
     }

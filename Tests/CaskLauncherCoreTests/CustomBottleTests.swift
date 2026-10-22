@@ -1,6 +1,22 @@
 import XCTest
 @testable import CaskLauncherCore
 
+/// Thread-safe sink for `@Sendable` `wineserverRunner` test doubles.
+private final class SendableTimeoutSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [TimeInterval] = []
+
+    func append(_ value: TimeInterval) {
+        lock.lock(); defer { lock.unlock() }
+        values.append(value)
+    }
+
+    var all: [TimeInterval] {
+        lock.lock(); defer { lock.unlock() }
+        return values
+    }
+}
+
 final class BottleNameValidatorTests: XCTestCase {
     func testEmpty() {
         XCTAssertEqual(BottleNameValidator.validate("  ", existingNames: []), .empty)
@@ -447,7 +463,7 @@ final class PrefixProcessTerminatorTests: XCTestCase {
 
     func testStopSignalsPreKillSnapshotEvenWhenHelpersLoseWINEPREFIX() {
         var signals: [(pid_t, Int32)] = []
-        var wineserverTimeouts: [TimeInterval] = []
+        let wineserverTimeouts = SendableTimeoutSink()
         let engines = PathManager.shared.enginesURL.path
         let wine64 = "\(engines)/grapple-wine/bin/wine64"
         // Use the real steam prefix path so discovery matches PathManager.
@@ -519,7 +535,7 @@ final class PrefixProcessTerminatorTests: XCTestCase {
                 wineserverTimeouts.append(timeout)
             }
         )
-        XCTAssertEqual(wineserverTimeouts, [2.0])
+        XCTAssertEqual(wineserverTimeouts.all, [2.0])
         let termPIDs = Set(signals.filter { $0.1 == SIGTERM }.map(\.0))
         let killPIDs = Set(signals.filter { $0.1 == SIGKILL }.map(\.0))
         XCTAssertTrue(termPIDs.isSuperset(of: [50, 51, 52]), "pre-kill snapshot must be SIGTERM’d: \(termPIDs)")
@@ -529,7 +545,7 @@ final class PrefixProcessTerminatorTests: XCTestCase {
     func testStopEscalationOrderUsesBoundedWineserver() {
         var signals: [(pid_t, Int32)] = []
         var sleeps: [TimeInterval] = []
-        var wineserverTimeouts: [TimeInterval] = []
+        let wineserverTimeouts = SendableTimeoutSink()
         let prefix = "/tmp/vermut-prefix"
         let rowsTerm = [
             PrefixProcessTerminator.ProcessRow(pid: 42, ppid: 1, pgid: 42, command: "WINEPREFIX=\(prefix) wine64 steam.exe")
@@ -563,7 +579,7 @@ final class PrefixProcessTerminatorTests: XCTestCase {
                 wineserverTimeouts.append(timeout)
             }
         )
-        XCTAssertEqual(wineserverTimeouts, [2.5])
+        XCTAssertEqual(wineserverTimeouts.all, [2.5])
         XCTAssertEqual(signals.map(\.1), [SIGTERM, SIGKILL])
         XCTAssertTrue(leftover.isEmpty)
         XCTAssertEqual(sleeps.count, 3)

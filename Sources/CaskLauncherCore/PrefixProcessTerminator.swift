@@ -537,7 +537,11 @@ public enum PrefixProcessTerminator {
         processRowsProvider: (() -> [ProcessRow])? = nil,
         executablePathProvider: @escaping (pid_t) -> String? = { executablePath(for: $0) },
         openPathsProvider: @escaping (pid_t) -> [String] = { openFilePaths(for: $0) },
-        wineserverRunner: (URL, String, TimeInterval) -> Void = { wineserver, prefix, timeout in
+        /// Invoked from a concurrent queue during parallel `wineserver -k`.
+        wineserverRunner: @escaping @Sendable (URL, String, TimeInterval) -> Void = {
+            wineserver,
+            prefix,
+            timeout in
             runWineserverKill(wineserver: wineserver, prefix: prefix, timeout: timeout)
         },
         now: () -> Date = { Date() }
@@ -586,6 +590,7 @@ public enum PrefixProcessTerminator {
         var recorded = discover()
 
         // Run wineserver -k in parallel; each shares the remaining budget.
+        // Resolve engines on this thread so the async bodies only capture Sendables.
         let wineserverJobs: [(URL, String)] = targets.compactMap { prefix in
             let engine = engineForPrefix(prefix) ?? .defaultEngine
             guard let wineserver = PathManager.shared.wineserverExecutable(engine: engine) else {
@@ -598,12 +603,13 @@ public enum PrefixProcessTerminator {
                 options.wineserverKillTimeout,
                 max(0.2, budgetLeft() / Double(wineserverJobs.count))
             )
+            let runKill = wineserverRunner
             let group = DispatchGroup()
             for (wineserver, prefix) in wineserverJobs {
                 group.enter()
                 DispatchQueue.global(qos: .userInitiated).async {
                     defer { group.leave() }
-                    wineserverRunner(wineserver, prefix, perTimeout)
+                    runKill(wineserver, prefix, perTimeout)
                 }
             }
             _ = group.wait(timeout: .now() + budgetLeft())
