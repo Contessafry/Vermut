@@ -63,6 +63,8 @@ final class AppState: ObservableObject {
     @Published var customBottles: [CustomBottle] = []
     @Published var customBottleRunning: Set<UUID> = []
     @Published var showingNewBottleSheet = false
+    /// One-shot Steam launch hang recovery (main/login window timeout).
+    var steamLaunchWindowRecoveryUsed = false
     var steamWindowWatchTask: Task<Void, Never>?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
@@ -534,6 +536,33 @@ final class AppState: ObservableObject {
         }
     }
 
+
+    /// If Steam's main/login window never appears, restart Steam once (M-series hang).
+    func scheduleSteamLaunchHangRecovery(config: BottleConfiguration) {
+        Task { @MainActor in
+            // Reasonable timeout for the first large window after launch.
+            try? await Task.sleep(nanoseconds: 45_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard WineManager.shared.isStoreRunning(.steam) else { return }
+            let hasBigWindow = await Task.detached {
+                SteamWindowWatcher.wineWindowPID(minWidth: 600, minHeight: 400) != nil
+            }.value
+            guard !hasBigWindow else { return }
+            guard !steamLaunchWindowRecoveryUsed else { return }
+            steamLaunchWindowRecoveryUsed = true
+            try? WineManager.shared.stopStore(.steam)
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            do {
+                try await WineManager.shared.launchStore(.steam, config: config)
+                storeStatuses[.steam] = .running
+                bringSteamWindowForward()
+                watchSteamWindowsWhileRunning()
+            } catch {
+                storeStatuses[.steam] = .error(error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Custom bottles
 
     func reloadCustomBottles() {
@@ -613,8 +642,10 @@ final class AppState: ObservableObject {
                         engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
                         graphics: backend
                     )
+                    steamLaunchWindowRecoveryUsed = false
                     bringSteamWindowForward()
                     watchSteamWindowsWhileRunning()
+                    scheduleSteamLaunchHangRecovery(config: bottleConfig)
                 }
 
                 Task {
