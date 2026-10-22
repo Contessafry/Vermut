@@ -63,6 +63,7 @@ final class AppState: ObservableObject {
     @Published var customBottles: [CustomBottle] = []
     @Published var customBottleRunning: Set<UUID> = []
     @Published var showingNewBottleSheet = false
+    var steamWindowWatchTask: Task<Void, Never>?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
     @Published var availableUpdate: (version: String, url: String, releaseNotes: String?, isPrerelease: Bool)?
@@ -503,6 +504,36 @@ final class AppState: ObservableObject {
         }
     }
 
+
+    /// Keep bringing new Steam login/alert windows forward while the bottle is running.
+    func watchSteamWindowsWhileRunning() {
+        steamWindowWatchTask?.cancel()
+        let prefix = PathManager.shared.prefixURL(for: .steam)
+        steamWindowWatchTask = Task { @MainActor in
+            var seen = Set<pid_t>()
+            while !Task.isCancelled {
+                let running = await Task.detached { WineManager.shared.isStoreRunning(.steam) }.value
+                guard running else { break }
+                let snapshot = await Task.detached { SteamWindowWatcher.snapshot(prefix: prefix) }.value
+                if let pid = snapshot.windowPID, !seen.contains(pid) {
+                    seen.insert(pid)
+                    SteamWindowWatcher.bringToFront(pid: pid)
+                    showSteamWindowHint()
+                }
+                // Also catch smaller alert windows (min 200×150).
+                let alertPID = await Task.detached {
+                    SteamWindowWatcher.wineWindowPID(minWidth: 200, minHeight: 150)
+                }.value
+                if let alertPID, !seen.contains(alertPID) {
+                    seen.insert(alertPID)
+                    SteamWindowWatcher.bringToFront(pid: alertPID)
+                    showSteamWindowHint()
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+
     // MARK: - Custom bottles
 
     func reloadCustomBottles() {
@@ -545,6 +576,7 @@ final class AppState: ObservableObject {
 
     /// Stops all Vermut-owned Wine/Steam processes (app quit).
     func stopAllManagedWineProcesses() {
+        steamWindowWatchTask?.cancel()
         WineManager.shared.stopAllVermutManagedProcesses()
         for store in GameStore.allCases {
             if case .running = storeStatuses[store] {
@@ -582,6 +614,7 @@ final class AppState: ObservableObject {
                         graphics: backend
                     )
                     bringSteamWindowForward()
+                    watchSteamWindowsWhileRunning()
                 }
 
                 Task {
