@@ -158,6 +158,19 @@ struct BottleDetailView: View {
         StoreRecipe.effectiveEngine(config, global: appState.configuration).value.requiresGStreamer
     }
 
+    /// True only when the bottle's resolved engine differs from the session that is running.
+    private var engineChangedWhileRunning: Bool {
+        guard let profile = appState.storeRuntimeProfiles[store] ?? (store == .steam ? appState.steamRuntimeProfile : nil) else {
+            return false
+        }
+        let backend = GraphicsBackend(rawValue: config.graphicsBackend) ?? .dxmt
+        let selected = EngineGraphicsPolicy.launchEngine(
+            StoreRecipe.effectiveEngine(config, global: appState.configuration).value,
+            backend: backend
+        )
+        return selected != profile.engine
+    }
+
     private var gstreamerWarning: String? {
         let status = GStreamerProbe.probe()
         guard !status.isPresent else { return nil }
@@ -360,7 +373,7 @@ struct BottleDetailView: View {
                     .lineSpacing(2)
             }
             .padding(.vertical, VermutSpace.s2)
-            if case .running = status {
+            if case .running = status, engineChangedWhileRunning {
                 HStack(alignment: .top, spacing: VermutSpace.s2) {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(Color.Vermut.warning)

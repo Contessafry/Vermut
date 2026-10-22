@@ -59,6 +59,8 @@ final class AppState: ObservableObject {
     @Published var showingGameSettingsInspector = false
     /// Last engine/graphics applied to the Steam bottle session (for restart decisions).
     @Published var steamRuntimeProfile: BottleRuntimeProfile?
+    /// Runtime profiles for store bottles (engine-change banner while running).
+    @Published var storeRuntimeProfiles: [GameStore: BottleRuntimeProfile] = [:]
     /// Custom bottles from `custom-bottles.json`.
     @Published var customBottles: [CustomBottle] = []
     @Published var customBottleRunning: Set<UUID> = []
@@ -613,6 +615,7 @@ final class AppState: ObservableObject {
             }
         }
         steamRuntimeProfile = nil
+        storeRuntimeProfiles.removeAll()
         customBottleRunning.removeAll()
     }
 
@@ -638,14 +641,23 @@ final class AppState: ObservableObject {
                 if store == .steam {
                     let backend = GraphicsBackend(rawValue: bottleConfig.graphicsBackend) ?? .dxmt
                     let inherited = WineEngine.resolved(from: bottleConfig.engine)
-                    steamRuntimeProfile = BottleRuntimeProfile(
+                    let profile = BottleRuntimeProfile(
                         engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
                         graphics: backend
                     )
+                    steamRuntimeProfile = profile
+                    storeRuntimeProfiles[.steam] = profile
                     steamLaunchWindowRecoveryUsed = false
                     bringSteamWindowForward()
                     watchSteamWindowsWhileRunning()
                     scheduleSteamLaunchHangRecovery(config: bottleConfig)
+                } else {
+                    let backend = GraphicsBackend(rawValue: bottleConfig.graphicsBackend) ?? .dxmt
+                    let inherited = WineEngine.resolved(from: bottleConfig.engine)
+                    storeRuntimeProfiles[store] = BottleRuntimeProfile(
+                        engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
+                        graphics: backend
+                    )
                 }
 
                 Task {
@@ -1097,6 +1109,9 @@ final class AppState: ObservableObject {
                         current: self.storeStatuses[store], isRunning: running, isInstalled: installed)
                     if store == .steam, !running {
                         self.steamRuntimeProfile = nil
+                        self.storeRuntimeProfiles[.steam] = nil
+                    } else if !running {
+                        self.storeRuntimeProfiles[store] = nil
                     }
                 }
                 // Refresh custom bottle running dots without blocking.
