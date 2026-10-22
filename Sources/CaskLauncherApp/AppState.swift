@@ -538,6 +538,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Stops all Vermut-owned Wine/Steam processes (app quit).
+    func stopAllManagedWineProcesses() {
+        WineManager.shared.stopAllVermutManagedProcesses()
+        for store in GameStore.allCases {
+            if case .running = storeStatuses[store] {
+                storeStatuses[store] = .installed
+            }
+        }
+        steamRuntimeProfile = nil
+        customBottleRunning.removeAll()
+    }
+
     func launchStore(_ store: GameStore) {
         guard !StoreRecipe.isComingSoon(store) else { return }
         if store == .epic {

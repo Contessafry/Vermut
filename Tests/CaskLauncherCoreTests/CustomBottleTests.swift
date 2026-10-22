@@ -145,6 +145,66 @@ final class ShortcutScannerTests: XCTestCase {
     }
 }
 
+
+final class PrefixProcessTerminatorTests: XCTestCase {
+    func testNativeMacSteamIsExcluded() {
+        XCTAssertTrue(PrefixProcessTerminator.isNativeMacApp(
+            "/Applications/Steam.app/Contents/MacOS/steam_osx"
+        ))
+        XCTAssertFalse(PrefixProcessTerminator.isNativeMacApp(
+            "WINEPREFIX=/Users/x/Library/Application Support/Vermut/bottles/steam/prefix /wine steam.exe"
+        ))
+    }
+
+    func testPidsOwningPrefixes() {
+        let prefix = "/Users/x/Library/Application Support/Vermut/bottles/steam/prefix"
+        let lines = [
+            "100 /Applications/Steam.app/Contents/MacOS/steam_osx",
+            "200 WINEPREFIX=\(prefix) /usr/local/bin/wine64 C:\\Steam\\steam.exe",
+            "300 something unrelated"
+        ]
+        let pids = PrefixProcessTerminator.pids(
+            owningPrefixes: [prefix],
+            processLines: lines,
+            currentPID: 1
+        )
+        XCTAssertEqual(pids, [200])
+    }
+
+    func testStopEscalationOrder() {
+        var signals: [(pid_t, Int32)] = []
+        var sleeps: [TimeInterval] = []
+        var wineserverCalls = 0
+        let prefix = "/tmp/vermut-prefix"
+        let linesTerm = ["42 WINEPREFIX=\(prefix) wine64 steam.exe"]
+        let linesAfterTerm: [String] = ["42 WINEPREFIX=\(prefix) wine64 steam.exe"]
+        let linesAfterKill: [String] = []
+        var phase = 0
+
+        let leftover = PrefixProcessTerminator.stopAllVermutPrefixes(
+            prefixes: [prefix],
+            engineForPrefix: { _ in .grappleWine },
+            options: .init(termGraceSeconds: 0.01, killGraceSeconds: 0.01, wineserverWaitSeconds: 0.01),
+            sleeper: { sleeps.append($0) },
+            signalSender: { pid, sig in
+                signals.append((pid, sig))
+                return 0
+            },
+            processLinesProvider: {
+                defer { phase += 1 }
+                if phase == 0 { return linesTerm }
+                if phase == 1 { return linesAfterTerm }
+                return linesAfterKill
+            },
+            wineserverRunner: { _, _ in wineserverCalls += 1 }
+        )
+        XCTAssertEqual(wineserverCalls, 1)
+        XCTAssertEqual(signals.map(\.1), [SIGTERM, SIGKILL])
+        XCTAssertTrue(leftover.isEmpty)
+        XCTAssertEqual(sleeps.count, 3)
+    }
+}
+
 final class PathManagerCustomBottleTests: XCTestCase {
     func testCustomBottlePathsUseUUIDNotName() {
         let id = UUID()

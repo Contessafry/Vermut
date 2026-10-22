@@ -4,6 +4,7 @@ import CaskLauncherCore
 
 @main
 struct CaskLauncherApp: App {
+    @NSApplicationDelegateAdaptor(VermutAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
     init() {
@@ -20,6 +21,9 @@ struct CaskLauncherApp: App {
                 .background(WindowFit())
                 .frame(minWidth: 1024, minHeight: 680)
                 .frame(idealWidth: 1280, idealHeight: 800)
+                .onAppear {
+                    appDelegate.appState = appState
+                }
         }
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
@@ -68,6 +72,21 @@ struct CaskLauncherApp: App {
                 .disabled(appState.installedGames.isEmpty)
             }
         }
+    }
+}
+
+/// Stops Vermut-managed Wine/Steam processes on quit (native Mac apps untouched).
+@MainActor
+final class VermutAppDelegate: NSObject, NSApplicationDelegate {
+    weak var appState: AppState?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        appState?.stopAllManagedWineProcesses()
+        // Allow a brief moment for SIGTERM before the process exits.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }
 
