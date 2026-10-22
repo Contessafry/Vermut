@@ -79,14 +79,31 @@ struct CaskLauncherApp: App {
 @MainActor
 final class VermutAppDelegate: NSObject, NSApplicationDelegate {
     weak var appState: AppState?
+    private var didReplyToTerminate = false
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        appState?.stopAllManagedWineProcesses()
-        // Allow a brief moment for SIGTERM before the process exits.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            NSApp.reply(toApplicationShouldTerminate: true)
+        didReplyToTerminate = false
+        let state = appState
+        // Never block the main thread — synchronous lsof/wineserver work caused
+        // 100s+ quits and AppleScript -1712 timeouts. Cleanup runs off-main with
+        // PrefixProcessTerminator's ~10s budget; reply promptly either way.
+        DispatchQueue.global(qos: .userInitiated).async {
+            WineManager.shared.stopAllVermutManagedProcesses()
+            DispatchQueue.main.async {
+                state?.noteQuitCleanupFinished()
+                self.replyToTerminate()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            self.replyToTerminate()
         }
         return .terminateLater
+    }
+
+    private func replyToTerminate() {
+        guard !didReplyToTerminate else { return }
+        didReplyToTerminate = true
+        NSApp.reply(toApplicationShouldTerminate: true)
     }
 }
 

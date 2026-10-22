@@ -669,10 +669,18 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Stops all Vermut-owned Wine/Steam processes (app quit).
+    /// Stops all Vermut-owned Wine/Steam processes (app quit). Prefer calling
+    /// `WineManager.stopAllVermutManagedProcesses()` off the main thread, then
+    /// `noteQuitCleanupFinished()` on the main actor.
     func stopAllManagedWineProcesses() {
         steamWindowWatchTask?.cancel()
         WineManager.shared.stopAllVermutManagedProcesses()
+        noteQuitCleanupFinished()
+    }
+
+    /// Clears Running UI state after quit-time process cleanup (main actor).
+    func noteQuitCleanupFinished() {
+        steamWindowWatchTask?.cancel()
         for store in GameStore.allCases {
             if case .running = storeStatuses[store] {
                 storeStatuses[store] = .installed

@@ -15,17 +15,21 @@ public enum PrefixProcessTerminator {
         /// Max time to wait on each `wineserver -k` before abandoning it.
         public var wineserverKillTimeout: TimeInterval
         public var afterWineserverSeconds: TimeInterval
+        /// Hard ceiling for the whole quit cleanup (discover + wineserver + signals).
+        public var totalBudgetSeconds: TimeInterval
 
         public init(
-            termGraceSeconds: TimeInterval = 1.5,
-            killGraceSeconds: TimeInterval = 0.75,
-            wineserverKillTimeout: TimeInterval = 2.0,
-            afterWineserverSeconds: TimeInterval = 0.25
+            termGraceSeconds: TimeInterval = 0.75,
+            killGraceSeconds: TimeInterval = 0.35,
+            wineserverKillTimeout: TimeInterval = 1.5,
+            afterWineserverSeconds: TimeInterval = 0.15,
+            totalBudgetSeconds: TimeInterval = 10
         ) {
             self.termGraceSeconds = termGraceSeconds
             self.killGraceSeconds = killGraceSeconds
             self.wineserverKillTimeout = wineserverKillTimeout
             self.afterWineserverSeconds = afterWineserverSeconds
+            self.totalBudgetSeconds = totalBudgetSeconds
         }
 
         public static let `default` = Options()
@@ -143,14 +147,30 @@ public enum PrefixProcessTerminator {
 
     /// Open / mapped file paths for a PID (`lsof`). Used when argv has no WINEPREFIX
     /// and `proc_pidpath` is a `$TMPDIR/winetemp-*` Wine loader copy.
-    public static func openFilePaths(for pid: pid_t) -> [String] {
+    /// Bounded so a stuck `lsof` cannot stall quit.
+    public static func openFilePaths(for pid: pid_t, timeout: TimeInterval = 0.4) -> [String] {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         // txt = executable, mem = mapped libraries, cwd = working dir.
         process.arguments = ["-a", "-p", "\(pid)", "-d", "txt,mem,cwd", "-Fn"]
         process.standardError = FileHandle.nullDevice
-        guard let data = try? ProcessPipe.runReadingStdout(process),
-              let text = String(data: data, encoding: .utf8) else { return [] }
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        guard (try? process.run()) != nil else { return [] }
+        let waitResult = ProcessWait.waitUntilExit(
+            process,
+            timeout: timeout,
+            escalateGrace: 0.15
+        )
+        let data: Data
+        switch waitResult {
+        case .exited:
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
+        case .timedOut:
+            // Best-effort drain; process was killed by waitUntilExit.
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
+        }
+        guard let text = String(data: data, encoding: .utf8) else { return [] }
         return text
             .components(separatedBy: .newlines)
             .compactMap { line -> String? in
@@ -244,40 +264,38 @@ public enum PrefixProcessTerminator {
         path.hasSuffix("/") ? path : path + "/"
     }
 
-    /// Never signal native Steam/GOG/Epic, Grapple, CrossOver, or other .app bundles.
+    /// Never signal native Steam/GOG/Epic, Grapple.app, CrossOver, or other .app bundles.
+    /// - Important: Does **not** deny `$TMPDIR/winetemp-*/Steam`, Vermut prefixes
+    ///   (`…/drive_c/Program Files (x86)/Steam`), or `…/engines/grapple-wine/…`.
     public static func isDeniedForeignPath(_ path: String) -> Bool {
         let lower = path.lowercased()
+        // Positive allow: Wine loader temp copies and Vermut-managed trees.
+        if lower.contains("/winetemp-") || lower.contains("/winetemp/") { return false }
         if lower.contains("/application support/vermut/")
             || lower.contains("/application support/casklauncher/") {
             return false
         }
-        // Native Steam (App Support bundle, ipcserver launchd job, Steam.app).
+        // Native Steam only (App Support bundle / ipcserver / Steam.app) — never
+        // bottle paths that merely contain "/Steam" in the name.
         if lower.contains("/library/application support/steam/") { return true }
         if lower.contains("steam.app/") || lower.contains("/steam.app ") { return true }
         if lower.contains("steam_osx") { return true }
-        if lower.hasSuffix("/ipcserver"), lower.contains("steam") { return true }
-        // Other launchers / Wine stacks we must never touch.
-        if lower.contains("/application support/gog.com")
-            || lower.contains("gog galaxy.app")
-            || lower.contains("galaxyclient.app")
-            || lower.contains("galaxyclient") && lower.contains("/applications/") {
+        if lower.hasSuffix("/ipcserver"), lower.contains("/application support/steam") {
             return true
         }
-        if lower.contains("crossover") { return true }
-        if lower.contains("/grapple/")
-            || lower.contains("grapple.app")
-            || lower.contains("/application support/grapple") {
-            return true
-        }
-        if lower.contains("/applications/epic games") { return true }
-        // Any other macOS .app bundle under /Applications.
+        // Foreign launchers — match app bundles / their App Support dirs only.
+        // Do NOT match `…/engines/grapple-wine/…` (Vermut engine id).
+        if lower.contains("/application support/gog.com") { return true }
+        if lower.contains("/application support/grapple/") { return true }
+        if lower.contains("/application support/crossover") { return true }
         if lower.contains("/applications/"), lower.contains(".app/") { return true }
         return false
     }
 
     public static func isDeniedForeignProcess(executablePath: String?, command: String) -> Bool {
+        if isDeniedForeignPath(command) { return true }
         if let executablePath, isDeniedForeignPath(executablePath) { return true }
-        return isDeniedForeignPath(command)
+        return false
     }
 
     /// Snapshot every PID that belongs to the given prefixes
@@ -295,11 +313,26 @@ public enum PrefixProcessTerminator {
         let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
         let includesSteam = prefixes.contains(steamPrefix)
 
+        // Cache proc_pidpath / lsof — never lsof the whole process table.
+        var exeCache: [pid_t: String?] = [:]
+        var openCache: [pid_t: [String]] = [:]
+        func exe(for pid: pid_t) -> String? {
+            if let cached = exeCache[pid] { return cached }
+            let value = executablePathProvider(pid)
+            exeCache[pid] = value
+            return value
+        }
+        func openPaths(for pid: pid_t) -> [String] {
+            if let cached = openCache[pid] { return cached }
+            let value = openPathsProvider(pid)
+            openCache[pid] = value
+            return value
+        }
         func denied(_ row: ProcessRow) -> Bool {
-            isDeniedForeignProcess(
-                executablePath: executablePathProvider(row.pid),
-                command: row.command
-            )
+            // Cheap command check first; resolve exe only when needed.
+            if isDeniedForeignPath(row.command) { return true }
+            if let path = exe(for: row.pid), isDeniedForeignPath(path) { return true }
+            return false
         }
 
         var seeds = Set<pid_t>()
@@ -321,9 +354,10 @@ public enum PrefixProcessTerminator {
         // Vermut Wine binary whose argv still names our prefix / bottles path.
         for row in rows {
             guard row.pid > 1, row.pid != currentPID else { continue }
+            if seeds.contains(row.pid) { continue }
             if denied(row) { continue }
-            guard let exe = executablePathProvider(row.pid),
-                  isVermutWineExecutable(exe, enginesRoot: enginesRoot) else { continue }
+            guard let path = exe(for: row.pid),
+                  isVermutWineExecutable(path, enginesRoot: enginesRoot) else { continue }
             if commandBelongsToPrefixes(
                 row.command,
                 prefixes: prefixes,
@@ -358,15 +392,20 @@ public enum PrefixProcessTerminator {
             for row in rows {
                 guard row.pid > 1, row.pid != currentPID, row.pgid > 1 else { continue }
                 guard seedPgids.contains(row.pgid) else { continue }
+                if all.contains(row.pid) { continue }
                 if denied(row) { continue }
-                let exe = executablePathProvider(row.pid)
-                if let exe, isVermutWineExecutable(exe, enginesRoot: enginesRoot) {
+                let path = exe(for: row.pid)
+                if let path, isVermutWineExecutable(path, enginesRoot: enginesRoot) {
                     all.insert(row.pid)
                     continue
                 }
+                // Only lsof winetemp / wine-like candidates in the seed pgid.
+                let wineLike = looksLikeWineWindowsProcess(row.command)
+                let winetemp = path.map { isWinetempExecutable($0) } ?? false
+                guard winetemp || wineLike else { continue }
                 if processOwnedByVermut(
-                    executablePath: exe,
-                    openPaths: openPathsProvider(row.pid),
+                    executablePath: path,
+                    openPaths: openPaths(for: row.pid),
                     enginesRoot: enginesRoot,
                     bottlesRoot: bottlesRoot,
                     prefixes: prefixes
@@ -378,13 +417,22 @@ public enum PrefixProcessTerminator {
 
         // Session-leader orphans: loader under engines or winetemp-* AND mapped
         // files under engines/prefix. Never match by name ("Steam" / "steam").
+        // Only run lsof for plausible Vermut Wine candidates.
         for row in rows {
             guard row.pid > 1, row.pid != currentPID else { continue }
             if all.contains(row.pid) { continue }
-            if denied(row) { continue }
+            if isDeniedForeignPath(row.command) { continue }
+            let path = exe(for: row.pid)
+            if let path, isDeniedForeignPath(path) { continue }
+            let winetemp = path.map { isWinetempExecutable($0) } ?? false
+            let vermutExe = path.map { isVermutWineExecutable($0, enginesRoot: enginesRoot) } ?? false
+            let wineLike = looksLikeWineWindowsProcess(row.command)
+                || SteamSetupEvaluator.isBottleWebhelper(row.command)
+                || SteamSetupEvaluator.isBottleSteamCommand(row.command)
+            guard winetemp || vermutExe || wineLike else { continue }
             if processOwnedByVermut(
-                executablePath: executablePathProvider(row.pid),
-                openPaths: openPathsProvider(row.pid),
+                executablePath: path,
+                openPaths: openPaths(for: row.pid),
                 enginesRoot: enginesRoot,
                 bottlesRoot: bottlesRoot,
                 prefixes: prefixes
@@ -477,6 +525,7 @@ public enum PrefixProcessTerminator {
     }
 
     /// Snapshot PIDs, bounded `wineserver -k`, second discovery sweep, then SIGTERM / SIGKILL.
+    /// Honors `options.totalBudgetSeconds` so app quit stays near ~10s.
     @discardableResult
     public static func stopAllVermutPrefixes(
         prefixes: [String]? = nil,
@@ -490,14 +539,25 @@ public enum PrefixProcessTerminator {
         openPathsProvider: @escaping (pid_t) -> [String] = { openFilePaths(for: $0) },
         wineserverRunner: (URL, String, TimeInterval) -> Void = { wineserver, prefix, timeout in
             runWineserverKill(wineserver: wineserver, prefix: prefix, timeout: timeout)
-        }
+        },
+        now: () -> Date = { Date() }
     ) -> [pid_t] {
         let targets = prefixes ?? vermutPrefixPaths()
         let rowsProvider = processRowsProvider ?? { processRows() }
         let enginesRoot = PathManager.shared.enginesURL.path
         let bottlesRoot = PathManager.shared.bottlesURL.path
+        let deadline = now().addingTimeInterval(options.totalBudgetSeconds)
+
+        func budgetLeft() -> TimeInterval {
+            max(0, deadline.timeIntervalSince(now()))
+        }
+        func sleepBudget(_ requested: TimeInterval) {
+            let t = min(requested, budgetLeft())
+            if t > 0 { sleeper(t) }
+        }
 
         func discover() -> Set<pid_t> {
+            guard budgetLeft() > 0.05 else { return [] }
             let rows = rowsProvider()
             if !rows.isEmpty {
                 return snapshotPrefixPIDs(
@@ -525,27 +585,50 @@ public enum PrefixProcessTerminator {
         // After -k, helpers reparent to launchd with bare C:\ argv and no WINEPREFIX.
         var recorded = discover()
 
-        for prefix in targets {
+        // Run wineserver -k in parallel; each shares the remaining budget.
+        let wineserverJobs: [(URL, String)] = targets.compactMap { prefix in
             let engine = engineForPrefix(prefix) ?? .defaultEngine
-            if let wineserver = PathManager.shared.wineserverExecutable(engine: engine) {
-                wineserverRunner(wineserver, prefix, options.wineserverKillTimeout)
+            guard let wineserver = PathManager.shared.wineserverExecutable(engine: engine) else {
+                return nil
             }
+            return (wineserver, prefix)
         }
+        if !wineserverJobs.isEmpty, budgetLeft() > 0.05 {
+            let perTimeout = min(
+                options.wineserverKillTimeout,
+                max(0.2, budgetLeft() / Double(wineserverJobs.count))
+            )
+            let group = DispatchGroup()
+            for (wineserver, prefix) in wineserverJobs {
+                group.enter()
+                DispatchQueue.global(qos: .userInitiated).async {
+                    defer { group.leave() }
+                    wineserverRunner(wineserver, prefix, perTimeout)
+                }
+            }
+            _ = group.wait(timeout: .now() + budgetLeft())
+        }
+
         // Bounded pause, then a second sweep for session-leader orphans that the
         // pre-kill tree/pgid snapshot missed (winetemp + mapped engines).
-        sleeper(options.afterWineserverSeconds)
-        recorded.formUnion(discover())
+        sleepBudget(options.afterWineserverSeconds)
+        if budgetLeft() > 0.05 {
+            recorded.formUnion(discover())
+        }
 
         for pid in recorded.sorted() {
             _ = signalSender(pid, SIGTERM)
         }
-        sleeper(options.termGraceSeconds)
+        sleepBudget(options.termGraceSeconds)
 
-        recorded.formUnion(discover())
+        if budgetLeft() > 0.05 {
+            recorded.formUnion(discover())
+        }
         for pid in recorded.sorted() {
             _ = signalSender(pid, SIGKILL)
         }
-        sleeper(options.killGraceSeconds)
+        sleepBudget(min(options.killGraceSeconds, budgetLeft()))
+        guard budgetLeft() > 0.05 else { return [] }
         return discover().sorted()
     }
 
@@ -555,6 +638,7 @@ public enum PrefixProcessTerminator {
         prefix: String,
         timeout: TimeInterval
     ) {
+        guard timeout > 0.05 else { return }
         let process = Process()
         process.executableURL = wineserver
         process.arguments = ["-k"]
@@ -562,6 +646,6 @@ public enum PrefixProcessTerminator {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return }
-        _ = ProcessWait.waitUntilExit(process, timeout: timeout)
+        _ = ProcessWait.waitUntilExit(process, timeout: timeout, escalateGrace: 0.2)
     }
 }

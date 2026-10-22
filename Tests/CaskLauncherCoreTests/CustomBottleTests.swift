@@ -160,6 +160,20 @@ final class PrefixProcessTerminatorTests: XCTestCase {
         XCTAssertFalse(PrefixProcessTerminator.isNativeMacApp(
             "WINEPREFIX=/Users/x/Library/Application Support/Vermut/bottles/steam/prefix /wine steam.exe"
         ))
+        // Must not deny Vermut engines (grapple-wine) or winetemp loaders named Steam.
+        let engines = PathManager.shared.enginesURL.path
+        XCTAssertFalse(PrefixProcessTerminator.isDeniedForeignPath(
+            "\(engines)/grapple-wine/bin/wine64"
+        ))
+        XCTAssertFalse(PrefixProcessTerminator.isDeniedForeignPath(
+            "/private/var/folders/ab/T/winetemp-deadbeef/Steam"
+        ))
+        XCTAssertFalse(PrefixProcessTerminator.isDeniedForeignPath(
+            "\(PathManager.shared.bottlesURL.path)/steam/prefix/drive_c/Program Files (x86)/Steam/steam.exe"
+        ))
+        XCTAssertTrue(PrefixProcessTerminator.isVermutWineExecutable(
+            "\(engines)/grapple-wine/bin/wine64"
+        ))
     }
 
     func testNativeSteamIpcserverIsNeverClaimed() {
@@ -217,6 +231,92 @@ final class PrefixProcessTerminatorTests: XCTestCase {
                 prefixes: [steamPrefix]
             )
         )
+    }
+
+    func testWinetempSteamwebhelperOrphansAreClaimedAlongsideIpcserverDeny() {
+        // QA round 5: 4× steamwebhelper.exe, PPID 1, own pgid, proc_pidpath under
+        // $TMPDIR/winetemp-*/Steam, hundreds of open files under Vermut engines/prefix.
+        // Must be claimed; native ipcserver must still be denied.
+        let engines = PathManager.shared.enginesURL.path
+        let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
+        let bottles = PathManager.shared.bottlesURL.path
+        let winetemp = "/private/var/folders/ab/T/winetemp-webhelper-1/Steam"
+        let ipc =
+            "/Users/qa/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/ipcserver"
+        let rows = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 10,
+                ppid: 1,
+                pgid: 10,
+                command: "WINEPREFIX=\(steamPrefix) \(engines)/grapple-wine/bin/wineserver"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 801,
+                ppid: 1,
+                pgid: 801,
+                command: #"C:\Program Files (x86)\Steam\bin\cef\cef.win7\steamwebhelper.exe --type=renderer"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 802,
+                ppid: 1,
+                pgid: 802,
+                command: #"C:\Program Files (x86)\Steam\bin\cef\cef.win7\steamwebhelper.exe --type=gpu-process"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 803,
+                ppid: 1,
+                pgid: 803,
+                command: "steamwebhelper.exe --type=utility"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 804,
+                ppid: 1,
+                pgid: 804,
+                command: "steamwebhelper.exe --type=renderer"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 55,
+                ppid: 1,
+                pgid: 55,
+                command: ipc
+            )
+        ]
+        let exePaths: [pid_t: String] = [
+            10: "\(engines)/grapple-wine/bin/wineserver",
+            801: winetemp,
+            802: "\(winetemp)-b",
+            803: "/var/folders/ab/T/winetemp-webhelper-3/Steam",
+            804: "/private/var/folders/ab/T/winetemp-webhelper-4/Steam",
+            55: ipc
+        ]
+        let openPaths: [pid_t: [String]] = [
+            801: [
+                winetemp,
+                "\(engines)/grapple-wine/lib/libwine.dylib",
+                "\(steamPrefix)/drive_c/Program Files (x86)/Steam/bin/cef/cef.win7/steamwebhelper.exe"
+            ],
+            802: [
+                "\(engines)/grapple-wine/lib/wine/x86_64-windows/ntdll.dll",
+                "\(bottles)/steam/prefix/drive_c/Program Files (x86)/Steam/steam.exe"
+            ],
+            803: ["\(engines)/grapple-wine/lib/libwine.dylib"],
+            804: ["\(steamPrefix)/drive_c/Program Files (x86)/Steam/SteamUI.dll"],
+            55: [ipc, "/Users/qa/Library/Application Support/Steam/config/config.vdf"]
+        ]
+        let snapped = PrefixProcessTerminator.snapshotPrefixPIDs(
+            owningPrefixes: PrefixProcessTerminator.vermutPrefixPaths(),
+            rows: rows,
+            executablePathProvider: { exePaths[$0] },
+            openPathsProvider: { openPaths[$0] ?? [] },
+            currentPID: 1
+        )
+        XCTAssertTrue(snapped.contains(10))
+        XCTAssertTrue(snapped.isSuperset(of: [801, 802, 803, 804]), "winetemp steamwebhelpers must be claimed: \(snapped)")
+        XCTAssertFalse(snapped.contains(55), "native ipcserver must remain denied")
+        XCTAssertFalse(PrefixProcessTerminator.isDeniedForeignPath(winetemp))
+        XCTAssertFalse(PrefixProcessTerminator.isDeniedForeignPath(
+            "\(engines)/grapple-wine/lib/libwine.dylib"
+        ))
     }
 
     func testPidsOwningPrefixes() {
