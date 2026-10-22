@@ -177,21 +177,25 @@ final class PrefixProcessTerminatorTests: XCTestCase {
             PrefixProcessTerminator.ProcessRow(
                 pid: 10,
                 ppid: 1,
+                pgid: 10,
                 command: "WINEPREFIX=\(steamPrefix) \(PathManager.shared.enginesURL.path)/grapple-wine/bin/wineserver"
             ),
             PrefixProcessTerminator.ProcessRow(
                 pid: 20,
                 ppid: 10,
+                pgid: 10,
                 command: #"C:\Program Files (x86)\Steam\steam.exe -silent"#
             ),
             PrefixProcessTerminator.ProcessRow(
                 pid: 21,
                 ppid: 20,
+                pgid: 10,
                 command: "steamwebhelper.exe --type=renderer"
             ),
             PrefixProcessTerminator.ProcessRow(
                 pid: 30,
                 ppid: 1,
+                pgid: 30,
                 command: "/Applications/Steam.app/Contents/MacOS/steam_osx"
             )
         ]
@@ -206,13 +210,166 @@ final class PrefixProcessTerminatorTests: XCTestCase {
         XCTAssertFalse(pids.contains(30))
     }
 
+    func testSnapshotCapturesBareWindowsHelpersViaPgidAndVermutWineBinary() {
+        let engines = PathManager.shared.enginesURL.path
+        let wine64 = "\(engines)/grapple-wine/bin/wine64"
+        let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
+        // After Steam exits, helpers often sit on launchd (ppid 1) with bare C:\ argv
+        // and no WINEPREFIX — only pgid + Vermut wine executable still tie them to us.
+        let rows = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 100,
+                ppid: 1,
+                pgid: 100,
+                command: "WINEPREFIX=\(steamPrefix) \(engines)/grapple-wine/bin/wineserver"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 101,
+                ppid: 1,
+                pgid: 100,
+                command: #"C:\windows\system32\services.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 102,
+                ppid: 1,
+                pgid: 100,
+                command: #"C:\windows\system32\winedevice.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 103,
+                ppid: 1,
+                pgid: 100,
+                command: #"C:\windows\system32\plugplay.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 104,
+                ppid: 1,
+                pgid: 100,
+                command: #"C:\windows\system32\svchost.exe -k LocalService"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 105,
+                ppid: 1,
+                pgid: 100,
+                command: #"C:\windows\system32\explorer.exe /desktop"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 106,
+                ppid: 1,
+                pgid: 100,
+                command: #"C:\windows\system32\rpcss.exe"#
+            ),
+            // Other Wine install — must not be claimed.
+            PrefixProcessTerminator.ProcessRow(
+                pid: 200,
+                ppid: 1,
+                pgid: 200,
+                command: #"C:\windows\system32\services.exe"#
+            )
+        ]
+        let exePaths: [pid_t: String] = [
+            100: "\(engines)/grapple-wine/bin/wineserver",
+            101: wine64, 102: wine64, 103: wine64, 104: wine64, 105: wine64, 106: wine64,
+            200: "/opt/homebrew/bin/wine64"
+        ]
+        let snapped = PrefixProcessTerminator.snapshotPrefixPIDs(
+            owningPrefixes: [steamPrefix],
+            rows: rows,
+            executablePathProvider: { exePaths[$0] },
+            currentPID: 1
+        )
+        XCTAssertTrue(snapped.isSuperset(of: [100, 101, 102, 103, 104, 105, 106]))
+        XCTAssertFalse(snapped.contains(200))
+    }
+
+    func testStopSignalsPreKillSnapshotEvenWhenHelpersLoseWINEPREFIX() {
+        var signals: [(pid_t, Int32)] = []
+        var wineserverTimeouts: [TimeInterval] = []
+        let engines = PathManager.shared.enginesURL.path
+        let wine64 = "\(engines)/grapple-wine/bin/wine64"
+        // Use the real steam prefix path so discovery matches PathManager.
+        let prefix = PathManager.shared.prefixURL(for: .steam).path
+        let before = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 50,
+                ppid: 1,
+                pgid: 50,
+                command: "WINEPREFIX=\(prefix) \(engines)/grapple-wine/bin/wineserver"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 51,
+                ppid: 1,
+                pgid: 50,
+                command: #"C:\windows\system32\services.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 52,
+                ppid: 1,
+                pgid: 50,
+                command: #"C:\windows\system32\winedevice.exe"#
+            )
+        ]
+        // After wineserver -k: helpers still alive, still bare C:\…, no WINEPREFIX.
+        let after = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 51,
+                ppid: 1,
+                pgid: 50,
+                command: #"C:\windows\system32\services.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 52,
+                ppid: 1,
+                pgid: 50,
+                command: #"C:\windows\system32\winedevice.exe"#
+            )
+        ]
+        var phase = 0
+        let exePaths: [pid_t: String] = [
+            50: "\(engines)/grapple-wine/bin/wineserver",
+            51: wine64,
+            52: wine64
+        ]
+
+        _ = PrefixProcessTerminator.stopAllVermutPrefixes(
+            prefixes: [prefix],
+            engineForPrefix: { _ in .grappleWine },
+            options: .init(
+                termGraceSeconds: 0.01,
+                killGraceSeconds: 0.01,
+                wineserverKillTimeout: 2.0,
+                afterWineserverSeconds: 0.01
+            ),
+            sleeper: { _ in },
+            signalSender: { pid, sig in
+                signals.append((pid, sig))
+                return 0
+            },
+            processLinesProvider: { [] },
+            processRowsProvider: {
+                defer { phase += 1 }
+                // phase 0: pre-kill snapshot; later phases: post-kill (no wineserver).
+                return phase == 0 ? before : after
+            },
+            executablePathProvider: { exePaths[$0] },
+            wineserverRunner: { _, _, timeout in
+                wineserverTimeouts.append(timeout)
+            }
+        )
+        XCTAssertEqual(wineserverTimeouts, [2.0])
+        let termPIDs = Set(signals.filter { $0.1 == SIGTERM }.map(\.0))
+        let killPIDs = Set(signals.filter { $0.1 == SIGKILL }.map(\.0))
+        XCTAssertTrue(termPIDs.isSuperset(of: [50, 51, 52]), "pre-kill snapshot must be SIGTERM’d: \(termPIDs)")
+        XCTAssertTrue(killPIDs.isSuperset(of: [50, 51, 52]), "pre-kill snapshot must be SIGKILL’d: \(killPIDs)")
+    }
+
     func testStopEscalationOrderUsesBoundedWineserver() {
         var signals: [(pid_t, Int32)] = []
         var sleeps: [TimeInterval] = []
         var wineserverTimeouts: [TimeInterval] = []
         let prefix = "/tmp/vermut-prefix"
         let rowsTerm = [
-            PrefixProcessTerminator.ProcessRow(pid: 42, ppid: 1, command: "WINEPREFIX=\(prefix) wine64 steam.exe")
+            PrefixProcessTerminator.ProcessRow(pid: 42, ppid: 1, pgid: 42, command: "WINEPREFIX=\(prefix) wine64 steam.exe")
         ]
         let rowsAfterTerm = rowsTerm
         let rowsAfterKill: [PrefixProcessTerminator.ProcessRow] = []
@@ -247,6 +404,14 @@ final class PrefixProcessTerminatorTests: XCTestCase {
         XCTAssertEqual(signals.map(\.1), [SIGTERM, SIGKILL])
         XCTAssertTrue(leftover.isEmpty)
         XCTAssertEqual(sleeps.count, 3)
+    }
+
+    func testIsVermutWineExecutable() {
+        let engines = PathManager.shared.enginesURL.path
+        XCTAssertTrue(PrefixProcessTerminator.isVermutWineExecutable("\(engines)/grapple-wine/bin/wine64"))
+        XCTAssertTrue(PrefixProcessTerminator.isVermutWineExecutable("\(engines)/staging/bin/wineserver"))
+        XCTAssertFalse(PrefixProcessTerminator.isVermutWineExecutable("/opt/homebrew/bin/wine64"))
+        XCTAssertFalse(PrefixProcessTerminator.isVermutWineExecutable("/Applications/Steam.app/Contents/MacOS/steam_osx"))
     }
 
     func testCommandBelongsMatchesBottlesPath() {
