@@ -9,6 +9,7 @@ enum AppSection: Hashable {
     case library
     case downloads
     case bottle(GameStore)
+    case customBottle(UUID)
     case settings
 }
 
@@ -45,6 +46,8 @@ final class AppState: ObservableObject {
     @Published var installedGames: [InstalledGame] = []
     @Published var bottleSizes: [GameStore: Int64] = [:]
     @Published var hasRosetta = false
+    /// True when Rosetta was already present so onboarding never showed the Rosetta step.
+    @Published var rosettaSetupSkipped = false
     @Published var hasD3DMetal = false
     @Published var bottleToDelete: GameStore?
     @Published var epicAccount: LegendaryAccount?
@@ -56,6 +59,15 @@ final class AppState: ObservableObject {
     @Published var showingGameSettingsInspector = false
     /// Last engine/graphics applied to the Steam bottle session (for restart decisions).
     @Published var steamRuntimeProfile: BottleRuntimeProfile?
+    /// Runtime profiles for store bottles (engine-change banner while running).
+    @Published var storeRuntimeProfiles: [GameStore: BottleRuntimeProfile] = [:]
+    /// Custom bottles from `custom-bottles.json`.
+    @Published var customBottles: [CustomBottle] = []
+    @Published var customBottleRunning: Set<UUID> = []
+    @Published var showingNewBottleSheet = false
+    /// One-shot Steam launch hang recovery (main/login window timeout).
+    var steamLaunchWindowRecoveryUsed = false
+    var steamWindowWatchTask: Task<Void, Never>?
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
     @Published var availableUpdate: (version: String, url: String, releaseNotes: String?, isPrerelease: Bool)?
@@ -108,7 +120,8 @@ final class AppState: ObservableObject {
         
         startSessionMonitoring()
         fetchCompatibilityData()
-        
+        reloadCustomBottles()
+
         // Debug feedback trigger (works in release builds via env var)
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("VermutDebugTriggerCompatFeedback"),
@@ -206,10 +219,13 @@ final class AppState: ObservableObject {
             let rosetta = try await SystemSetup.shared.checkRosetta()
             hasRosetta = rosetta
             if !rosetta {
+                rosettaSetupSkipped = false
                 setupPhase = .rosetta
                 setupMessage = "Installing Rosetta 2…"
                 try await SystemSetup.shared.installRosetta()
                 hasRosetta = true
+            } else {
+                rosettaSetupSkipped = true
             }
 
             if !SystemSetup.shared.checkWineInstalled() {
@@ -336,6 +352,10 @@ final class AppState: ObservableObject {
 
                 if store == .steam {
                     try await runSteamFirstUpdate(config: bottleConfig)
+                    // Never show Installed for bootstrapper-only (steam.exe without SteamUI/CEF).
+                    guard WineManager.shared.isStoreInstalled(.steam) else {
+                        throw WineError.installerTimedOut(.steam)
+                    }
                 }
                 storeStatuses[store] = .installed
                 refreshLibrary()
@@ -391,12 +411,16 @@ final class AppState: ObservableObject {
         storeStatuses[.steam] = .installing(.updatingClient)
         defer { steamStage = nil; steamStalled = false }
         var launchError = await startSteamFirstRun(config: config)
+        // Onboarding / first-update path: watch continuously so the login window
+        // is activated when it appears (not only at spawn time).
+        watchSteamWindowsWhileRunning()
         var lastProgressChange = Date()
         var lastSignature = ""
-        var broughtToFront = false
         var lastLogSize = -1
         var lastLogGrowth = Date()
         var readySince: Date?
+        var seenWindowPIDs = Set<pid_t>()
+        var bootstrapRelaunches = 0
         let trace = CappedLogWriter.shared(for: PathManager.shared.logURL(for: .steam))
         let deadline = Date().addingTimeInterval(45 * 60)
         while Date() < deadline {
@@ -418,12 +442,38 @@ final class AppState: ObservableObject {
                 trace.append(line: "[vermut] steam setup: \(stage.label) (updateDone=\(i.bootstrap?.updateCompleted ?? false) inProgress=\(i.bootstrap?.updateInProgress ?? false) files=\(i.clientFilesReady) helper=\(i.webhelperRunning) window=\(i.windowVisible) quiet=\(Int(i.secondsSinceLogChange ?? -1))s)")
             }
             if stage != steamStage { steamStage = stage }
-            if let pid = snapshot.windowPID, !broughtToFront {
-                broughtToFront = true
+            if let pid = snapshot.windowPID, !seenWindowPIDs.contains(pid) {
+                seenWindowPIDs.insert(pid)
                 SteamWindowWatcher.bringToFront(pid: pid)
                 showSteamWindowHint()
             }
             if stage == .ready { return }
+
+            // Bootstrapper often exits within ~2 min before the client update lands.
+            // Auto-relaunch (bounded) instead of sitting on Updating/Finishing forever.
+            let running = await Task.detached { WineManager.shared.isStoreRunning(.steam) }.value
+            let clientReady = snapshot.inputs.clientFilesReady
+                || SteamReadiness.isClientReady(inPrefix: prefix)
+            if SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: running,
+                clientReady: clientReady,
+                relaunchesSoFar: bootstrapRelaunches
+            ) {
+                bootstrapRelaunches += 1
+                steamStalled = false
+                lastProgressChange = Date()
+                lastSignature = ""
+                seenWindowPIDs.removeAll()
+                trace.append(line: "[vermut] steam setup: bootstrap exited before client ready; relaunch \(bootstrapRelaunches)/\(SteamReadiness.bootstrapRelaunchAttempts)")
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                launchError = await startSteamFirstRun(config: config)
+                watchSteamWindowsWhileRunning()
+                continue
+            }
+            if !running, !clientReady, bootstrapRelaunches >= SteamReadiness.bootstrapRelaunchAttempts {
+                throw launchError ?? WineError.installerTimedOut(.steam)
+            }
+
             let signature = "\(stage)|\(snapshot.logSize)"
             if signature != lastSignature {
                 lastSignature = signature
@@ -436,10 +486,11 @@ final class AppState: ObservableObject {
                 steamRetryRequested = false
                 steamStalled = false
                 lastProgressChange = Date()
-                broughtToFront = false
+                seenWindowPIDs.removeAll()
                 try? WineManager.shared.stopStore(.steam)
                 try await Task.sleep(nanoseconds: 3_000_000_000)
                 launchError = await startSteamFirstRun(config: config)
+                watchSteamWindowsWhileRunning()
             }
             try await Task.sleep(nanoseconds: 2_000_000_000)
         }
@@ -455,6 +506,7 @@ final class AppState: ObservableObject {
         for attempt in 0..<SteamReadiness.firstLaunchAttempts {
             do {
                 try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
+                recordSteamRuntimeProfile(for: config)
                 return nil
             } catch {
                 launchError = error
@@ -476,6 +528,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Records the engine/graphics profile for the Steam session (every launch path).
+    func recordSteamRuntimeProfile(for config: BottleConfiguration) {
+        let backend = GraphicsBackend(rawValue: config.graphicsBackend) ?? .dxmt
+        let inherited = StoreRecipe.effectiveEngine(config, global: configuration).value
+        let profile = BottleRuntimeProfile(
+            engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
+            graphics: backend
+        )
+        steamRuntimeProfile = profile
+        storeRuntimeProfiles[.steam] = profile
+    }
+
     /// After a normal Steam launch, bring its first window to the front.
     func bringSteamWindowForward() {
         let prefix = PathManager.shared.prefixURL(for: .steam)
@@ -490,6 +554,141 @@ final class AppState: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
+    }
+
+    /// Keep bringing new Steam login/alert windows forward while the bottle is running.
+    func watchSteamWindowsWhileRunning() {
+        steamWindowWatchTask?.cancel()
+        let prefix = PathManager.shared.prefixURL(for: .steam)
+        steamWindowWatchTask = Task { @MainActor in
+            var seen = Set<pid_t>()
+            while !Task.isCancelled {
+                let running = await Task.detached { WineManager.shared.isStoreRunning(.steam) }.value
+                guard running else { break }
+                let snapshot = await Task.detached { SteamWindowWatcher.snapshot(prefix: prefix) }.value
+                if let pid = snapshot.windowPID, !seen.contains(pid) {
+                    seen.insert(pid)
+                    SteamWindowWatcher.bringToFront(pid: pid)
+                    showSteamWindowHint()
+                }
+                // Also catch smaller alert windows (min 200×150).
+                let alertPID = await Task.detached {
+                    SteamWindowWatcher.wineWindowPID(minWidth: 200, minHeight: 150)
+                }.value
+                if let alertPID, !seen.contains(alertPID) {
+                    seen.insert(alertPID)
+                    SteamWindowWatcher.bringToFront(pid: alertPID)
+                    showSteamWindowHint()
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+
+    /// If Steam's main/login window never appears, restart Steam once (M-series hang).
+    func scheduleSteamLaunchHangRecovery(config: BottleConfiguration) {
+        Task { @MainActor in
+            // Reasonable timeout for the first large window after launch.
+            try? await Task.sleep(nanoseconds: 45_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard WineManager.shared.isStoreRunning(.steam) else { return }
+            let hasBigWindow = await Task.detached {
+                SteamWindowWatcher.wineWindowPID(minWidth: 600, minHeight: 400) != nil
+            }.value
+            guard !hasBigWindow else { return }
+            guard !steamLaunchWindowRecoveryUsed else { return }
+            steamLaunchWindowRecoveryUsed = true
+            try? WineManager.shared.stopStore(.steam)
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            do {
+                try await WineManager.shared.launchStore(.steam, config: config)
+                storeStatuses[.steam] = .running
+                recordSteamRuntimeProfile(for: config)
+                bringSteamWindowForward()
+                watchSteamWindowsWhileRunning()
+            } catch {
+                storeStatuses[.steam] = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - Custom bottles
+
+    func reloadCustomBottles() {
+        customBottles = (try? CustomBottleStore.shared.load()) ?? []
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func customBottle(id: UUID) -> CustomBottle? {
+        customBottles.first { $0.id == id }
+    }
+
+    func registerCustomBottle(_ bottle: CustomBottle) throws {
+        try CustomBottleStore.shared.upsert(bottle)
+        reloadCustomBottles()
+    }
+
+    func updateCustomBottle(_ bottle: CustomBottle) {
+        try? CustomBottleStore.shared.upsert(bottle)
+        try? WineManager.shared.saveCustomBottleConfig(bottle.configuration, id: bottle.id)
+        reloadCustomBottles()
+    }
+
+    func deleteCustomBottle(id: UUID) throws {
+        try WineManager.shared.deleteCustomBottle(id: id)
+        try CustomBottleStore.shared.remove(id: id)
+        customBottleRunning.remove(id)
+        reloadCustomBottles()
+        if case .customBottle(let current) = section, current == id {
+            section = .stores
+        }
+    }
+
+    func setCustomBottleRunning(id: UUID, running: Bool) {
+        var next = customBottleRunning
+        if running {
+            next.insert(id)
+        } else {
+            next.remove(id)
+        }
+        // Assign a new Set so @Published always notifies SwiftUI.
+        customBottleRunning = next
+    }
+
+    /// Probe one bottle immediately (launch / page appear) without waiting for the timer.
+    func refreshCustomBottleRunning(id: UUID) {
+        let running = WineManager.shared.isCustomBottleRunning(id: id)
+        setCustomBottleRunning(id: id, running: running)
+    }
+
+    func refreshAllCustomBottleRunning() {
+        let ids = customBottles.map(\.id)
+        let running = Set(ids.filter { WineManager.shared.isCustomBottleRunning(id: $0) })
+        if customBottleRunning != running {
+            customBottleRunning = running
+        }
+    }
+
+    /// Stops all Vermut-owned Wine/Steam processes (app quit). Prefer calling
+    /// `WineManager.stopAllVermutManagedProcesses()` off the main thread, then
+    /// `noteQuitCleanupFinished()` on the main actor.
+    func stopAllManagedWineProcesses() {
+        steamWindowWatchTask?.cancel()
+        WineManager.shared.stopAllVermutManagedProcesses()
+        noteQuitCleanupFinished()
+    }
+
+    /// Clears Running UI state after quit-time process cleanup (main actor).
+    func noteQuitCleanupFinished() {
+        steamWindowWatchTask?.cancel()
+        for store in GameStore.allCases {
+            if case .running = storeStatuses[store] {
+                storeStatuses[store] = .installed
+            }
+        }
+        steamRuntimeProfile = nil
+        storeRuntimeProfiles.removeAll()
+        customBottleRunning.removeAll()
     }
 
     func launchStore(_ store: GameStore) {
@@ -512,13 +711,18 @@ final class AppState: ObservableObject {
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
                 if store == .steam {
+                    recordSteamRuntimeProfile(for: bottleConfig)
+                    steamLaunchWindowRecoveryUsed = false
+                    bringSteamWindowForward()
+                    watchSteamWindowsWhileRunning()
+                    scheduleSteamLaunchHangRecovery(config: bottleConfig)
+                } else {
                     let backend = GraphicsBackend(rawValue: bottleConfig.graphicsBackend) ?? .dxmt
                     let inherited = WineEngine.resolved(from: bottleConfig.engine)
-                    steamRuntimeProfile = BottleRuntimeProfile(
+                    storeRuntimeProfiles[store] = BottleRuntimeProfile(
                         engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
                         graphics: backend
                     )
-                    bringSteamWindowForward()
                 }
 
                 Task {
@@ -710,8 +914,10 @@ final class AppState: ObservableObject {
                     config: launchConfig
                 )
                 steamRuntimeProfile = needed
+                storeRuntimeProfiles[.steam] = needed
                 storeStatuses[.steam] = .running
                 bringSteamWindowForward()
+                watchSteamWindowsWhileRunning()
                 Task {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                     updateStoreStatus(.steam)
@@ -957,7 +1163,6 @@ final class AppState: ObservableObject {
         statusTask?.cancel()
         statusTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
                 guard let self, !Task.isCancelled else { return }
                 // `ps` + filesystem probes run off the main thread (they caused UI jank).
                 let probes = await Task.detached { () -> [(GameStore, Bool, Bool)] in
@@ -970,8 +1175,20 @@ final class AppState: ObservableObject {
                         current: self.storeStatuses[store], isRunning: running, isInstalled: installed)
                     if store == .steam, !running {
                         self.steamRuntimeProfile = nil
+                        self.storeRuntimeProfiles[.steam] = nil
+                    } else if !running {
+                        self.storeRuntimeProfiles[store] = nil
                     }
                 }
+                // Custom bottle Running dots — probe every tick so sidebar updates live.
+                let customIDs = self.customBottles.map(\.id)
+                let runningCustom = await Task.detached {
+                    Set(customIDs.filter { WineManager.shared.isCustomBottleRunning(id: $0) })
+                }.value
+                if self.customBottleRunning != runningCustom {
+                    self.customBottleRunning = runningCustom
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }

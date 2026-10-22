@@ -160,7 +160,9 @@ public final class WineManager: @unchecked Sendable {
         }
 
         let prefixURL = PathManager.shared.prefixURL(for: store)
-        var environment = buildEnvironment(for: store, config: config)
+        // Steam setup: capture Wine errors into the capped store log (not WINEDEBUG=-all).
+        let setupDebug = store == .steam ? WineLogLevel.errors.wineDebug : nil
+        var environment = buildEnvironment(for: store, config: config, wineDebug: setupDebug)
         environment["WINEPREFIX"] = prefixURL.path
 
         let installerProcess = Process()
@@ -175,6 +177,9 @@ public final class WineManager: @unchecked Sendable {
         let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
         installerProcess.standardOutput = logPipe
         installerProcess.standardError = logPipe
+        CappedLogWriter.shared(for: logURL).append(
+            line: "Vermut: store install winedebug=\(environment["WINEDEBUG"] ?? "")"
+        )
 
         onSettingUp?()
         try installerProcess.run()
@@ -393,7 +398,14 @@ public final class WineManager: @unchecked Sendable {
             environment[key] = value
         }
         // Preferred debug (game or client), then VERMUT_WINEDEBUG (host override always wins).
-        applyWineDebug(&environment, preferred: wineDebug)
+        // Setup/launch default to err+all into the capped store log — WINEDEBUG=-all
+        // leaves no Wine trace when the bootstrapper dies early.
+        let preferredDebug = wineDebug ?? Self.defaultWineDebug(
+            store: store,
+            firstRunUpdate: firstRunUpdate,
+            steamAppId: steamAppId
+        )
+        applyWineDebug(&environment, preferred: preferredDebug)
 
         let logURL = PathManager.shared.logURL(for: store)
         let appSuffix = steamAppId.map { " applaunch=\($0)" } ?? ""
@@ -518,6 +530,12 @@ public final class WineManager: @unchecked Sendable {
         if store == .epic {
             return isPrefixPresent(.epic) && LegendaryManager.shared.isBinaryInstalled()
         }
+        // SteamSetup leaves steam.exe immediately; only SteamUI + CEF means Installed.
+        if store == .steam {
+            return SteamReadiness.isSteamClientInstalled(
+                inPrefix: PathManager.shared.prefixURL(for: .steam)
+            )
+        }
         return StoreExecutable.resolve(in: PathManager.shared.prefixURL(for: store), store: store) != nil
     }
 
@@ -542,7 +560,8 @@ public final class WineManager: @unchecked Sendable {
     }
 
     public func launchExecutable(at path: String, config: BottleConfiguration) throws {
-        let engine = resolvedEngine(for: .steam, config: config)
+        // Legacy toolbar “Run .exe” — uses a single shared custom prefix.
+        let engine = resolvedCustomEngine(config)
         guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
             throw WineError.wineNotInstalled
         }
@@ -563,6 +582,195 @@ public final class WineManager: @unchecked Sendable {
             workingDirectory: nil,
             logURL: PathManager.shared.bottlesURL.appendingPathComponent("custom.log")
         )
+    }
+
+    // MARK: - Custom bottles
+
+    /// Creates a new UUID-named bottle prefix (wineboot + winecfg + DLL placement).
+    public func createCustomPrefix(id: UUID, config: BottleConfiguration) async throws {
+        let engine = resolvedCustomEngine(config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+            throw WineError.wineNotInstalled
+        }
+
+        let bottleURL = PathManager.shared.customBottleURL(id: id)
+        let prefixURL = PathManager.shared.customPrefixURL(id: id)
+        let logsURL = PathManager.shared.customBottleLogsURL(id: id)
+
+        if fileManager.fileExists(atPath: prefixURL.appendingPathComponent("system.reg").path) {
+            return
+        }
+
+        try fileManager.createDirectory(at: bottleURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: prefixURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: logsURL, withIntermediateDirectories: true)
+
+        let bottleConfigURL = PathManager.shared.customBottleConfigURL(id: id)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(config).write(to: bottleConfigURL)
+
+        var environment = buildEnvironment(for: .steam, config: config)
+        environment["WINEPREFIX"] = prefixURL.path
+
+        let bootProcess = Process()
+        bootProcess.executableURL = wineExecutable
+        bootProcess.arguments = ["wineboot", "-i"]
+        bootProcess.environment = environment
+
+        let logURL = PathManager.shared.customLogURL(id: id)
+        let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
+        bootProcess.standardOutput = logPipe
+        bootProcess.standardError = logPipe
+
+        try bootProcess.run()
+        bootProcess.waitUntilExit()
+
+        guard bootProcess.terminationStatus == 0 else {
+            try? fileManager.removeItem(at: bottleURL)
+            throw WineError.prefixCreationFailed
+        }
+
+        do {
+            try await configureCustomPrefix(id: id, config: config, engine: engine)
+        } catch {
+            try? fileManager.removeItem(at: bottleURL)
+            throw error
+        }
+    }
+
+    private func configureCustomPrefix(id: UUID, config: BottleConfiguration, engine: WineEngine) async throws {
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+            throw WineError.wineNotInstalled
+        }
+        let prefixURL = PathManager.shared.customPrefixURL(id: id)
+        var environment = buildEnvironment(for: .steam, config: config)
+        environment["WINEPREFIX"] = prefixURL.path
+
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: .steam)
+
+        let winecfg = Process()
+        winecfg.executableURL = wineExecutable
+        winecfg.arguments = ["winecfg", "-v", config.windowsVersion]
+        winecfg.environment = environment
+        try winecfg.run()
+        winecfg.waitUntilExit()
+
+        var ops = DllOverridePolicy.registryWrites(
+            engine: engine,
+            backend: resolvedCustomGraphics(config),
+            store: .steam
+        )
+        if config.enableHiDPI {
+            ops.append(
+                .add(WineRegWrite(
+                    key: "HKCU\\Software\\Wine\\Mac Driver",
+                    value: "RetinaMode",
+                    data: "y"
+                ))
+            )
+        }
+        try apply(ops, wineExecutable: wineExecutable, environment: environment)
+
+        if resolvedCustomGraphics(config) == .dxvk {
+            try ensureDXVKPlacement(prefixURL: prefixURL)
+        }
+    }
+
+    public func launchInCustomBottle(
+        id: UUID,
+        hostExecutable: String,
+        config: BottleConfiguration
+    ) throws {
+        let engine = resolvedCustomEngine(config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+            throw WineError.wineNotInstalled
+        }
+        let prefixURL = PathManager.shared.customPrefixURL(id: id)
+        guard fileManager.fileExists(atPath: prefixURL.path) else {
+            throw WineError.prefixCreationFailed
+        }
+        var environment = buildEnvironment(for: .steam, config: config)
+        environment["WINEPREFIX"] = prefixURL.path
+        try launchDetached(
+            executable: wineExecutable,
+            arguments: [hostExecutable],
+            environment: environment,
+            workingDirectory: nil,
+            logURL: PathManager.shared.customLogURL(id: id)
+        )
+    }
+
+    public func isCustomBottleRunning(id: UUID) -> Bool {
+        let prefix = PathManager.shared.customPrefixURL(id: id)
+        return PrefixRuntime.hasWineProcess(
+            prefixPath: prefix.path,
+            processLines: PrefixRuntime.processArgumentLines()
+        )
+    }
+
+    public func stopCustomBottle(id: UUID) throws {
+        let config = (try? loadCustomBottleConfig(id: id)) ?? BottleConfiguration()
+        let engine = resolvedCustomEngine(config)
+        try killPrefix(prefix: PathManager.shared.customPrefixURL(id: id), engine: engine)
+    }
+
+    public func deleteCustomBottle(id: UUID) throws {
+        // Spec: never kill Wine from the bottle page; caller must ensure idle.
+        let bottleURL = PathManager.shared.customBottleURL(id: id)
+        if fileManager.fileExists(atPath: bottleURL.path) {
+            try fileManager.removeItem(at: bottleURL)
+        }
+    }
+
+    public func loadCustomBottleConfig(id: UUID) throws -> BottleConfiguration {
+        let configURL = PathManager.shared.customBottleConfigURL(id: id)
+        guard fileManager.fileExists(atPath: configURL.path) else {
+            return BottleConfiguration()
+        }
+        let data = try Data(contentsOf: configURL)
+        return try JSONDecoder().decode(BottleConfiguration.self, from: data)
+    }
+
+    public func saveCustomBottleConfig(_ config: BottleConfiguration, id: UUID) throws {
+        let configURL = PathManager.shared.customBottleConfigURL(id: id)
+        try fileManager.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(config).write(to: configURL)
+    }
+
+    public func resolvedCustomEngine(_ config: BottleConfiguration) -> WineEngine {
+        let global = appConfiguration()
+        let inherited = StoreRecipe.effectiveEngine(config, global: global)
+        return EngineGraphicsPolicy.apply(
+            inherited: inherited,
+            backend: resolvedCustomGraphics(config)
+        ).engine.value
+    }
+
+    public func resolvedCustomGraphics(_ config: BottleConfiguration) -> GraphicsBackend {
+        StoreRecipe.effectiveGraphics(config, global: appConfiguration()).value
+    }
+
+    /// Free disk space check before creating a bottle (components + 1 GB headroom).
+    public static func requiredFreeBytesForCreation(missingEngines: [WineEngine]) -> Int64 {
+        let componentBytes = missingEngines.reduce(Int64(0)) { partial, engine in
+            partial + (WineEnginesViewModel.approximateDownloadBytes[engine] ?? 0)
+        }
+        return componentBytes + 1_000_000_000
+    }
+
+    public static func availableFreeBytes(at url: URL = PathManager.shared.appSupportURL) -> Int64? {
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        if let capacity = values?.volumeAvailableCapacityForImportantUsage {
+            return capacity
+        }
+        let attrs = try? FileManager.default.attributesOfFileSystem(forPath: url.path)
+        return attrs?[.systemFreeSize] as? Int64
     }
 
     public func loadBottleConfig(for store: GameStore) throws -> BottleConfiguration {
@@ -751,15 +959,29 @@ public final class WineManager: @unchecked Sendable {
     }
 
     private func killPrefix(prefix: URL, engine: WineEngine) throws {
-        guard let wineserverExecutable = PathManager.shared.wineserverExecutable(engine: engine) else {
-            return
+        // Bounded wineserver -k + SIGTERM/SIGKILL; never wait on a stuck wineserver.
+        _ = PrefixProcessTerminator.stopAllVermutPrefixes(
+            prefixes: [prefix.path],
+            engineForPrefix: { _ in engine },
+            options: .default
+        )
+    }
+
+    /// Stops every Vermut-managed Wine/Steam process (app quit path).
+    public func stopAllVermutManagedProcesses() {
+        _ = PrefixProcessTerminator.stopAllVermutPrefixes { prefixPath in
+            for store in GameStore.allCases {
+                if PathManager.shared.prefixURL(for: store).path == prefixPath,
+                   let config = try? loadBottleConfig(for: store) {
+                    return resolvedEngine(for: store, config: config)
+                }
+            }
+            if let id = UUID(uuidString: URL(fileURLWithPath: prefixPath).deletingLastPathComponent().lastPathComponent),
+               let config = try? loadCustomBottleConfig(id: id) {
+                return resolvedCustomEngine(config)
+            }
+            return .defaultEngine
         }
-        let stopProcess = Process()
-        stopProcess.executableURL = wineserverExecutable
-        stopProcess.arguments = ["-k"]
-        stopProcess.environment = ["WINEPREFIX": prefix.path]
-        try stopProcess.run()
-        stopProcess.waitUntilExit()
     }
 
     private func appendLaunchLog(_ line: String, to logURL: URL) {
@@ -965,6 +1187,18 @@ public final class WineManager: @unchecked Sendable {
            !override.isEmpty {
             env["WINEDEBUG"] = override
         }
+    }
+
+    /// Errors-only Wine channel for Steam setup / Open Steam (still size-capped via CappedLogWriter).
+    private static func defaultWineDebug(
+        store: GameStore,
+        firstRunUpdate: Bool,
+        steamAppId: String?
+    ) -> String? {
+        guard store == .steam, steamAppId == nil else { return nil }
+        if firstRunUpdate { return WineLogLevel.errors.wineDebug }
+        // Open Steam: keep a thin err channel so launch failures are diagnosable.
+        return WineLogLevel.errors.wineDebug
     }
 
     private func graphicsBackend(_ config: BottleConfiguration) -> GraphicsBackend {

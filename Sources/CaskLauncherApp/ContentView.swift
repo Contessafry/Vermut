@@ -179,6 +179,10 @@ struct AppShell: View {
             EpicAuthSheet()
                 .environmentObject(appState)
         }
+        .sheet(isPresented: $appState.showingNewBottleSheet) {
+            NewBottleSheet()
+                .environmentObject(appState)
+        }
     }
 
     @ViewBuilder
@@ -192,6 +196,8 @@ struct AppShell: View {
             DownloadsView()
         case .bottle(let store):
             BottleDetailView(store: store)
+        case .customBottle(let id):
+            CustomBottleDetailView(bottleID: id)
         case .settings:
             SettingsView()
         }

@@ -324,13 +324,18 @@ struct OnboardingView: View {
 
     private var onPermissions: Bool { appState.setupPhase == .permissions && !appState.setupFailed }
 
+    /// Real onboarding steps in the UI (Permissions → ready work → stores).
+    private static let onboardingStepCount = 3
+
     private var stepCaption: String {
         if appState.setupFailed { return "Setup" }
-        if onPermissions { return "Setup · step 1 of 4" }
-        if !appState.isSetupComplete {
-            return appState.setupPhase == .rosetta ? "Setup · step 2 of 4" : "Setup · step 3 of 4"
+        let total = Self.onboardingStepCount
+        // 1 Permissions · 2 Rosetta/Wine · 3 Choose your stores.
+        if onPermissions { return "Setup · step 1 of \(total)" }
+        if appState.isSetupComplete {
+            return "Setup · step 3 of \(total)"
         }
-        return "Setup · step 4 of 4"
+        return "Setup · step 2 of \(total)"
     }
 
     private var rosettaState: StepState {

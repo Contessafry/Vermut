@@ -4,6 +4,7 @@ import CaskLauncherCore
 
 @main
 struct CaskLauncherApp: App {
+    @NSApplicationDelegateAdaptor(VermutAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
     init() {
@@ -20,6 +21,9 @@ struct CaskLauncherApp: App {
                 .background(WindowFit())
                 .frame(minWidth: 1024, minHeight: 680)
                 .frame(idealWidth: 1280, idealHeight: 800)
+                .onAppear {
+                    appDelegate.appState = appState
+                }
         }
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
@@ -54,6 +58,12 @@ struct CaskLauncherApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+            CommandGroup(after: .newItem) {
+                Button(String(localized: "New Bottle…", comment: "File menu new bottle")) {
+                    appState.showingNewBottleSheet = true
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
             CommandGroup(after: .sidebar) {
                 Button(String(localized: "Game Settings", comment: "View menu inspector")) {
                     appState.toggleGameSettingsInspector()
@@ -62,6 +72,38 @@ struct CaskLauncherApp: App {
                 .disabled(appState.installedGames.isEmpty)
             }
         }
+    }
+}
+
+/// Stops Vermut-managed Wine/Steam processes on quit (native Mac apps untouched).
+@MainActor
+final class VermutAppDelegate: NSObject, NSApplicationDelegate {
+    weak var appState: AppState?
+    private var didReplyToTerminate = false
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        didReplyToTerminate = false
+        // Never block the main thread — cleanup runs detached with the terminator's
+        // ~10s budget; reply promptly either way (avoids AppleScript -1712).
+        Task { @MainActor [weak self] in
+            await Task.detached(priority: .userInitiated) {
+                WineManager.shared.stopAllVermutManagedProcesses()
+            }.value
+            guard let self else { return }
+            self.appState?.noteQuitCleanupFinished()
+            self.replyToTerminate()
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            self?.replyToTerminate()
+        }
+        return .terminateLater
+    }
+
+    private func replyToTerminate() {
+        guard !didReplyToTerminate else { return }
+        didReplyToTerminate = true
+        NSApp.reply(toApplicationShouldTerminate: true)
     }
 }
 

@@ -33,17 +33,38 @@ public final class PathManager: @unchecked Sendable {
     public func bottleURL(for store: GameStore) -> URL {
         bottlesURL.appendingPathComponent(store.identifier)
     }
-    
+
+    /// Custom bottle folder named by UUID (never the user-facing name).
+    public func customBottleURL(id: UUID) -> URL {
+        bottlesURL.appendingPathComponent(id.uuidString)
+    }
+
     public func prefixURL(for store: GameStore) -> URL {
         bottleURL(for: store).appendingPathComponent("prefix")
+    }
+
+    public func customPrefixURL(id: UUID) -> URL {
+        customBottleURL(id: id).appendingPathComponent("prefix")
     }
     
     public func bottleLogsURL(for store: GameStore) -> URL {
         bottleURL(for: store).appendingPathComponent("logs")
     }
+
+    public func customBottleLogsURL(id: UUID) -> URL {
+        customBottleURL(id: id).appendingPathComponent("logs")
+    }
     
     public func bottleConfigURL(for store: GameStore) -> URL {
         bottleURL(for: store).appendingPathComponent("bottle.json")
+    }
+
+    public func customBottleConfigURL(id: UUID) -> URL {
+        customBottleURL(id: id).appendingPathComponent("bottle.json")
+    }
+
+    public func customLogURL(id: UUID) -> URL {
+        customBottleLogsURL(id: id).appendingPathComponent("bottle.log")
     }
 
     /// Per-game overrides: `bottles/<store>/games/<appId>.json`.

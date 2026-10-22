@@ -45,7 +45,12 @@ enum ProcessWait {
     }
 
     /// `timeout == nil` waits forever (Steam). Otherwise SIGTERM, then SIGKILL.
-    static func waitUntilExit(_ process: Process, timeout: TimeInterval?) -> Result {
+    /// `escalateGrace` is how long to wait after SIGTERM before SIGKILL (keep short on quit).
+    static func waitUntilExit(
+        _ process: Process,
+        timeout: TimeInterval?,
+        escalateGrace: TimeInterval = 5
+    ) -> Result {
         guard let timeout else {
             process.waitUntilExit()
             return .exited(process.terminationStatus)
@@ -54,17 +59,17 @@ enum ProcessWait {
         while process.isRunning {
             if Date() >= deadline {
                 process.terminate()
-                let grace = Date().addingTimeInterval(5)
+                let grace = Date().addingTimeInterval(max(0, escalateGrace))
                 while process.isRunning, Date() < grace {
-                    Thread.sleep(forTimeInterval: 0.1)
+                    Thread.sleep(forTimeInterval: 0.05)
                 }
                 if process.isRunning {
                     kill(process.processIdentifier, SIGKILL)
-                    Thread.sleep(forTimeInterval: 0.1)
+                    Thread.sleep(forTimeInterval: 0.05)
                 }
                 return .timedOut
             }
-            Thread.sleep(forTimeInterval: 0.25)
+            Thread.sleep(forTimeInterval: min(0.1, max(0.01, timeout / 20)))
         }
         return .exited(process.terminationStatus)
     }
