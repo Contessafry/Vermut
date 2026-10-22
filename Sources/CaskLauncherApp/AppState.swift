@@ -471,6 +471,7 @@ final class AppState: ObservableObject {
         for attempt in 0..<SteamReadiness.firstLaunchAttempts {
             do {
                 try await WineManager.shared.launchStore(.steam, config: config, firstRunUpdate: true)
+                recordSteamRuntimeProfile(for: config)
                 return nil
             } catch {
                 launchError = error
@@ -492,6 +493,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Records the engine/graphics profile for the Steam session (every launch path).
+    func recordSteamRuntimeProfile(for config: BottleConfiguration) {
+        let backend = GraphicsBackend(rawValue: config.graphicsBackend) ?? .dxmt
+        let inherited = StoreRecipe.effectiveEngine(config, global: configuration).value
+        let profile = BottleRuntimeProfile(
+            engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
+            graphics: backend
+        )
+        steamRuntimeProfile = profile
+        storeRuntimeProfiles[.steam] = profile
+    }
+
     /// After a normal Steam launch, bring its first window to the front.
     func bringSteamWindowForward() {
         let prefix = PathManager.shared.prefixURL(for: .steam)
@@ -507,7 +520,6 @@ final class AppState: ObservableObject {
             }
         }
     }
-
 
     /// Keep bringing new Steam login/alert windows forward while the bottle is running.
     func watchSteamWindowsWhileRunning() {
@@ -538,7 +550,6 @@ final class AppState: ObservableObject {
         }
     }
 
-
     /// If Steam's main/login window never appears, restart Steam once (M-series hang).
     func scheduleSteamLaunchHangRecovery(config: BottleConfiguration) {
         Task { @MainActor in
@@ -557,6 +568,7 @@ final class AppState: ObservableObject {
             do {
                 try await WineManager.shared.launchStore(.steam, config: config)
                 storeStatuses[.steam] = .running
+                recordSteamRuntimeProfile(for: config)
                 bringSteamWindowForward()
                 watchSteamWindowsWhileRunning()
             } catch {
@@ -639,14 +651,7 @@ final class AppState: ObservableObject {
                 try await WineManager.shared.launchStore(store, config: bottleConfig)
                 storeStatuses[store] = .running
                 if store == .steam {
-                    let backend = GraphicsBackend(rawValue: bottleConfig.graphicsBackend) ?? .dxmt
-                    let inherited = WineEngine.resolved(from: bottleConfig.engine)
-                    let profile = BottleRuntimeProfile(
-                        engine: EngineGraphicsPolicy.launchEngine(inherited, backend: backend),
-                        graphics: backend
-                    )
-                    steamRuntimeProfile = profile
-                    storeRuntimeProfiles[.steam] = profile
+                    recordSteamRuntimeProfile(for: bottleConfig)
                     steamLaunchWindowRecoveryUsed = false
                     bringSteamWindowForward()
                     watchSteamWindowsWhileRunning()
@@ -849,6 +854,7 @@ final class AppState: ObservableObject {
                     config: launchConfig
                 )
                 steamRuntimeProfile = needed
+                storeRuntimeProfiles[.steam] = needed
                 storeStatuses[.steam] = .running
                 bringSteamWindowForward()
                 Task {
