@@ -9,7 +9,6 @@ struct CustomBottleDetailView: View {
 
     @State private var bottle: CustomBottle?
     @State private var sizeBytes: Int64 = 0
-    @State private var isRunning = false
     @State private var confirmDelete = false
     @State private var showSettings = false
     @State private var showFilePicker = false
@@ -17,6 +16,8 @@ struct CustomBottleDetailView: View {
     @State private var warningBanner: String?
 
     private var displayName: String { bottle?.name ?? "Bottle" }
+    /// Driven by AppState’s status timer so the badge updates without changing pages.
+    private var isRunning: Bool { appState.customBottleRunning.contains(bottleID) }
 
     var body: some View {
         ScrollView {
@@ -36,9 +37,6 @@ struct CustomBottleDetailView: View {
         .background(Color.Vermut.background)
         .onAppear(perform: reload)
         .onChange(of: bottleID) { _, _ in reload() }
-        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
-            refreshRunning()
-        }
         .fileImporter(
             isPresented: $showFilePicker,
             allowedContentTypes: [.exe, .msi]
@@ -311,7 +309,7 @@ struct CustomBottleDetailView: View {
 
     private func reload() {
         bottle = appState.customBottle(id: bottleID)
-        refreshRunning()
+        appState.refreshCustomBottleRunning(id: bottleID)
         refreshShortcuts()
         Task.detached {
             let url = PathManager.shared.customBottleURL(id: bottleID)
@@ -325,11 +323,6 @@ struct CustomBottleDetailView: View {
                 comment: "Low disk warning"
             )
         }
-    }
-
-    private func refreshRunning() {
-        isRunning = WineManager.shared.isCustomBottleRunning(id: bottleID)
-        appState.setCustomBottleRunning(id: bottleID, running: isRunning)
     }
 
     private func refreshShortcuts() {
@@ -416,7 +409,8 @@ struct CustomBottleDetailView: View {
             }
             self.bottle = bottle
             appState.updateCustomBottle(bottle)
-            refreshRunning()
+            appState.setCustomBottleRunning(id: bottleID, running: true)
+            appState.refreshCustomBottleRunning(id: bottleID)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { refreshShortcuts() }
         } catch {
             errorBanner = error.localizedDescription
@@ -438,7 +432,8 @@ struct CustomBottleDetailView: View {
             }
             self.bottle = bottle
             appState.updateCustomBottle(bottle)
-            refreshRunning()
+            appState.setCustomBottleRunning(id: bottleID, running: true)
+            appState.refreshCustomBottleRunning(id: bottleID)
         } catch {
             errorBanner = error.localizedDescription
         }

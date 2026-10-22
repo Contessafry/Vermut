@@ -614,10 +614,27 @@ final class AppState: ObservableObject {
     }
 
     func setCustomBottleRunning(id: UUID, running: Bool) {
+        var next = customBottleRunning
         if running {
-            customBottleRunning.insert(id)
+            next.insert(id)
         } else {
-            customBottleRunning.remove(id)
+            next.remove(id)
+        }
+        // Assign a new Set so @Published always notifies SwiftUI.
+        customBottleRunning = next
+    }
+
+    /// Probe one bottle immediately (launch / page appear) without waiting for the timer.
+    func refreshCustomBottleRunning(id: UUID) {
+        let running = WineManager.shared.isCustomBottleRunning(id: id)
+        setCustomBottleRunning(id: id, running: running)
+    }
+
+    func refreshAllCustomBottleRunning() {
+        let ids = customBottles.map(\.id)
+        let running = Set(ids.filter { WineManager.shared.isCustomBottleRunning(id: $0) })
+        if customBottleRunning != running {
+            customBottleRunning = running
         }
     }
 
@@ -1107,7 +1124,6 @@ final class AppState: ObservableObject {
         statusTask?.cancel()
         statusTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
                 guard let self, !Task.isCancelled else { return }
                 // `ps` + filesystem probes run off the main thread (they caused UI jank).
                 let probes = await Task.detached { () -> [(GameStore, Bool, Bool)] in
@@ -1125,12 +1141,15 @@ final class AppState: ObservableObject {
                         self.storeRuntimeProfiles[store] = nil
                     }
                 }
-                // Refresh custom bottle running dots without blocking.
+                // Custom bottle Running dots — probe every tick so sidebar updates live.
                 let customIDs = self.customBottles.map(\.id)
                 let runningCustom = await Task.detached {
                     Set(customIDs.filter { WineManager.shared.isCustomBottleRunning(id: $0) })
                 }.value
-                self.customBottleRunning = runningCustom
+                if self.customBottleRunning != runningCustom {
+                    self.customBottleRunning = runningCustom
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }
