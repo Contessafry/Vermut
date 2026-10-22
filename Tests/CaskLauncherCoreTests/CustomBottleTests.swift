@@ -151,9 +151,72 @@ final class PrefixProcessTerminatorTests: XCTestCase {
         XCTAssertTrue(PrefixProcessTerminator.isNativeMacApp(
             "/Applications/Steam.app/Contents/MacOS/steam_osx"
         ))
+        XCTAssertTrue(PrefixProcessTerminator.isDeniedForeignPath(
+            "/Users/me/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/ipcserver"
+        ))
+        XCTAssertTrue(PrefixProcessTerminator.isDeniedForeignPath(
+            "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/CrossOver-Hosted Application/wine"
+        ))
         XCTAssertFalse(PrefixProcessTerminator.isNativeMacApp(
             "WINEPREFIX=/Users/x/Library/Application Support/Vermut/bottles/steam/prefix /wine steam.exe"
         ))
+    }
+
+    func testNativeSteamIpcserverIsNeverClaimed() {
+        // QA: launchd com.valvesoftware.steam.ipctool — ppid 1, own pgid, path under
+        // ~/Library/Application Support/Steam/…/ipcserver. Must never match /steam/ heuristics.
+        let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
+        let engines = PathManager.shared.enginesURL.path
+        let ipc =
+            "/Users/qa/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/ipcserver"
+        let rows = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 10,
+                ppid: 1,
+                pgid: 10,
+                command: "WINEPREFIX=\(steamPrefix) \(engines)/grapple-wine/bin/wineserver"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 55,
+                ppid: 1,
+                pgid: 55,
+                command: ipc
+            )
+        ]
+        let exePaths: [pid_t: String] = [
+            10: "\(engines)/grapple-wine/bin/wineserver",
+            55: ipc
+        ]
+        let snapped = PrefixProcessTerminator.snapshotPrefixPIDs(
+            owningPrefixes: PrefixProcessTerminator.vermutPrefixPaths(),
+            rows: rows,
+            executablePathProvider: { exePaths[$0] },
+            openPathsProvider: { pid in
+                if pid == 55 {
+                    return [ipc, "/Users/qa/Library/Application Support/Steam/config/config.vdf"]
+                }
+                return ["\(engines)/grapple-wine/bin/wineserver"]
+            },
+            currentPID: 1
+        )
+        XCTAssertTrue(snapped.contains(10))
+        XCTAssertFalse(snapped.contains(55), "native Steam ipcserver must not be SIGTERM/SIGKILL’d")
+        XCTAssertFalse(
+            PrefixProcessTerminator.commandBelongsToPrefixes(
+                ipc,
+                prefixes: [steamPrefix],
+                includesSteamBottle: true
+            )
+        )
+        XCTAssertFalse(
+            PrefixProcessTerminator.processOwnedByVermut(
+                executablePath: ipc,
+                openPaths: [ipc, "/Users/qa/Library/Application Support/Steam/config/config.vdf"],
+                enginesRoot: engines,
+                bottlesRoot: PathManager.shared.bottlesURL.path,
+                prefixes: [steamPrefix]
+            )
+        )
     }
 
     func testPidsOwningPrefixes() {

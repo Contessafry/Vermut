@@ -164,6 +164,7 @@ public enum PrefixProcessTerminator {
         _ path: String,
         enginesRoot: String = PathManager.shared.enginesURL.path
     ) -> Bool {
+        if isDeniedForeignPath(path) { return false }
         let root = normalizedDirectoryPrefix(enginesRoot)
         guard path.hasPrefix(root) || path == enginesRoot else { return false }
         let lower = path.lowercased()
@@ -171,19 +172,29 @@ public enum PrefixProcessTerminator {
     }
 
     /// Wine copies its loader into `$TMPDIR/winetemp-<id>-…/` (often named `Steam`).
+    /// Name alone is never ownership — must be cross-checked with mapped Vermut files.
     public static func isWinetempExecutable(
         _ path: String,
         temporaryDirectory: String = NSTemporaryDirectory()
     ) -> Bool {
+        if isDeniedForeignPath(path) { return false }
         let lower = path.lowercased()
         if lower.contains("/winetemp-") || lower.contains("/winetemp/") { return true }
         let tmp = normalizedDirectoryPrefix(temporaryDirectory)
         return path.hasPrefix(tmp) && lower.contains("winetemp")
     }
 
+    /// Loader we may treat as a Vermut Wine candidate (engines binary or winetemp copy).
+    public static func isVermutLoaderExecutable(
+        _ path: String,
+        enginesRoot: String = PathManager.shared.enginesURL.path,
+        temporaryDirectory: String = NSTemporaryDirectory()
+    ) -> Bool {
+        isVermutWineExecutable(path, enginesRoot: enginesRoot)
+            || isWinetempExecutable(path, temporaryDirectory: temporaryDirectory)
+    }
+
     /// Whether open/mapped paths tie the process to Vermut engines or target prefixes.
-    /// - Note: `allowEngineOnlyMatch` also allows any path under `bottlesRoot` (full quit).
-    ///   When false, only the listed `prefixes` count — shared engines alone are not enough.
     public static func pathsIndicateVermutOwnership(
         _ paths: [String],
         enginesRoot: String,
@@ -194,6 +205,7 @@ public enum PrefixProcessTerminator {
         let enginePrefix = normalizedDirectoryPrefix(enginesRoot)
         let bottlesPrefix = normalizedDirectoryPrefix(bottlesRoot)
         for path in paths {
+            if isDeniedForeignPath(path) { continue }
             if prefixes.contains(where: {
                 path.hasPrefix($0) || path.hasPrefix(normalizedDirectoryPrefix($0))
             }) {
@@ -207,12 +219,69 @@ public enum PrefixProcessTerminator {
         return false
     }
 
+    /// Strict orphan ownership: Vermut/winetemp loader **and** mapped engines/prefix files.
+    public static func processOwnedByVermut(
+        executablePath: String?,
+        openPaths: [String],
+        enginesRoot: String,
+        bottlesRoot: String,
+        prefixes: [String]
+    ) -> Bool {
+        guard let exe = executablePath, isVermutLoaderExecutable(exe, enginesRoot: enginesRoot) else {
+            return false
+        }
+        if isDeniedForeignPath(exe) { return false }
+        return pathsIndicateVermutOwnership(
+            openPaths,
+            enginesRoot: enginesRoot,
+            bottlesRoot: bottlesRoot,
+            prefixes: prefixes,
+            allowEngineOnlyMatch: true
+        )
+    }
+
     public static func normalizedDirectoryPrefix(_ path: String) -> String {
         path.hasSuffix("/") ? path : path + "/"
     }
 
+    /// Never signal native Steam/GOG/Epic, Grapple, CrossOver, or other .app bundles.
+    public static func isDeniedForeignPath(_ path: String) -> Bool {
+        let lower = path.lowercased()
+        if lower.contains("/application support/vermut/")
+            || lower.contains("/application support/casklauncher/") {
+            return false
+        }
+        // Native Steam (App Support bundle, ipcserver launchd job, Steam.app).
+        if lower.contains("/library/application support/steam/") { return true }
+        if lower.contains("steam.app/") || lower.contains("/steam.app ") { return true }
+        if lower.contains("steam_osx") { return true }
+        if lower.hasSuffix("/ipcserver"), lower.contains("steam") { return true }
+        // Other launchers / Wine stacks we must never touch.
+        if lower.contains("/application support/gog.com")
+            || lower.contains("gog galaxy.app")
+            || lower.contains("galaxyclient.app")
+            || lower.contains("galaxyclient") && lower.contains("/applications/") {
+            return true
+        }
+        if lower.contains("crossover") { return true }
+        if lower.contains("/grapple/")
+            || lower.contains("grapple.app")
+            || lower.contains("/application support/grapple") {
+            return true
+        }
+        if lower.contains("/applications/epic games") { return true }
+        // Any other macOS .app bundle under /Applications.
+        if lower.contains("/applications/"), lower.contains(".app/") { return true }
+        return false
+    }
+
+    public static func isDeniedForeignProcess(executablePath: String?, command: String) -> Bool {
+        if let executablePath, isDeniedForeignPath(executablePath) { return true }
+        return isDeniedForeignPath(command)
+    }
+
     /// Snapshot every PID that belongs to the given prefixes
-    /// (command/env, tree, pgid, Vermut wine path, winetemp + mapped engines files).
+    /// (command/env path match, tree, pgid + Vermut loader, winetemp/engines AND mapped files).
     public static func snapshotPrefixPIDs(
         owningPrefixes prefixes: [String],
         rows: [ProcessRow],
@@ -225,13 +294,19 @@ public enum PrefixProcessTerminator {
         guard !prefixes.isEmpty else { return [] }
         let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
         let includesSteam = prefixes.contains(steamPrefix)
-        let allVermut = Set(vermutPrefixPaths())
-        let stoppingAll = Set(prefixes).isSuperset(of: allVermut)
+
+        func denied(_ row: ProcessRow) -> Bool {
+            isDeniedForeignProcess(
+                executablePath: executablePathProvider(row.pid),
+                command: row.command
+            )
+        }
 
         var seeds = Set<pid_t>()
         for row in rows {
             guard row.pid > 1, row.pid != currentPID else { continue }
-            if isNativeMacApp(row.command) { continue }
+            if denied(row) { continue }
+            // Positive path ownership only (WINEPREFIX / bottles / engines+prefix in argv).
             if commandBelongsToPrefixes(
                 row.command,
                 prefixes: prefixes,
@@ -246,7 +321,7 @@ public enum PrefixProcessTerminator {
         // Vermut Wine binary whose argv still names our prefix / bottles path.
         for row in rows {
             guard row.pid > 1, row.pid != currentPID else { continue }
-            if isNativeMacApp(row.command) { continue }
+            if denied(row) { continue }
             guard let exe = executablePathProvider(row.pid),
                   isVermutWineExecutable(exe, enginesRoot: enginesRoot) else { continue }
             if commandBelongsToPrefixes(
@@ -266,14 +341,15 @@ public enum PrefixProcessTerminator {
         while let pid = queue.popLast() {
             for child in byParent[pid] ?? [] {
                 guard child.pid > 1, child.pid != currentPID else { continue }
-                if isNativeMacApp(child.command) { continue }
+                if denied(child) { continue }
                 if all.insert(child.pid).inserted {
                     queue.append(child.pid)
                 }
             }
         }
 
-        // Process-group members of known seeds (when they still share a pgid).
+        // Process-group members of known seeds: require Vermut/winetemp loader
+        // (never claim by Windows argv or process name alone).
         var seedPgids = Set<pid_t>()
         for row in rows where all.contains(row.pid) {
             if row.pgid > 1 { seedPgids.insert(row.pgid) }
@@ -282,44 +358,36 @@ public enum PrefixProcessTerminator {
             for row in rows {
                 guard row.pid > 1, row.pid != currentPID, row.pgid > 1 else { continue }
                 guard seedPgids.contains(row.pgid) else { continue }
-                if isNativeMacApp(row.command) { continue }
+                if denied(row) { continue }
                 let exe = executablePathProvider(row.pid)
-                let vermutWine = exe.map { isVermutWineExecutable($0, enginesRoot: enginesRoot) } ?? false
-                if vermutWine || looksLikeWineWindowsProcess(row.command) {
+                if let exe, isVermutWineExecutable(exe, enginesRoot: enginesRoot) {
+                    all.insert(row.pid)
+                    continue
+                }
+                if processOwnedByVermut(
+                    executablePath: exe,
+                    openPaths: openPathsProvider(row.pid),
+                    enginesRoot: enginesRoot,
+                    bottlesRoot: bottlesRoot,
+                    prefixes: prefixes
+                ) {
                     all.insert(row.pid)
                 }
             }
         }
 
-        // Session-leader orphans (own pgid, ppid 1): bare C:\winedevice.exe.
-        // Prefer proc_pidpath under Vermut/engines; else winetemp loader path
-        // cross-checked with open/mapped files under engines or target prefixes.
+        // Session-leader orphans: loader under engines or winetemp-* AND mapped
+        // files under engines/prefix. Never match by name ("Steam" / "steam").
         for row in rows {
             guard row.pid > 1, row.pid != currentPID else { continue }
             if all.contains(row.pid) { continue }
-            if isNativeMacApp(row.command) { continue }
-            let exe = executablePathProvider(row.pid)
-            let winetemp = exe.map { isWinetempExecutable($0) } ?? false
-            let vermutExe = exe.map { isVermutWineExecutable($0, enginesRoot: enginesRoot) } ?? false
-            let wineLike = looksLikeWineWindowsProcess(row.command)
-            let wineserverCmd = row.command.lowercased().contains("wineserver")
-            // Full quit: Vermut engine binary + Windows helper argv is enough
-            // (covers orphans even when lsof is unavailable).
-            if stoppingAll, vermutExe, wineLike || wineserverCmd {
-                all.insert(row.pid)
-                continue
-            }
-            guard winetemp || vermutExe || wineLike else { continue }
-            let mapped = openPathsProvider(row.pid)
-            // winetemp loaders are Vermut Wine copies — engines mapping is enough.
-            // Otherwise only claim engine/bottles broadly when stopping every prefix.
-            let allowEngines = stoppingAll || winetemp
-            if pathsIndicateVermutOwnership(
-                mapped,
+            if denied(row) { continue }
+            if processOwnedByVermut(
+                executablePath: executablePathProvider(row.pid),
+                openPaths: openPathsProvider(row.pid),
                 enginesRoot: enginesRoot,
                 bottlesRoot: bottlesRoot,
-                prefixes: prefixes,
-                allowEngineOnlyMatch: allowEngines
+                prefixes: prefixes
             ) {
                 all.insert(row.pid)
             }
@@ -367,7 +435,7 @@ public enum PrefixProcessTerminator {
 
     public static func looksLikeWineWindowsProcess(_ command: String) -> Bool {
         let lower = command.lowercased()
-        if isNativeMacApp(command) { return false }
+        if isDeniedForeignPath(command) { return false }
         let markers = [
             #"c:\windows\"#, "c:/windows/", "\\\\windows\\\\",
             "winedevice", "services.exe", "explorer.exe", "plugplay",
@@ -379,6 +447,7 @@ public enum PrefixProcessTerminator {
     }
 
     /// Whether a process command/env line is owned by one of the Vermut prefixes.
+    /// Positive path matches only — never claim by process name ("Steam" / "/steam/").
     public static func commandBelongsToPrefixes(
         _ command: String,
         prefixes: [String],
@@ -386,46 +455,25 @@ public enum PrefixProcessTerminator {
         enginesRoot: String = PathManager.shared.enginesURL.path,
         bottlesRoot: String = PathManager.shared.bottlesURL.path
     ) -> Bool {
-        if isNativeMacApp(command) { return false }
+        if isDeniedForeignPath(command) { return false }
         if prefixes.contains(where: { command.contains($0) }) { return true }
         if command.contains(bottlesRoot) { return true }
+        // Windows-in-Wine argv (C:\…\Steam\…) — not native macOS paths.
         if includesSteamBottle, SteamSetupEvaluator.isBottleSteamCommand(command) {
             return true
         }
         if includesSteamBottle, SteamSetupEvaluator.isBottleWebhelper(command) {
             return true
         }
-        let lower = command.lowercased()
         if command.contains(enginesRoot), prefixes.contains(where: { command.contains($0) }) {
             return true
-        }
-        if includesSteamBottle {
-            if SteamSetupEvaluator.isBottleSteamCommand(command)
-                || SteamSetupEvaluator.isBottleWebhelper(command)
-                || lower.contains("\\steam\\")
-                || lower.contains("/steam/") {
-                return true
-            }
         }
         return false
     }
 
-    /// Heuristic: native Steam/GOG/Epic live under `/Applications` without a Vermut bottle path.
+    /// Heuristic: native Steam/GOG/Epic / foreign Wine stacks — never signal these.
     public static func isNativeMacApp(_ command: String) -> Bool {
-        let lower = command.lowercased()
-        let looksNativeBundle =
-            lower.contains("/applications/steam.app/")
-            || lower.contains("/applications/steam.app ")
-            || lower.contains("steam_osx")
-            || lower.contains("/applications/epic games launcher.app/")
-            || lower.contains("/applications/gog galaxy.app/")
-            || lower.contains("/applications/galaxyclient.app/")
-        if !looksNativeBundle { return false }
-        if lower.contains("/application support/vermut/bottles/")
-            || lower.contains("/application support/casklauncher/bottles/") {
-            return false
-        }
-        return true
+        isDeniedForeignPath(command)
     }
 
     /// Snapshot PIDs, bounded `wineserver -k`, second discovery sweep, then SIGTERM / SIGKILL.
