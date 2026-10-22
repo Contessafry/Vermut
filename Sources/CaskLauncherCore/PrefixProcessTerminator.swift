@@ -141,30 +141,92 @@ public enum PrefixProcessTerminator {
         #endif
     }
 
+    /// Open / mapped file paths for a PID (`lsof`). Used when argv has no WINEPREFIX
+    /// and `proc_pidpath` is a `$TMPDIR/winetemp-*` Wine loader copy.
+    public static func openFilePaths(for pid: pid_t) -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        // txt = executable, mem = mapped libraries, cwd = working dir.
+        process.arguments = ["-a", "-p", "\(pid)", "-d", "txt,mem,cwd", "-Fn"]
+        process.standardError = FileHandle.nullDevice
+        guard let data = try? ProcessPipe.runReadingStdout(process),
+              let text = String(data: data, encoding: .utf8) else { return [] }
+        return text
+            .components(separatedBy: .newlines)
+            .compactMap { line -> String? in
+                guard line.hasPrefix("n"), line.count > 1 else { return nil }
+                return String(line.dropFirst())
+            }
+    }
+
     /// True when `path` is a Vermut-shipped Wine/wineserver/wine-preloader binary.
     public static func isVermutWineExecutable(
         _ path: String,
         enginesRoot: String = PathManager.shared.enginesURL.path
     ) -> Bool {
-        let root = enginesRoot.hasSuffix("/") ? enginesRoot : enginesRoot + "/"
+        let root = normalizedDirectoryPrefix(enginesRoot)
         guard path.hasPrefix(root) || path == enginesRoot else { return false }
         let lower = path.lowercased()
         return lower.contains("/wine") || lower.contains("wineserver") || lower.contains("preloader")
     }
 
-    /// Snapshot every PID that belongs to the given prefixes *before* `wineserver -k`
-    /// (command/env, process tree, process group, Vermut Wine executable path).
+    /// Wine copies its loader into `$TMPDIR/winetemp-<id>-…/` (often named `Steam`).
+    public static func isWinetempExecutable(
+        _ path: String,
+        temporaryDirectory: String = NSTemporaryDirectory()
+    ) -> Bool {
+        let lower = path.lowercased()
+        if lower.contains("/winetemp-") || lower.contains("/winetemp/") { return true }
+        let tmp = normalizedDirectoryPrefix(temporaryDirectory)
+        return path.hasPrefix(tmp) && lower.contains("winetemp")
+    }
+
+    /// Whether open/mapped paths tie the process to Vermut engines or target prefixes.
+    /// - Note: `allowEngineOnlyMatch` also allows any path under `bottlesRoot` (full quit).
+    ///   When false, only the listed `prefixes` count — shared engines alone are not enough.
+    public static func pathsIndicateVermutOwnership(
+        _ paths: [String],
+        enginesRoot: String,
+        bottlesRoot: String,
+        prefixes: [String],
+        allowEngineOnlyMatch: Bool
+    ) -> Bool {
+        let enginePrefix = normalizedDirectoryPrefix(enginesRoot)
+        let bottlesPrefix = normalizedDirectoryPrefix(bottlesRoot)
+        for path in paths {
+            if prefixes.contains(where: {
+                path.hasPrefix($0) || path.hasPrefix(normalizedDirectoryPrefix($0))
+            }) {
+                return true
+            }
+            if allowEngineOnlyMatch {
+                if path.hasPrefix(bottlesPrefix) { return true }
+                if path.hasPrefix(enginePrefix) { return true }
+            }
+        }
+        return false
+    }
+
+    public static func normalizedDirectoryPrefix(_ path: String) -> String {
+        path.hasSuffix("/") ? path : path + "/"
+    }
+
+    /// Snapshot every PID that belongs to the given prefixes
+    /// (command/env, tree, pgid, Vermut wine path, winetemp + mapped engines files).
     public static func snapshotPrefixPIDs(
         owningPrefixes prefixes: [String],
         rows: [ProcessRow],
         enginesRoot: String = PathManager.shared.enginesURL.path,
         bottlesRoot: String = PathManager.shared.bottlesURL.path,
         executablePathProvider: (pid_t) -> String? = { executablePath(for: $0) },
+        openPathsProvider: (pid_t) -> [String] = { openFilePaths(for: $0) },
         currentPID: pid_t = getpid()
     ) -> Set<pid_t> {
         guard !prefixes.isEmpty else { return [] }
         let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
         let includesSteam = prefixes.contains(steamPrefix)
+        let allVermut = Set(vermutPrefixPaths())
+        let stoppingAll = Set(prefixes).isSuperset(of: allVermut)
 
         var seeds = Set<pid_t>()
         for row in rows {
@@ -211,9 +273,7 @@ public enum PrefixProcessTerminator {
             }
         }
 
-        // Process-group members: services.exe / winedevice / rpcss often share the
-        // wineserver pgid but show bare C:\… argv (no WINEPREFIX) and later reparent
-        // to launchd — record them now via pgid + Vermut wine executable.
+        // Process-group members of known seeds (when they still share a pgid).
         var seedPgids = Set<pid_t>()
         for row in rows where all.contains(row.pid) {
             if row.pgid > 1 { seedPgids.insert(row.pgid) }
@@ -231,18 +291,37 @@ public enum PrefixProcessTerminator {
             }
         }
 
-        // When stopping every known Vermut prefix, also claim any remaining Vermut
-        // wine-binary PIDs with Windows-style argv (covers orphans already on launchd).
-        let allVermut = Set(vermutPrefixPaths())
-        if Set(prefixes) == allVermut || Set(prefixes).isSuperset(of: allVermut) {
-            for row in rows {
-                guard row.pid > 1, row.pid != currentPID else { continue }
-                if isNativeMacApp(row.command) { continue }
-                guard let exe = executablePathProvider(row.pid),
-                      isVermutWineExecutable(exe, enginesRoot: enginesRoot) else { continue }
-                if looksLikeWineWindowsProcess(row.command) || row.command.lowercased().contains("wineserver") {
-                    all.insert(row.pid)
-                }
+        // Session-leader orphans (own pgid, ppid 1): bare C:\winedevice.exe.
+        // Prefer proc_pidpath under Vermut/engines; else winetemp loader path
+        // cross-checked with open/mapped files under engines or target prefixes.
+        for row in rows {
+            guard row.pid > 1, row.pid != currentPID else { continue }
+            if all.contains(row.pid) { continue }
+            if isNativeMacApp(row.command) { continue }
+            let exe = executablePathProvider(row.pid)
+            let winetemp = exe.map { isWinetempExecutable($0) } ?? false
+            let vermutExe = exe.map { isVermutWineExecutable($0, enginesRoot: enginesRoot) } ?? false
+            let wineLike = looksLikeWineWindowsProcess(row.command)
+            let wineserverCmd = row.command.lowercased().contains("wineserver")
+            // Full quit: Vermut engine binary + Windows helper argv is enough
+            // (covers orphans even when lsof is unavailable).
+            if stoppingAll, vermutExe, wineLike || wineserverCmd {
+                all.insert(row.pid)
+                continue
+            }
+            guard winetemp || vermutExe || wineLike else { continue }
+            let mapped = openPathsProvider(row.pid)
+            // winetemp loaders are Vermut Wine copies — engines mapping is enough.
+            // Otherwise only claim engine/bottles broadly when stopping every prefix.
+            let allowEngines = stoppingAll || winetemp
+            if pathsIndicateVermutOwnership(
+                mapped,
+                enginesRoot: enginesRoot,
+                bottlesRoot: bottlesRoot,
+                prefixes: prefixes,
+                allowEngineOnlyMatch: allowEngines
+            ) {
+                all.insert(row.pid)
             }
         }
 
@@ -257,6 +336,7 @@ public enum PrefixProcessTerminator {
         enginesRoot: String = PathManager.shared.enginesURL.path,
         bottlesRoot: String = PathManager.shared.bottlesURL.path,
         executablePathProvider: (pid_t) -> String? = { executablePath(for: $0) },
+        openPathsProvider: (pid_t) -> [String] = { openFilePaths(for: $0) },
         currentPID: pid_t = getpid()
     ) -> [pid_t] {
         guard !prefixes.isEmpty else { return [] }
@@ -280,6 +360,7 @@ public enum PrefixProcessTerminator {
             enginesRoot: enginesRoot,
             bottlesRoot: bottlesRoot,
             executablePathProvider: executablePathProvider,
+            openPathsProvider: openPathsProvider,
             currentPID: currentPID
         ).sorted()
     }
@@ -347,7 +428,7 @@ public enum PrefixProcessTerminator {
         return true
     }
 
-    /// Snapshot PIDs, bounded `wineserver -k`, then SIGTERM / SIGKILL the recorded set.
+    /// Snapshot PIDs, bounded `wineserver -k`, second discovery sweep, then SIGTERM / SIGKILL.
     @discardableResult
     public static func stopAllVermutPrefixes(
         prefixes: [String]? = nil,
@@ -358,6 +439,7 @@ public enum PrefixProcessTerminator {
         processLinesProvider: () -> [String] = { PrefixRuntime.processPIDLines() },
         processRowsProvider: (() -> [ProcessRow])? = nil,
         executablePathProvider: @escaping (pid_t) -> String? = { executablePath(for: $0) },
+        openPathsProvider: @escaping (pid_t) -> [String] = { openFilePaths(for: $0) },
         wineserverRunner: (URL, String, TimeInterval) -> Void = { wineserver, prefix, timeout in
             runWineserverKill(wineserver: wineserver, prefix: prefix, timeout: timeout)
         }
@@ -375,14 +457,18 @@ public enum PrefixProcessTerminator {
                     rows: rows,
                     enginesRoot: enginesRoot,
                     bottlesRoot: bottlesRoot,
-                    executablePathProvider: executablePathProvider
+                    executablePathProvider: executablePathProvider,
+                    openPathsProvider: openPathsProvider
                 )
             }
             return Set(
                 pids(
                     owningPrefixes: targets,
                     processLines: processLinesProvider(),
-                    executablePathProvider: executablePathProvider
+                    enginesRoot: enginesRoot,
+                    bottlesRoot: bottlesRoot,
+                    executablePathProvider: executablePathProvider,
+                    openPathsProvider: openPathsProvider
                 )
             )
         }
@@ -397,9 +483,9 @@ public enum PrefixProcessTerminator {
                 wineserverRunner(wineserver, prefix, options.wineserverKillTimeout)
             }
         }
+        // Bounded pause, then a second sweep for session-leader orphans that the
+        // pre-kill tree/pgid snapshot missed (winetemp + mapped engines).
         sleeper(options.afterWineserverSeconds)
-
-        // Merge any still-matchable PIDs, but always signal the pre-kill snapshot.
         recorded.formUnion(discover())
 
         for pid in recorded.sorted() {

@@ -414,6 +414,232 @@ final class PrefixProcessTerminatorTests: XCTestCase {
         XCTAssertFalse(PrefixProcessTerminator.isVermutWineExecutable("/Applications/Steam.app/Contents/MacOS/steam_osx"))
     }
 
+    func testIsWinetempExecutable() {
+        XCTAssertTrue(PrefixProcessTerminator.isWinetempExecutable(
+            "/private/var/folders/xx/T/winetemp-ABC123-456/Steam",
+            temporaryDirectory: "/private/var/folders/xx/T/"
+        ))
+        XCTAssertTrue(PrefixProcessTerminator.isWinetempExecutable(
+            "/var/folders/xx/T/winetemp-1/wine64"
+        ))
+        XCTAssertFalse(PrefixProcessTerminator.isWinetempExecutable(
+            "/opt/homebrew/bin/wine64"
+        ))
+        XCTAssertFalse(PrefixProcessTerminator.isWinetempExecutable(
+            "/Applications/Steam.app/Contents/MacOS/steam_osx"
+        ))
+    }
+
+    func testSnapshotClaimsWinetempOrphansViaMappedEngines() {
+        // QA: session-leader winedevice (own pgid, ppid 1) with proc_pidpath under
+        // $TMPDIR/winetemp-* and lsof mapping Vermut/engines — tree/pgid miss them.
+        let engines = PathManager.shared.enginesURL.path
+        let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
+        let winetempA = "/private/var/folders/ab/T/winetemp-deadbeef-1/Steam"
+        let winetempB = "/private/var/folders/ab/T/winetemp-cafebabe-2/Steam"
+        let rows = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 10,
+                ppid: 1,
+                pgid: 10,
+                command: "WINEPREFIX=\(steamPrefix) \(engines)/grapple-wine/bin/wineserver"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 701,
+                ppid: 1,
+                pgid: 701,
+                command: #"C:\windows\system32\winedevice.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 702,
+                ppid: 1,
+                pgid: 702,
+                command: #"C:\windows\system32\winedevice.exe"#
+            ),
+            // Foreign Wine — winetemp-looking name but maps Homebrew, not Vermut.
+            PrefixProcessTerminator.ProcessRow(
+                pid: 800,
+                ppid: 1,
+                pgid: 800,
+                command: #"C:\windows\system32\winedevice.exe"#
+            ),
+            // Native Steam — never touch.
+            PrefixProcessTerminator.ProcessRow(
+                pid: 900,
+                ppid: 1,
+                pgid: 900,
+                command: "/Applications/Steam.app/Contents/MacOS/steam_osx"
+            )
+        ]
+        let exePaths: [pid_t: String] = [
+            10: "\(engines)/grapple-wine/bin/wineserver",
+            701: winetempA,
+            702: winetempB,
+            800: "/var/folders/zz/T/winetemp-other/wine64",
+            900: "/Applications/Steam.app/Contents/MacOS/steam_osx"
+        ]
+        let openPaths: [pid_t: [String]] = [
+            701: [
+                winetempA,
+                "\(engines)/grapple-wine/lib/wine/x86_64-windows/ntdll.dll",
+                "\(engines)/grapple-wine/lib/libwine.dylib"
+            ],
+            702: [
+                winetempB,
+                "\(engines)/grapple-wine/lib/wine/x86_64-unix/winebrowser.so"
+            ],
+            800: [
+                "/opt/homebrew/lib/libwine.dylib",
+                "/opt/homebrew/bin/wine64"
+            ]
+        ]
+        let snapped = PrefixProcessTerminator.snapshotPrefixPIDs(
+            owningPrefixes: PrefixProcessTerminator.vermutPrefixPaths(),
+            rows: rows,
+            executablePathProvider: { exePaths[$0] },
+            openPathsProvider: { openPaths[$0] ?? [] },
+            currentPID: 1
+        )
+        XCTAssertTrue(snapped.contains(10))
+        XCTAssertTrue(snapped.contains(701), "winetemp + mapped engines must claim winedevice")
+        XCTAssertTrue(snapped.contains(702), "second winetemp orphan must be claimed")
+        XCTAssertFalse(snapped.contains(800), "non-Vermut Wine must not be claimed")
+        XCTAssertFalse(snapped.contains(900), "native Steam must not be claimed")
+    }
+
+    func testSnapshotDoesNotClaimWinetempWithoutVermutMapping() {
+        let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
+        let rows = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 701,
+                ppid: 1,
+                pgid: 701,
+                command: #"C:\windows\system32\winedevice.exe"#
+            )
+        ]
+        let snapped = PrefixProcessTerminator.snapshotPrefixPIDs(
+            owningPrefixes: [steamPrefix],
+            rows: rows,
+            executablePathProvider: { _ in "/private/var/folders/x/T/winetemp-1/Steam" },
+            openPathsProvider: { _ in ["/usr/lib/libSystem.B.dylib"] },
+            currentPID: 1
+        )
+        XCTAssertFalse(snapped.contains(701))
+    }
+
+    func testStopSecondSweepAfterWineserverClaimsWinetempOrphans() {
+        // Pre-kill snapshot only sees wineserver; after -k, session-leader winedevices
+        // remain with winetemp paths + engines mappings — second sweep must SIGTERM them.
+        var signals: [(pid_t, Int32)] = []
+        let engines = PathManager.shared.enginesURL.path
+        let prefix = PathManager.shared.prefixURL(for: .steam).path
+        let winetemp = "/private/var/folders/ab/T/winetemp-orphan-9/Steam"
+        let before = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 50,
+                ppid: 1,
+                pgid: 50,
+                command: "WINEPREFIX=\(prefix) \(engines)/grapple-wine/bin/wineserver"
+            )
+        ]
+        let after = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 701,
+                ppid: 1,
+                pgid: 701,
+                command: #"C:\windows\system32\winedevice.exe"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 702,
+                ppid: 1,
+                pgid: 702,
+                command: #"C:\windows\system32\winedevice.exe"#
+            )
+        ]
+        var phase = 0
+        let exePaths: [pid_t: String] = [
+            50: "\(engines)/grapple-wine/bin/wineserver",
+            701: winetemp,
+            702: "\(winetemp)-b"
+        ]
+        let openPaths: [pid_t: [String]] = [
+            701: ["\(engines)/grapple-wine/lib/libwine.dylib"],
+            702: ["\(engines)/grapple-wine/lib/wine/x86_64-windows/ntdll.dll"]
+        ]
+
+        _ = PrefixProcessTerminator.stopAllVermutPrefixes(
+            prefixes: PrefixProcessTerminator.vermutPrefixPaths(),
+            engineForPrefix: { _ in .grappleWine },
+            options: .init(
+                termGraceSeconds: 0.01,
+                killGraceSeconds: 0.01,
+                wineserverKillTimeout: 2.0,
+                afterWineserverSeconds: 0.01
+            ),
+            sleeper: { _ in },
+            signalSender: { pid, sig in
+                signals.append((pid, sig))
+                return 0
+            },
+            processLinesProvider: { [] },
+            processRowsProvider: {
+                defer { phase += 1 }
+                // phase 0: pre-kill; phase 1+: post-wineserver second sweep onward.
+                return phase == 0 ? before : after
+            },
+            executablePathProvider: { exePaths[$0] },
+            openPathsProvider: { openPaths[$0] ?? [] },
+            wineserverRunner: { _, _, _ in }
+        )
+        let termPIDs = Set(signals.filter { $0.1 == SIGTERM }.map(\.0))
+        let killPIDs = Set(signals.filter { $0.1 == SIGKILL }.map(\.0))
+        XCTAssertTrue(termPIDs.contains(50))
+        XCTAssertTrue(termPIDs.isSuperset(of: [701, 702]), "second sweep must SIGTERM winetemp orphans: \(termPIDs)")
+        XCTAssertTrue(killPIDs.isSuperset(of: [50, 701, 702]))
+    }
+
+    func testPathsIndicateVermutOwnership() {
+        let engines = PathManager.shared.enginesURL.path
+        let bottles = PathManager.shared.bottlesURL.path
+        let prefix = "\(bottles)/steam/prefix"
+        XCTAssertTrue(
+            PrefixProcessTerminator.pathsIndicateVermutOwnership(
+                ["\(engines)/grapple-wine/lib/libwine.dylib"],
+                enginesRoot: engines,
+                bottlesRoot: bottles,
+                prefixes: [prefix],
+                allowEngineOnlyMatch: true
+            )
+        )
+        XCTAssertFalse(
+            PrefixProcessTerminator.pathsIndicateVermutOwnership(
+                ["\(engines)/grapple-wine/lib/libwine.dylib"],
+                enginesRoot: engines,
+                bottlesRoot: bottles,
+                prefixes: [prefix],
+                allowEngineOnlyMatch: false
+            )
+        )
+        XCTAssertTrue(
+            PrefixProcessTerminator.pathsIndicateVermutOwnership(
+                ["\(prefix)/drive_c/windows/system32/ntdll.dll"],
+                enginesRoot: engines,
+                bottlesRoot: bottles,
+                prefixes: [prefix],
+                allowEngineOnlyMatch: false
+            )
+        )
+        XCTAssertFalse(
+            PrefixProcessTerminator.pathsIndicateVermutOwnership(
+                ["/opt/homebrew/lib/libwine.dylib"],
+                enginesRoot: engines,
+                bottlesRoot: bottles,
+                prefixes: [prefix],
+                allowEngineOnlyMatch: true
+            )
+        )
+    }
+
     func testCommandBelongsMatchesBottlesPath() {
         let bottles = PathManager.shared.bottlesURL.path
         XCTAssertTrue(
