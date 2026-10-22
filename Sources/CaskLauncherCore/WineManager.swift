@@ -941,32 +941,12 @@ public final class WineManager: @unchecked Sendable {
     }
 
     private func killPrefix(prefix: URL, engine: WineEngine) throws {
-        guard let wineserverExecutable = PathManager.shared.wineserverExecutable(engine: engine) else {
-            // Still escalate signals for leftover prefix processes.
-            _ = PrefixProcessTerminator.stopAllVermutPrefixes(
-                prefixes: [prefix.path],
-                engineForPrefix: { _ in engine },
-                options: .init(termGraceSeconds: 1.5, killGraceSeconds: 0.5, wineserverWaitSeconds: 0.5)
-            )
-            return
-        }
-        let stopProcess = Process()
-        stopProcess.executableURL = wineserverExecutable
-        stopProcess.arguments = ["-k"]
-        stopProcess.environment = ["WINEPREFIX": prefix.path]
-        try stopProcess.run()
-        stopProcess.waitUntilExit()
-
-        // wineserver -k alone can leave Steam helpers alive; escalate on this prefix only.
-        let leftover = PrefixProcessTerminator.pids(owningPrefixes: [prefix.path])
-        guard !leftover.isEmpty else { return }
-        for pid in leftover {
-            kill(pid, SIGTERM)
-        }
-        usleep(1_500_000)
-        for pid in PrefixProcessTerminator.pids(owningPrefixes: [prefix.path]) {
-            kill(pid, SIGKILL)
-        }
+        // Bounded wineserver -k + SIGTERM/SIGKILL; never wait on a stuck wineserver.
+        _ = PrefixProcessTerminator.stopAllVermutPrefixes(
+            prefixes: [prefix.path],
+            engineForPrefix: { _ in engine },
+            options: .default
+        )
     }
 
     /// Stops every Vermut-managed Wine/Steam process (app quit path).

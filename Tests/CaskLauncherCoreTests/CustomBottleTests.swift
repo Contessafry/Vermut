@@ -171,37 +171,100 @@ final class PrefixProcessTerminatorTests: XCTestCase {
         XCTAssertEqual(pids, [200])
     }
 
-    func testStopEscalationOrder() {
+    func testPidsIncludeBottleSteamWithoutPrefixEnvAndDescendants() {
+        let steamPrefix = PathManager.shared.prefixURL(for: .steam).path
+        let rows = [
+            PrefixProcessTerminator.ProcessRow(
+                pid: 10,
+                ppid: 1,
+                command: "WINEPREFIX=\(steamPrefix) \(PathManager.shared.enginesURL.path)/grapple-wine/bin/wineserver"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 20,
+                ppid: 10,
+                command: #"C:\Program Files (x86)\Steam\steam.exe -silent"#
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 21,
+                ppid: 20,
+                command: "steamwebhelper.exe --type=renderer"
+            ),
+            PrefixProcessTerminator.ProcessRow(
+                pid: 30,
+                ppid: 1,
+                command: "/Applications/Steam.app/Contents/MacOS/steam_osx"
+            )
+        ]
+        let pids = PrefixProcessTerminator.pids(
+            owningPrefixes: [steamPrefix],
+            rows: rows,
+            currentPID: 1
+        )
+        XCTAssertTrue(pids.contains(10))
+        XCTAssertTrue(pids.contains(20))
+        XCTAssertTrue(pids.contains(21))
+        XCTAssertFalse(pids.contains(30))
+    }
+
+    func testStopEscalationOrderUsesBoundedWineserver() {
         var signals: [(pid_t, Int32)] = []
         var sleeps: [TimeInterval] = []
-        var wineserverCalls = 0
+        var wineserverTimeouts: [TimeInterval] = []
         let prefix = "/tmp/vermut-prefix"
-        let linesTerm = ["42 WINEPREFIX=\(prefix) wine64 steam.exe"]
-        let linesAfterTerm: [String] = ["42 WINEPREFIX=\(prefix) wine64 steam.exe"]
-        let linesAfterKill: [String] = []
+        let rowsTerm = [
+            PrefixProcessTerminator.ProcessRow(pid: 42, ppid: 1, command: "WINEPREFIX=\(prefix) wine64 steam.exe")
+        ]
+        let rowsAfterTerm = rowsTerm
+        let rowsAfterKill: [PrefixProcessTerminator.ProcessRow] = []
         var phase = 0
 
         let leftover = PrefixProcessTerminator.stopAllVermutPrefixes(
             prefixes: [prefix],
             engineForPrefix: { _ in .grappleWine },
-            options: .init(termGraceSeconds: 0.01, killGraceSeconds: 0.01, wineserverWaitSeconds: 0.01),
+            options: .init(
+                termGraceSeconds: 0.01,
+                killGraceSeconds: 0.01,
+                wineserverKillTimeout: 2.5,
+                afterWineserverSeconds: 0.01
+            ),
             sleeper: { sleeps.append($0) },
             signalSender: { pid, sig in
                 signals.append((pid, sig))
                 return 0
             },
-            processLinesProvider: {
+            processLinesProvider: { [] },
+            processRowsProvider: {
                 defer { phase += 1 }
-                if phase == 0 { return linesTerm }
-                if phase == 1 { return linesAfterTerm }
-                return linesAfterKill
+                if phase == 0 { return rowsTerm }
+                if phase == 1 { return rowsAfterTerm }
+                return rowsAfterKill
             },
-            wineserverRunner: { _, _ in wineserverCalls += 1 }
+            wineserverRunner: { _, _, timeout in
+                wineserverTimeouts.append(timeout)
+            }
         )
-        XCTAssertEqual(wineserverCalls, 1)
+        XCTAssertEqual(wineserverTimeouts, [2.5])
         XCTAssertEqual(signals.map(\.1), [SIGTERM, SIGKILL])
         XCTAssertTrue(leftover.isEmpty)
         XCTAssertEqual(sleeps.count, 3)
+    }
+
+    func testCommandBelongsMatchesBottlesPath() {
+        let bottles = PathManager.shared.bottlesURL.path
+        XCTAssertTrue(
+            PrefixProcessTerminator.commandBelongsToPrefixes(
+                "WINEPREFIX=\(bottles)/steam/prefix wine64",
+                prefixes: ["\(bottles)/steam/prefix"],
+                includesSteamBottle: true
+            )
+        )
+        XCTAssertFalse(
+            PrefixProcessTerminator.commandBelongsToPrefixes(
+                "/Applications/Steam.app/Contents/MacOS/steam_osx",
+                prefixes: ["\(bottles)/steam/prefix"],
+                includesSteamBottle: true
+            )
+        )
     }
 }
 
