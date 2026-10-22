@@ -54,6 +54,12 @@ struct CaskLauncherApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+            CommandGroup(after: .newItem) {
+                Button(String(localized: "New Bottle…", comment: "File menu new bottle")) {
+                    appState.showingNewBottleSheet = true
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
             CommandGroup(after: .sidebar) {
                 Button(String(localized: "Game Settings", comment: "View menu inspector")) {
                     appState.toggleGameSettingsInspector()

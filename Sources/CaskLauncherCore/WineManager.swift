@@ -542,7 +542,8 @@ public final class WineManager: @unchecked Sendable {
     }
 
     public func launchExecutable(at path: String, config: BottleConfiguration) throws {
-        let engine = resolvedEngine(for: .steam, config: config)
+        // Legacy toolbar “Run .exe” — uses a single shared custom prefix.
+        let engine = resolvedCustomEngine(config)
         guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
             throw WineError.wineNotInstalled
         }
@@ -563,6 +564,195 @@ public final class WineManager: @unchecked Sendable {
             workingDirectory: nil,
             logURL: PathManager.shared.bottlesURL.appendingPathComponent("custom.log")
         )
+    }
+
+    // MARK: - Custom bottles
+
+    /// Creates a new UUID-named bottle prefix (wineboot + winecfg + DLL placement).
+    public func createCustomPrefix(id: UUID, config: BottleConfiguration) async throws {
+        let engine = resolvedCustomEngine(config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+            throw WineError.wineNotInstalled
+        }
+
+        let bottleURL = PathManager.shared.customBottleURL(id: id)
+        let prefixURL = PathManager.shared.customPrefixURL(id: id)
+        let logsURL = PathManager.shared.customBottleLogsURL(id: id)
+
+        if fileManager.fileExists(atPath: prefixURL.appendingPathComponent("system.reg").path) {
+            return
+        }
+
+        try fileManager.createDirectory(at: bottleURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: prefixURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: logsURL, withIntermediateDirectories: true)
+
+        let bottleConfigURL = PathManager.shared.customBottleConfigURL(id: id)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(config).write(to: bottleConfigURL)
+
+        var environment = buildEnvironment(for: .steam, config: config)
+        environment["WINEPREFIX"] = prefixURL.path
+
+        let bootProcess = Process()
+        bootProcess.executableURL = wineExecutable
+        bootProcess.arguments = ["wineboot", "-i"]
+        bootProcess.environment = environment
+
+        let logURL = PathManager.shared.customLogURL(id: id)
+        let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
+        bootProcess.standardOutput = logPipe
+        bootProcess.standardError = logPipe
+
+        try bootProcess.run()
+        bootProcess.waitUntilExit()
+
+        guard bootProcess.terminationStatus == 0 else {
+            try? fileManager.removeItem(at: bottleURL)
+            throw WineError.prefixCreationFailed
+        }
+
+        do {
+            try await configureCustomPrefix(id: id, config: config, engine: engine)
+        } catch {
+            try? fileManager.removeItem(at: bottleURL)
+            throw error
+        }
+    }
+
+    private func configureCustomPrefix(id: UUID, config: BottleConfiguration, engine: WineEngine) async throws {
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+            throw WineError.wineNotInstalled
+        }
+        let prefixURL = PathManager.shared.customPrefixURL(id: id)
+        var environment = buildEnvironment(for: .steam, config: config)
+        environment["WINEPREFIX"] = prefixURL.path
+
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: .steam)
+
+        let winecfg = Process()
+        winecfg.executableURL = wineExecutable
+        winecfg.arguments = ["winecfg", "-v", config.windowsVersion]
+        winecfg.environment = environment
+        try winecfg.run()
+        winecfg.waitUntilExit()
+
+        var ops = DllOverridePolicy.registryWrites(
+            engine: engine,
+            backend: resolvedCustomGraphics(config),
+            store: .steam
+        )
+        if config.enableHiDPI {
+            ops.append(
+                .add(WineRegWrite(
+                    key: "HKCU\\Software\\Wine\\Mac Driver",
+                    value: "RetinaMode",
+                    data: "y"
+                ))
+            )
+        }
+        try apply(ops, wineExecutable: wineExecutable, environment: environment)
+
+        if resolvedCustomGraphics(config) == .dxvk {
+            try ensureDXVKPlacement(prefixURL: prefixURL)
+        }
+    }
+
+    public func launchInCustomBottle(
+        id: UUID,
+        hostExecutable: String,
+        config: BottleConfiguration
+    ) throws {
+        let engine = resolvedCustomEngine(config)
+        guard let wineExecutable = PathManager.shared.wineExecutable(engine: engine) else {
+            throw WineError.wineNotInstalled
+        }
+        let prefixURL = PathManager.shared.customPrefixURL(id: id)
+        guard fileManager.fileExists(atPath: prefixURL.path) else {
+            throw WineError.prefixCreationFailed
+        }
+        var environment = buildEnvironment(for: .steam, config: config)
+        environment["WINEPREFIX"] = prefixURL.path
+        try launchDetached(
+            executable: wineExecutable,
+            arguments: [hostExecutable],
+            environment: environment,
+            workingDirectory: nil,
+            logURL: PathManager.shared.customLogURL(id: id)
+        )
+    }
+
+    public func isCustomBottleRunning(id: UUID) -> Bool {
+        let prefix = PathManager.shared.customPrefixURL(id: id)
+        return PrefixRuntime.hasWineProcess(
+            prefixPath: prefix.path,
+            processLines: PrefixRuntime.processArgumentLines()
+        )
+    }
+
+    public func stopCustomBottle(id: UUID) throws {
+        let config = (try? loadCustomBottleConfig(id: id)) ?? BottleConfiguration()
+        let engine = resolvedCustomEngine(config)
+        try killPrefix(prefix: PathManager.shared.customPrefixURL(id: id), engine: engine)
+    }
+
+    public func deleteCustomBottle(id: UUID) throws {
+        // Spec: never kill Wine from the bottle page; caller must ensure idle.
+        let bottleURL = PathManager.shared.customBottleURL(id: id)
+        if fileManager.fileExists(atPath: bottleURL.path) {
+            try fileManager.removeItem(at: bottleURL)
+        }
+    }
+
+    public func loadCustomBottleConfig(id: UUID) throws -> BottleConfiguration {
+        let configURL = PathManager.shared.customBottleConfigURL(id: id)
+        guard fileManager.fileExists(atPath: configURL.path) else {
+            return BottleConfiguration()
+        }
+        let data = try Data(contentsOf: configURL)
+        return try JSONDecoder().decode(BottleConfiguration.self, from: data)
+    }
+
+    public func saveCustomBottleConfig(_ config: BottleConfiguration, id: UUID) throws {
+        let configURL = PathManager.shared.customBottleConfigURL(id: id)
+        try fileManager.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(config).write(to: configURL)
+    }
+
+    public func resolvedCustomEngine(_ config: BottleConfiguration) -> WineEngine {
+        let global = appConfiguration()
+        let inherited = StoreRecipe.effectiveEngine(config, global: global)
+        return EngineGraphicsPolicy.apply(
+            inherited: inherited,
+            backend: resolvedCustomGraphics(config)
+        ).engine.value
+    }
+
+    public func resolvedCustomGraphics(_ config: BottleConfiguration) -> GraphicsBackend {
+        StoreRecipe.effectiveGraphics(config, global: appConfiguration()).value
+    }
+
+    /// Free disk space check before creating a bottle (components + 1 GB headroom).
+    public static func requiredFreeBytesForCreation(missingEngines: [WineEngine]) -> Int64 {
+        let componentBytes = missingEngines.reduce(Int64(0)) { partial, engine in
+            partial + (WineEnginesViewModel.approximateDownloadBytes[engine] ?? 0)
+        }
+        return componentBytes + 1_000_000_000
+    }
+
+    public static func availableFreeBytes(at url: URL = PathManager.shared.appSupportURL) -> Int64? {
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        if let capacity = values?.volumeAvailableCapacityForImportantUsage {
+            return capacity
+        }
+        let attrs = try? FileManager.default.attributesOfFileSystem(forPath: url.path)
+        return attrs?[.systemFreeSize] as? Int64
     }
 
     public func loadBottleConfig(for store: GameStore) throws -> BottleConfiguration {

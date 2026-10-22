@@ -9,6 +9,7 @@ enum AppSection: Hashable {
     case library
     case downloads
     case bottle(GameStore)
+    case customBottle(UUID)
     case settings
 }
 
@@ -56,6 +57,10 @@ final class AppState: ObservableObject {
     @Published var showingGameSettingsInspector = false
     /// Last engine/graphics applied to the Steam bottle session (for restart decisions).
     @Published var steamRuntimeProfile: BottleRuntimeProfile?
+    /// Custom bottles from `custom-bottles.json`.
+    @Published var customBottles: [CustomBottle] = []
+    @Published var customBottleRunning: Set<UUID> = []
+    @Published var showingNewBottleSheet = false
     @Published var compatFeedbackSession: GameSession?
     @Published var compatFeedbackAutoDetectedCrash = false
     @Published var availableUpdate: (version: String, url: String, releaseNotes: String?, isPrerelease: Bool)?
@@ -108,7 +113,8 @@ final class AppState: ObservableObject {
         
         startSessionMonitoring()
         fetchCompatibilityData()
-        
+        reloadCustomBottles()
+
         // Debug feedback trigger (works in release builds via env var)
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("VermutDebugTriggerCompatFeedback"),
@@ -489,6 +495,46 @@ final class AppState: ObservableObject {
                 }
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
+        }
+    }
+
+    // MARK: - Custom bottles
+
+    func reloadCustomBottles() {
+        customBottles = (try? CustomBottleStore.shared.load()) ?? []
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func customBottle(id: UUID) -> CustomBottle? {
+        customBottles.first { $0.id == id }
+    }
+
+    func registerCustomBottle(_ bottle: CustomBottle) throws {
+        try CustomBottleStore.shared.upsert(bottle)
+        reloadCustomBottles()
+    }
+
+    func updateCustomBottle(_ bottle: CustomBottle) {
+        try? CustomBottleStore.shared.upsert(bottle)
+        try? WineManager.shared.saveCustomBottleConfig(bottle.configuration, id: bottle.id)
+        reloadCustomBottles()
+    }
+
+    func deleteCustomBottle(id: UUID) throws {
+        try WineManager.shared.deleteCustomBottle(id: id)
+        try CustomBottleStore.shared.remove(id: id)
+        customBottleRunning.remove(id)
+        reloadCustomBottles()
+        if case .customBottle(let current) = section, current == id {
+            section = .stores
+        }
+    }
+
+    func setCustomBottleRunning(id: UUID, running: Bool) {
+        if running {
+            customBottleRunning.insert(id)
+        } else {
+            customBottleRunning.remove(id)
         }
     }
 
@@ -972,6 +1018,12 @@ final class AppState: ObservableObject {
                         self.steamRuntimeProfile = nil
                     }
                 }
+                // Refresh custom bottle running dots without blocking.
+                let customIDs = self.customBottles.map(\.id)
+                let runningCustom = await Task.detached {
+                    Set(customIDs.filter { WineManager.shared.isCustomBottleRunning(id: $0) })
+                }.value
+                self.customBottleRunning = runningCustom
             }
         }
     }
