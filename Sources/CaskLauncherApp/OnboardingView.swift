@@ -324,23 +324,18 @@ struct OnboardingView: View {
 
     private var onPermissions: Bool { appState.setupPhase == .permissions && !appState.setupFailed }
 
+    /// Real onboarding steps in the UI (Permissions → ready work → stores).
+    private static let onboardingStepCount = 3
+
     private var stepCaption: String {
         if appState.setupFailed { return "Setup" }
-        // Caption tracks the on-page step index:
-        // 1 Permissions · 2 Rosetta/Wine work · 3 Choose your stores.
-        // When setup finishes, the list still shows “Step 3 Choose your stores”,
-        // so the header must say 3 of 4 (not 4 of 4).
-        if onPermissions { return "Setup · step 1 of 4" }
+        let total = Self.onboardingStepCount
+        // 1 Permissions · 2 Rosetta/Wine · 3 Choose your stores.
+        if onPermissions { return "Setup · step 1 of \(total)" }
         if appState.isSetupComplete {
-            return "Setup · step 3 of 4"
+            return "Setup · step 3 of \(total)"
         }
-        // Rosetta + Wine are the “getting ready” work under step 2; stores is step 3.
-        switch appState.setupPhase {
-        case .rosetta, .engine, .checking:
-            return "Setup · step 2 of 4"
-        default:
-            return "Setup · step 2 of 4"
-        }
+        return "Setup · step 2 of \(total)"
     }
 
     private var rosettaState: StepState {
