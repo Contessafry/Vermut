@@ -21,6 +21,9 @@ struct NewBottleSheet: View {
     @State private var showStopConfirm = false
     @State private var createTask: Task<Void, Never>?
     @State private var winebootPhase = false
+    /// Shown after the user tries to pick a disabled backend (picker tags stay selectable on macOS).
+    @State private var forcedDXVKHint = false
+    @State private var forcedD3DHint = false
 
     @StateObject private var enginesModel = WineEnginesViewModel()
     @StateObject private var d3dMetalModel = D3DMetalViewModel()
@@ -31,6 +34,26 @@ struct NewBottleSheet: View {
 
     private var nameFailure: BottleNameValidator.Failure? {
         BottleNameValidator.validate(name, existingNames: existingNames)
+    }
+
+    /// Binding that rejects DXVK/D3DMetal when unavailable so they cannot stick as the selection.
+    private var graphicsSelectionBinding: Binding<String> {
+        Binding(
+            get: { graphicsSelection },
+            set: { newValue in
+                if newValue == GraphicsBackend.dxvk.rawValue, !graphicsEnabled(.dxvk) {
+                    forcedDXVKHint = true
+                    return
+                }
+                if newValue == GraphicsBackend.d3dmetal.rawValue, !graphicsEnabled(.d3dmetal) {
+                    forcedD3DHint = true
+                    return
+                }
+                forcedDXVKHint = false
+                forcedD3DHint = false
+                graphicsSelection = newValue
+            }
+        )
     }
 
     private var draftConfig: BottleConfiguration {
@@ -61,7 +84,21 @@ struct NewBottleSheet: View {
     }
 
     private var canCreate: Bool {
-        nameFailure == nil && !isCreating && hasEnoughDiskSpace
+        guard !isCreating, hasEnoughDiskSpace else { return false }
+        // Explicit length check so Create stays off while the name is too long
+        // (even if a future validator change forgets `.tooLong`).
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count > BottleNameValidator.maxLength { return false }
+        return nameFailure == nil
+    }
+
+    /// Hint rows only when DXVK / D3DMetal is selected or was just rejected — never for Automatic/DXMT.
+    private var showDXVKHelper: Bool {
+        graphicsSelection == GraphicsBackend.dxvk.rawValue || forcedDXVKHint
+    }
+
+    private var showD3DHelper: Bool {
+        graphicsSelection == GraphicsBackend.d3dmetal.rawValue || forcedD3DHint
     }
 
     private var hasEnoughDiskSpace: Bool {
@@ -111,7 +148,7 @@ struct NewBottleSheet: View {
 
                     Picker(
                         String(localized: "Graphics backend", comment: "New bottle field"),
-                        selection: $graphicsSelection
+                        selection: graphicsSelectionBinding
                     ) {
                         Text(automaticGraphicsLabel).tag(SettingInheritance.automatic)
                         ForEach(GraphicsBackend.allCases) { backend in
@@ -119,12 +156,16 @@ struct NewBottleSheet: View {
                         }
                     }
                     .disabled(isCreating)
-                    .onChange(of: graphicsSelection) { _, newValue in
-                        if newValue == GraphicsBackend.dxvk.rawValue,
-                           engineSelection != WineEngine.staging.rawValue,
-                           engineSelection != SettingInheritance.automatic
-                            || WineEngine.resolved(from: appState.configuration.defaultEngine) != .staging {
-                            // Keep selection but surface the Staging helper below.
+                    .onChange(of: engineSelection) { _, _ in
+                        // Staging may become available; clear a stale forced hint when DXVK is now OK.
+                        if graphicsEnabled(.dxvk) { forcedDXVKHint = false }
+                        if graphicsSelection == GraphicsBackend.dxvk.rawValue, !graphicsEnabled(.dxvk) {
+                            graphicsSelection = SettingInheritance.automatic
+                            forcedDXVKHint = true
+                        }
+                        if graphicsSelection == GraphicsBackend.d3dmetal.rawValue, !graphicsEnabled(.d3dmetal) {
+                            graphicsSelection = SettingInheritance.automatic
+                            forcedD3DHint = true
                         }
                     }
 
@@ -132,8 +173,8 @@ struct NewBottleSheet: View {
                         engineSelection: $engineSelection,
                         graphicsSelection: $graphicsSelection,
                         d3dPresence: d3dMetalModel.presence,
-                        showDXVKHelper: !graphicsEnabled(.dxvk),
-                        showD3DHelper: !d3dMetalModel.presence.isUsable,
+                        showDXVKHelper: showDXVKHelper,
+                        showD3DHelper: showD3DHelper,
                         openGuide: {
                             appState.settingsTab = .components
                             appState.section = .settings
@@ -240,7 +281,12 @@ struct NewBottleSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canCreate)
+                .opacity(canCreate ? 1 : 0.45)
                 .buttonStyle(VermutButtonStyle(kind: .primary))
+                .accessibilityHint(
+                    nameFailure.map { BottleNameValidator.errorMessage(for: $0) }
+                        ?? ""
+                )
             }
             .padding(VermutSpace.s4)
         }
@@ -276,15 +322,17 @@ struct NewBottleSheet: View {
     @ViewBuilder
     private func graphicsMenuRow(_ backend: GraphicsBackend) -> some View {
         let enabled = graphicsEnabled(backend)
-        if enabled {
-            Text(backend.shortLabel).tag(backend.rawValue)
-        } else {
-            // Disabled rows with actions are rendered below the picker as helpers
-            // when the selection would be invalid; still list the label for clarity.
-            Text(disabledGraphicsLabel(backend))
-                .tag(backend.rawValue)
-                .disabled(true)
-        }
+        // Keep a tag so the option appears in the menu; `graphicsSelectionBinding`
+        // rejects unavailable backends so they never become the committed selection.
+        Text(enabled ? backend.shortLabel : disabledGraphicsLabel(backend))
+            .tag(backend.rawValue)
+            .disabled(!enabled)
+            .foregroundStyle(enabled ? Color.primary : Color.secondary)
+            .accessibilityLabel(
+                enabled
+                ? backend.shortLabel
+                : "\(backend.shortLabel), unavailable, \(disabledGraphicsLabel(backend))"
+            )
     }
 
     private func graphicsEnabled(_ backend: GraphicsBackend) -> Bool {
