@@ -407,12 +407,15 @@ final class AppState: ObservableObject {
         storeStatuses[.steam] = .installing(.updatingClient)
         defer { steamStage = nil; steamStalled = false }
         var launchError = await startSteamFirstRun(config: config)
+        // Onboarding / first-update path: watch continuously so the login window
+        // is activated when it appears (not only at spawn time).
+        watchSteamWindowsWhileRunning()
         var lastProgressChange = Date()
         var lastSignature = ""
-        var broughtToFront = false
         var lastLogSize = -1
         var lastLogGrowth = Date()
         var readySince: Date?
+        var seenWindowPIDs = Set<pid_t>()
         let trace = CappedLogWriter.shared(for: PathManager.shared.logURL(for: .steam))
         let deadline = Date().addingTimeInterval(45 * 60)
         while Date() < deadline {
@@ -434,8 +437,8 @@ final class AppState: ObservableObject {
                 trace.append(line: "[vermut] steam setup: \(stage.label) (updateDone=\(i.bootstrap?.updateCompleted ?? false) inProgress=\(i.bootstrap?.updateInProgress ?? false) files=\(i.clientFilesReady) helper=\(i.webhelperRunning) window=\(i.windowVisible) quiet=\(Int(i.secondsSinceLogChange ?? -1))s)")
             }
             if stage != steamStage { steamStage = stage }
-            if let pid = snapshot.windowPID, !broughtToFront {
-                broughtToFront = true
+            if let pid = snapshot.windowPID, !seenWindowPIDs.contains(pid) {
+                seenWindowPIDs.insert(pid)
                 SteamWindowWatcher.bringToFront(pid: pid)
                 showSteamWindowHint()
             }
@@ -452,10 +455,11 @@ final class AppState: ObservableObject {
                 steamRetryRequested = false
                 steamStalled = false
                 lastProgressChange = Date()
-                broughtToFront = false
+                seenWindowPIDs.removeAll()
                 try? WineManager.shared.stopStore(.steam)
                 try await Task.sleep(nanoseconds: 3_000_000_000)
                 launchError = await startSteamFirstRun(config: config)
+                watchSteamWindowsWhileRunning()
             }
             try await Task.sleep(nanoseconds: 2_000_000_000)
         }
@@ -857,6 +861,7 @@ final class AppState: ObservableObject {
                 storeRuntimeProfiles[.steam] = needed
                 storeStatuses[.steam] = .running
                 bringSteamWindowForward()
+                watchSteamWindowsWhileRunning()
                 Task {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                     updateStoreStatus(.steam)
