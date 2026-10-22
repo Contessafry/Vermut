@@ -352,6 +352,10 @@ final class AppState: ObservableObject {
 
                 if store == .steam {
                     try await runSteamFirstUpdate(config: bottleConfig)
+                    // Never show Installed for bootstrapper-only (steam.exe without SteamUI/CEF).
+                    guard WineManager.shared.isStoreInstalled(.steam) else {
+                        throw WineError.installerTimedOut(.steam)
+                    }
                 }
                 storeStatuses[store] = .installed
                 refreshLibrary()
@@ -416,6 +420,7 @@ final class AppState: ObservableObject {
         var lastLogGrowth = Date()
         var readySince: Date?
         var seenWindowPIDs = Set<pid_t>()
+        var bootstrapRelaunches = 0
         let trace = CappedLogWriter.shared(for: PathManager.shared.logURL(for: .steam))
         let deadline = Date().addingTimeInterval(45 * 60)
         while Date() < deadline {
@@ -443,6 +448,32 @@ final class AppState: ObservableObject {
                 showSteamWindowHint()
             }
             if stage == .ready { return }
+
+            // Bootstrapper often exits within ~2 min before the client update lands.
+            // Auto-relaunch (bounded) instead of sitting on Updating/Finishing forever.
+            let running = await Task.detached { WineManager.shared.isStoreRunning(.steam) }.value
+            let clientReady = snapshot.inputs.clientFilesReady
+                || SteamReadiness.isClientReady(inPrefix: prefix)
+            if SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: running,
+                clientReady: clientReady,
+                relaunchesSoFar: bootstrapRelaunches
+            ) {
+                bootstrapRelaunches += 1
+                steamStalled = false
+                lastProgressChange = Date()
+                lastSignature = ""
+                seenWindowPIDs.removeAll()
+                trace.append(line: "[vermut] steam setup: bootstrap exited before client ready; relaunch \(bootstrapRelaunches)/\(SteamReadiness.bootstrapRelaunchAttempts)")
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                launchError = await startSteamFirstRun(config: config)
+                watchSteamWindowsWhileRunning()
+                continue
+            }
+            if !running, !clientReady, bootstrapRelaunches >= SteamReadiness.bootstrapRelaunchAttempts {
+                throw launchError ?? WineError.installerTimedOut(.steam)
+            }
+
             let signature = "\(stage)|\(snapshot.logSize)"
             if signature != lastSignature {
                 lastSignature = signature

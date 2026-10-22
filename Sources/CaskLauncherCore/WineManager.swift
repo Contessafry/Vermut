@@ -160,7 +160,9 @@ public final class WineManager: @unchecked Sendable {
         }
 
         let prefixURL = PathManager.shared.prefixURL(for: store)
-        var environment = buildEnvironment(for: store, config: config)
+        // Steam setup: capture Wine errors into the capped store log (not WINEDEBUG=-all).
+        let setupDebug = store == .steam ? WineLogLevel.errors.wineDebug : nil
+        var environment = buildEnvironment(for: store, config: config, wineDebug: setupDebug)
         environment["WINEPREFIX"] = prefixURL.path
 
         let installerProcess = Process()
@@ -175,6 +177,9 @@ public final class WineManager: @unchecked Sendable {
         let logPipe = CappedLogWriter.shared(for: logURL).makeProcessPipe()
         installerProcess.standardOutput = logPipe
         installerProcess.standardError = logPipe
+        CappedLogWriter.shared(for: logURL).append(
+            line: "Vermut: store install winedebug=\(environment["WINEDEBUG"] ?? "")"
+        )
 
         onSettingUp?()
         try installerProcess.run()
@@ -393,7 +398,14 @@ public final class WineManager: @unchecked Sendable {
             environment[key] = value
         }
         // Preferred debug (game or client), then VERMUT_WINEDEBUG (host override always wins).
-        applyWineDebug(&environment, preferred: wineDebug)
+        // Setup/launch default to err+all into the capped store log — WINEDEBUG=-all
+        // leaves no Wine trace when the bootstrapper dies early.
+        let preferredDebug = wineDebug ?? Self.defaultWineDebug(
+            store: store,
+            firstRunUpdate: firstRunUpdate,
+            steamAppId: steamAppId
+        )
+        applyWineDebug(&environment, preferred: preferredDebug)
 
         let logURL = PathManager.shared.logURL(for: store)
         let appSuffix = steamAppId.map { " applaunch=\($0)" } ?? ""
@@ -517,6 +529,12 @@ public final class WineManager: @unchecked Sendable {
     public func isStoreInstalled(_ store: GameStore) -> Bool {
         if store == .epic {
             return isPrefixPresent(.epic) && LegendaryManager.shared.isBinaryInstalled()
+        }
+        // SteamSetup leaves steam.exe immediately; only SteamUI + CEF means Installed.
+        if store == .steam {
+            return SteamReadiness.isSteamClientInstalled(
+                inPrefix: PathManager.shared.prefixURL(for: .steam)
+            )
         }
         return StoreExecutable.resolve(in: PathManager.shared.prefixURL(for: store), store: store) != nil
     }
@@ -1169,6 +1187,18 @@ public final class WineManager: @unchecked Sendable {
            !override.isEmpty {
             env["WINEDEBUG"] = override
         }
+    }
+
+    /// Errors-only Wine channel for Steam setup / Open Steam (still size-capped via CappedLogWriter).
+    private static func defaultWineDebug(
+        store: GameStore,
+        firstRunUpdate: Bool,
+        steamAppId: String?
+    ) -> String? {
+        guard store == .steam, steamAppId == nil else { return nil }
+        if firstRunUpdate { return WineLogLevel.errors.wineDebug }
+        // Open Steam: keep a thin err channel so launch failures are diagnosable.
+        return WineLogLevel.errors.wineDebug
     }
 
     private func graphicsBackend(_ config: BottleConfiguration) -> GraphicsBackend {
