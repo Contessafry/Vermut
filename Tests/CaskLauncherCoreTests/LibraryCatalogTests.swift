@@ -145,6 +145,54 @@ final class LibraryCatalogTests: XCTestCase {
         XCTAssertEqual(games.first?.appId, "400")
     }
 
+    func testSteamGamesPreferLocalLibraryCacheArt() throws {
+        let prefix = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vermut-art-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let steam = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        let steamapps = steam.appendingPathComponent("steamapps")
+        try FileManager.default.createDirectory(at: steamapps, withIntermediateDirectories: true)
+        let acf = """
+        "AppState"
+        {
+        \t"appid"\t\t"4557380"
+        \t"name"\t\t"Batomon Showdown"
+        \t"StateFlags"\t\t"4"
+        }
+        """
+        try acf.write(to: steamapps.appendingPathComponent("appmanifest_4557380.acf"), atomically: true, encoding: .utf8)
+        let art = steam.appendingPathComponent("appcache/librarycache/4557380")
+        let capsuleDir = art.appendingPathComponent("d0397fa2")
+        let headerDir = art.appendingPathComponent("4a363d75")
+        try FileManager.default.createDirectory(at: capsuleDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: headerDir, withIntermediateDirectories: true)
+        try Data([0xFF, 0xD8]).write(to: capsuleDir.appendingPathComponent("library_capsule.jpg"))
+        try Data([0xFF, 0xD8]).write(to: headerDir.appendingPathComponent("library_header.jpg"))
+
+        let covers = StoreLibrary.shared.steamGames(in: prefix).first?.coverURLs ?? []
+        XCTAssertEqual(covers.first?.lastPathComponent, "library_capsule.jpg")
+        XCTAssertTrue(covers.first?.isFileURL ?? false)
+        XCTAssertTrue(covers.contains(SteamArtwork.coverURLs(appId: "4557380")[0]))
+        XCTAssertEqual(covers.last?.lastPathComponent, "library_header.jpg")
+    }
+
+    func testSteamGamesReadLegacyFlatLibraryCache() throws {
+        let prefix = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vermut-art-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: prefix) }
+        let steam = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        let steamapps = steam.appendingPathComponent("steamapps")
+        try FileManager.default.createDirectory(at: steamapps, withIntermediateDirectories: true)
+        let acf = "\"AppState\"\n{\n\t\"appid\"\t\t\"400\"\n\t\"name\"\t\t\"Portal\"\n\t\"StateFlags\"\t\t\"4\"\n}\n"
+        try acf.write(to: steamapps.appendingPathComponent("appmanifest_400.acf"), atomically: true, encoding: .utf8)
+        let art = steam.appendingPathComponent("appcache/librarycache/400")
+        try FileManager.default.createDirectory(at: art, withIntermediateDirectories: true)
+        try Data([0xFF, 0xD8]).write(to: art.appendingPathComponent("library_600x900.jpg"))
+
+        let covers = StoreLibrary.shared.steamGames(in: prefix).first?.coverURLs ?? []
+        XCTAssertEqual(covers.first, art.appendingPathComponent("library_600x900.jpg"))
+    }
+
     func testSkipsSteamworksRedistributable() {
         let acf = """
         "AppState"
