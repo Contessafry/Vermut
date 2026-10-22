@@ -245,8 +245,18 @@ public final class StoreLibrary: @unchecked Sendable {
     }
 
     public func steamGames(in prefixURL: URL) -> [InstalledGame] {
-        steamappsDirectories(in: prefixURL).flatMap { steamapps in
+        let roots = steamRoots(in: prefixURL)
+        return steamappsDirectories(in: prefixURL).flatMap { steamapps in
             (try? parseSteamapps(steamapps)) ?? []
+        }.map { game in
+            InstalledGame(
+                store: game.store,
+                appId: game.appId,
+                name: game.name,
+                installDir: game.installDir,
+                coverURLs: steamCoverURLs(for: game, roots: roots),
+                isInstalled: game.isInstalled
+            )
         }
     }
 
@@ -266,13 +276,17 @@ public final class StoreLibrary: @unchecked Sendable {
         "228980", "1070560", "1391110", "1628350", "2180100", "1493710", "1887720"
     ]
 
+    private func steamRoots(in prefixURL: URL) -> [URL] {
+        [
+            prefixURL.appendingPathComponent("drive_c/Program Files (x86)/Steam"),
+            prefixURL.appendingPathComponent("drive_c/Program Files/Steam")
+        ].filter { fileManager.fileExists(atPath: $0.path) }
+    }
+
     private func steamappsDirectories(in prefixURL: URL) -> [URL] {
         var seen = Set<String>()
         var result: [URL] = []
-        let defaults = [
-            prefixURL.appendingPathComponent("drive_c/Program Files (x86)/Steam/steamapps"),
-            prefixURL.appendingPathComponent("drive_c/Program Files/Steam/steamapps")
-        ]
+        let defaults = steamRoots(in: prefixURL).map { $0.appendingPathComponent("steamapps") }
         for url in defaults where fileManager.fileExists(atPath: url.path) {
             if seen.insert(url.path).inserted { result.append(url) }
         }
@@ -310,6 +324,33 @@ public final class StoreLibrary: @unchecked Sendable {
             $0.pathExtension == "acf" && $0.lastPathComponent.hasPrefix("appmanifest_")
         }
         return acfFiles.compactMap { parseSteamACF($0) }
+    }
+
+    private func steamCoverURLs(for game: InstalledGame, roots: [URL]) -> [URL] {
+        guard !game.appId.isEmpty, game.appId.allSatisfy({ $0.isASCII && $0.isNumber }) else {
+            return game.coverURLs
+        }
+        let caches = roots.map {
+            $0.appendingPathComponent("appcache/librarycache/\(game.appId)", isDirectory: true)
+        }
+        let portraits = localSteamArt(in: caches, named: ["library_600x900.jpg", "library_capsule.jpg"])
+        let headers = localSteamArt(in: caches, named: ["header.jpg", "library_header.jpg"])
+        return portraits + game.coverURLs + headers
+    }
+
+    private func localSteamArt(in caches: [URL], named names: [String]) -> [URL] {
+        caches.flatMap { cache -> [URL] in
+            let hashed = ((try? fileManager.contentsOfDirectory(
+                at: cache,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )) ?? [])
+                .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            return names.flatMap { name in
+                ([cache] + hashed).map { $0.appendingPathComponent(name) }
+            }
+        }.filter { fileManager.fileExists(atPath: $0.path) }
     }
 
     public func parseSteamACF(_ url: URL) -> InstalledGame? {
