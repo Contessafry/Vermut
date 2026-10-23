@@ -2,6 +2,23 @@ import SwiftUI
 import AppKit
 import CaskLauncherCore
 
+/// Sendable cancel flag for the background trash worker.
+private final class UninstallCancelFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return _cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        _cancelled = true
+        lock.unlock()
+    }
+}
+
 /// Multi-step Uninstall Vermut sheet (selection → processes → confirm → progress → done).
 struct UninstallFlowView: View {
     @EnvironmentObject var appState: AppState
@@ -19,8 +36,22 @@ struct UninstallFlowView: View {
     @State private var progressIndex = 0
     @State private var progressTotal = 0
     @State private var cancelRequested = false
+    @State private var cancelFlag: UninstallCancelFlag?
     @State private var summary: UninstallRunSummary?
     @State private var bottlesExpanded = false
+
+    /// Sendable cancel flag for the background trash worker.
+    private final class UninstallCancelFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _cancelled = false
+        var isCancelled: Bool {
+            lock.lock(); defer { lock.unlock() }
+            return _cancelled
+        }
+        func cancel() {
+            lock.lock(); _cancelled = true; lock.unlock()
+        }
+    }
 
     private enum Step: Equatable {
         case selection
@@ -608,6 +639,7 @@ struct UninstallFlowView: View {
                 Spacer()
                 Button(String(localized: "Cancel", comment: "Cancel mid-uninstall")) {
                     cancelRequested = true
+                    cancelFlag?.cancel()
                 }
                 .buttonStyle(VermutButtonStyle(kind: .outline))
                 .disabled(cancelRequested)
@@ -944,6 +976,7 @@ struct UninstallFlowView: View {
     private func beginRemovalAfterConfirm() {
         guard let plan else { return }
         cancelRequested = false
+        let cancelFlag = UninstallCancelFlag()
         step = .progress
         progressLabel = String(localized: "Removing…", comment: "Removing progress")
         Task {
@@ -966,12 +999,14 @@ struct UninstallFlowView: View {
                             }
                         }
                     },
-                    isCancelled: { cancelRequested }
+                    isCancelled: { cancelFlag.isCancelled }
                 )
             }.value
             summary = result
             step = .done
         }
+        // Keep UI flag and sendable flag in sync when the user cancels.
+        self.cancelFlag = cancelFlag
     }
 
     // MARK: - Helpers
