@@ -126,6 +126,8 @@ public final class PathManager: @unchecked Sendable {
     }
     
     public func ensureDirectoriesExist() throws {
+        // Uninstall wipe: do not recreate empty bottles/engines/cache/covers after trash.
+        if UninstallPersistenceGate.writesSuppressed { return }
         let directories = [
             appSupportURL,
             enginesURL,

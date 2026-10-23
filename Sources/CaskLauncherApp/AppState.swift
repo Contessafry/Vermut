@@ -65,6 +65,10 @@ final class AppState: ObservableObject {
     @Published var customBottles: [CustomBottle] = []
     @Published var customBottleRunning: Set<UUID> = []
     @Published var showingNewBottleSheet = false
+    /// Uninstall Vermut sheet (menu + Settings › General).
+    @Published var showingUninstallSheet = false
+    /// After uninstall wipe starts / Done: skip Wine quit cleanup; block config/dir recreation.
+    @Published var isUninstallComplete = false
     /// One-shot Steam launch hang recovery (main/login window timeout).
     var steamLaunchWindowRecoveryUsed = false
     var steamWindowWatchTask: Task<Void, Never>?
@@ -198,6 +202,10 @@ final class AppState: ObservableObject {
     }
 
     func checkSetup() async {
+        if isUninstallComplete || UninstallPersistenceGate.writesSuppressed {
+            isCheckingSetup = false
+            return
+        }
         setupFailed = false
         errorMessage = nil
         // Keep the last known ready state so Onboarding does not flash while we check.
@@ -229,20 +237,30 @@ final class AppState: ObservableObject {
             }
 
             if !SystemSetup.shared.checkWineInstalled() {
+                if isUninstallComplete || UninstallPersistenceGate.writesSuppressed {
+                    isCheckingSetup = false
+                    return
+                }
                 setupPhase = .engine
                 setupMessage = "Downloading Wine 11 with DXMT…"
                 try await SystemSetup.shared.downloadDefaultEngine { [weak self] progress in
                     Task { @MainActor in
+                        if self?.isUninstallComplete == true { return }
                         self?.setupProgress = progress * 0.7
                     }
                 }
             }
 
             if !SystemSetup.shared.checkDXMTInstalled() {
+                if isUninstallComplete || UninstallPersistenceGate.writesSuppressed {
+                    isCheckingSetup = false
+                    return
+                }
                 setupPhase = .engine
                 setupMessage = "Downloading DXMT…"
                 try await SystemSetup.shared.downloadDXMT { [weak self] progress in
                     Task { @MainActor in
+                        if self?.isUninstallComplete == true { return }
                         self?.setupProgress = 0.7 + (progress * 0.3)
                     }
                 }
@@ -1094,6 +1112,7 @@ final class AppState: ObservableObject {
     }
 
     func saveConfiguration() {
+        if isUninstallComplete || UninstallPersistenceGate.writesSuppressed { return }
         do {
             configuration.defaultDXMTVersion = ComponentVersion.canonicalTag(configuration.defaultDXMTVersion)
             try ConfigurationManager.shared.saveConfiguration(configuration)
@@ -1103,6 +1122,28 @@ final class AppState: ObservableObject {
         } catch {
             errorMessage = "Failed to save configuration: \(error.localizedDescription)"
         }
+    }
+
+    /// Stop background install/status work and latch persistence so wipe leftovers are not recreated.
+    func prepareForUninstallWipe() {
+        isUninstallComplete = true
+        // Suppress post-wipe recreation. Done → Quit also calls armImmediateExit();
+        // the delegate hard-exits when either latch is set (AppKit terminate is unreliable).
+        UninstallPersistenceGate.beginWipe()
+        for store in GameStore.allCases {
+            installTasks[store]?.cancel()
+            installTasks[store] = nil
+            WineManager.shared.cancelInstall(for: store)
+        }
+        for download in Array(gameDownloads.values) {
+            cancelEpicGameDownload(download)
+        }
+        statusTask?.cancel()
+        statusTask = nil
+        sessionCheckTask?.cancel()
+        sessionCheckTask = nil
+        steamWindowWatchTask?.cancel()
+        steamWindowWatchTask = nil
     }
 
     func saveBottle(_ config: BottleConfiguration, for store: GameStore) {

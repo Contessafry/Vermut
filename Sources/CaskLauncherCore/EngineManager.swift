@@ -16,6 +16,7 @@ public final class EngineManager: @unchecked Sendable {
     }
 
     public func downloadEngine(_ engine: WineEngine, progress: @escaping @Sendable (Double) -> Void) async throws {
+        if UninstallPersistenceGate.writesSuppressed { throw CancellationError() }
         let engineURL = PathManager.shared.engineURL(for: engine)
         if EngineLayout.resolve(installRoot: engineURL) != nil {
             progress(1.0)
@@ -32,6 +33,7 @@ public final class EngineManager: @unchecked Sendable {
             progress: progress
         )
 
+        if UninstallPersistenceGate.writesSuppressed { throw CancellationError() }
         if fileManager.fileExists(atPath: engineURL.path) {
             try fileManager.removeItem(at: engineURL)
         }
@@ -56,6 +58,7 @@ public final class EngineManager: @unchecked Sendable {
         activate: Bool = true,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
+        if UninstallPersistenceGate.writesSuppressed { throw CancellationError() }
         let manager = DXMTVersionManager.shared
         let preferred = tag.map(ComponentVersion.canonicalTag) ?? DXMTVersionManager.defaultVersionTag
         let dxmtURL = manager.installURL(for: preferred)

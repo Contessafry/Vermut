@@ -183,6 +183,10 @@ struct AppShell: View {
             NewBottleSheet()
                 .environmentObject(appState)
         }
+        .sheet(isPresented: $appState.showingUninstallSheet) {
+            UninstallFlowView()
+                .environmentObject(appState)
+        }
     }
 
     @ViewBuilder
