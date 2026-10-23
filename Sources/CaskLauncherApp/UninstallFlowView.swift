@@ -40,19 +40,6 @@ struct UninstallFlowView: View {
     @State private var summary: UninstallRunSummary?
     @State private var bottlesExpanded = false
 
-    /// Sendable cancel flag for the background trash worker.
-    private final class UninstallCancelFlag: @unchecked Sendable {
-        private let lock = NSLock()
-        private var _cancelled = false
-        var isCancelled: Bool {
-            lock.lock(); defer { lock.unlock() }
-            return _cancelled
-        }
-        func cancel() {
-            lock.lock(); _cancelled = true; lock.unlock()
-        }
-    }
-
     private enum Step: Equatable {
         case selection
         case processes
@@ -658,15 +645,15 @@ struct UninstallFlowView: View {
 
     private var doneStep: some View {
         Group {
-            if let summary, summary.hasFailures {
-                failureDone(summary)
+            if let runSummary = summary, runSummary.hasFailures {
+                failureDone(runSummary)
             } else {
                 successDone(summary)
             }
         }
     }
 
-    private func successDone(_ summary: UninstallRunSummary?) -> some View {
+    private func successDone(_ runSummary: UninstallRunSummary?) -> some View {
         VStack(alignment: .leading, spacing: VermutSpace.s4) {
             HStack(spacing: VermutSpace.s2) {
                 Image(systemName: "checkmark.circle.fill")
@@ -679,7 +666,7 @@ struct UninstallFlowView: View {
                 String(localized: "%@ moved to the Trash", comment: "Bytes moved to trash")
                     .replacingOccurrences(
                         of: "%@",
-                        with: UninstallSizeCalculator.formattedByteCount(summary?.removedByteCount ?? 0)
+                        with: UninstallSizeCalculator.formattedByteCount(runSummary?.removedByteCount ?? 0)
                     )
                 + ". "
                 + String(
@@ -692,7 +679,7 @@ struct UninstallFlowView: View {
             .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(summary?.successResults ?? []) { item in
+                ForEach(runSummary?.successResults ?? []) { item in
                     HStack {
                         Image(systemName: "checkmark")
                             .foregroundStyle(Color.Vermut.success)
@@ -718,11 +705,11 @@ struct UninstallFlowView: View {
                     .strokeBorder(Color.Vermut.border, lineWidth: 1)
             )
 
-            if let summary, summary.keptBottleCount > 0, let path = summary.keptBottlesPath {
+            if let runSummary, runSummary.keptBottleCount > 0, let path = runSummary.keptBottlesPath {
                 HStack(alignment: .top, spacing: VermutSpace.s2) {
                     Text(
                         String(
-                            localized: "Kept: \(summary.keptBottleCount) bottles (\(UninstallSizeCalculator.formattedByteCount(summary.keptBottleBytes))) in \(path.path)",
+                            localized: "Kept: \(runSummary.keptBottleCount) bottles (\(UninstallSizeCalculator.formattedByteCount(runSummary.keptBottleBytes))) in \(path.path)",
                             comment: "Kept bottles summary"
                         )
                     )
@@ -761,7 +748,7 @@ struct UninstallFlowView: View {
             HStack {
                 Spacer()
                 Button(String(localized: "Quit Vermut", comment: "Quit after uninstall")) {
-                    NSApplication.shared.terminate(nil)
+                    quitAfterUninstall()
                 }
                 .buttonStyle(VermutButtonStyle(kind: .primary))
                 .keyboardShortcut(.defaultAction)
@@ -770,7 +757,7 @@ struct UninstallFlowView: View {
         .padding(VermutSpace.s6)
     }
 
-    private func failureDone(_ summary: UninstallRunSummary) -> some View {
+    private func failureDone(_ runSummary: UninstallRunSummary) -> some View {
         VStack(alignment: .leading, spacing: VermutSpace.s4) {
             HStack(spacing: VermutSpace.s2) {
                 Image(systemName: "xmark.octagon.fill")
@@ -787,7 +774,7 @@ struct UninstallFlowView: View {
             .foregroundStyle(Color.Vermut.mutedForeground)
 
             VStack(alignment: .leading, spacing: VermutSpace.s3) {
-                ForEach(summary.failureResults) { item in
+                ForEach(runSummary.failureResults) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(item.displayName)
@@ -816,14 +803,14 @@ struct UninstallFlowView: View {
 
             HStack(spacing: VermutSpace.s2) {
                 Button(String(localized: "Show in Finder", comment: "Show failed item")) {
-                    if let url = summary.failureResults.first?.revealURL {
+                    if let url = runSummary.failureResults.first?.revealURL {
                         NSWorkspace.shared.activateFileViewerSelecting([url])
                     }
                 }
                 .buttonStyle(VermutButtonStyle(kind: .outline))
                 Button(String(localized: "Try Again", comment: "Retry uninstall")) {
                     step = .selection
-                    summary = nil
+                    self.summary = nil
                     Task { await loadPlan() }
                 }
                 .buttonStyle(VermutButtonStyle(kind: .outline))
@@ -834,13 +821,19 @@ struct UninstallFlowView: View {
             HStack {
                 Spacer()
                 Button(String(localized: "Quit Vermut", comment: "Quit after uninstall")) {
-                    NSApplication.shared.terminate(nil)
+                    quitAfterUninstall()
                 }
                 .buttonStyle(VermutButtonStyle(kind: .primary))
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(VermutSpace.s6)
+    }
+
+    /// Marks uninstall complete so the app delegate returns `.terminateNow` (no Wine cleanup).
+    private func quitAfterUninstall() {
+        appState.isUninstallComplete = true
+        NSApplication.shared.terminate(nil)
     }
 
     // MARK: - Actions

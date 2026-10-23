@@ -67,6 +67,8 @@ final class AppState: ObservableObject {
     @Published var showingNewBottleSheet = false
     /// Uninstall Vermut sheet (menu + Settings › General).
     @Published var showingUninstallSheet = false
+    /// After a successful uninstall Done screen: skip Wine quit cleanup and terminate immediately.
+    @Published var isUninstallComplete = false
     /// One-shot Steam launch hang recovery (main/login window timeout).
     var steamLaunchWindowRecoveryUsed = false
     var steamWindowWatchTask: Task<Void, Never>?

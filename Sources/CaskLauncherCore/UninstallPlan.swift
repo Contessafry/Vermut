@@ -293,18 +293,20 @@ public enum UninstallPlanBuilder {
     public static func makeEnginesTarget(context: Context, selected: Bool) -> UninstallTarget {
         var urls: [URL] = []
         var names: [String] = []
-        for engine in WineEngine.allCases {
-            let url = context.enginesURL.appendingPathComponent(engine.id, isDirectory: true)
-            if context.fileManager.fileExists(atPath: url.path) {
-                urls.append(url)
-                names.append(engine.userFacingName)
+        // Trash the whole `engines/` tree so the empty parent is not left behind.
+        if context.fileManager.fileExists(atPath: context.enginesURL.path) {
+            urls.append(context.enginesURL)
+            for engine in WineEngine.allCases {
+                let url = context.enginesURL.appendingPathComponent(engine.id, isDirectory: true)
+                if context.fileManager.fileExists(atPath: url.path) {
+                    names.append(engine.userFacingName)
+                }
             }
-        }
-        for name in ["dxmt", "dxvk", "legendary"] {
-            let url = context.enginesURL.appendingPathComponent(name, isDirectory: true)
-            if context.fileManager.fileExists(atPath: url.path) {
-                urls.append(url)
-                names.append(name == "dxmt" ? "DXMT" : name == "dxvk" ? "DXVK" : "Legendary")
+            for name in ["dxmt", "dxvk", "legendary"] {
+                let url = context.enginesURL.appendingPathComponent(name, isDirectory: true)
+                if context.fileManager.fileExists(atPath: url.path) {
+                    names.append(name == "dxmt" ? "DXMT" : name == "dxvk" ? "DXVK" : "Legendary")
+                }
             }
         }
         let d3d = D3DMetalDetector.vermutLibraryURL(appSupport: context.appSupportURL)
@@ -400,6 +402,7 @@ public enum UninstallPlanBuilder {
 
     public static func makePreferencesTarget(context: Context, selected: Bool) -> UninstallTarget {
         var urls: [URL] = []
+        // Always include config.json when present (Select All wipe must remove it).
         if context.fileManager.fileExists(atPath: context.configURL.path) {
             urls.append(context.configURL)
         }
@@ -407,6 +410,9 @@ public enum UninstallPlanBuilder {
             home: context.home,
             fileManager: context.fileManager
         ).filter { context.fileManager.fileExists(atPath: $0.path) })
+        // `custom-bottles.json` follows bottle selection (see executor finalize), not Preferences alone.
+        var seen = Set<String>()
+        urls = urls.filter { seen.insert($0.standardizedFileURL.path).inserted }
         let bytes = urls.reduce(Int64(0)) {
             $0 + UninstallSizeCalculator.byteCount(of: $1, fileManager: context.fileManager)
         }

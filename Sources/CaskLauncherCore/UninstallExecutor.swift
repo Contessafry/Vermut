@@ -85,7 +85,7 @@ public enum UninstallExecutor {
         public var home: URL
         public var fileManager: FileManager
         public var clearUserDefaults: Bool
-        /// When true, schedule a detached helper to trash the .app after this PID exits.
+        /// When true, try trash then schedule a detached helper for the .app.
         public var scheduleAppHelper: Bool
         public var currentPID: Int32
 
@@ -109,6 +109,12 @@ public enum UninstallExecutor {
     public enum ProgressEvent: Sendable {
         case started(displayName: String, index: Int, total: Int)
         case finished(UninstallItemResult)
+    }
+
+    public enum AppRemovalResult: Sendable, Equatable {
+        case trashedNow
+        case deferredHelper
+        case failed(message: String)
     }
 
     /// Removal order: logs → caches → engines → bottles → preferences → app.
@@ -146,67 +152,23 @@ public enum UninstallExecutor {
 
             if target.requiresDetachedAppRemoval {
                 let appURL = target.urls.first ?? Bundle.main.bundleURL
-                if let reason = UninstallPathPolicy.validateForRemoval(
+                let (removal, item) = removeAppBundle(
                     appURL,
-                    allowedPrefixes: allowed,
-                    home: options.home
-                ) {
-                    let item = UninstallItemResult(
-                        targetID: target.id,
-                        displayName: target.displayName,
-                        byteCount: target.byteCount,
-                        outcome: .skipped,
-                        message: reason,
-                        revealURL: appURL
-                    )
-                    results.append(item)
-                    progress?(.finished(item))
-                    continue
+                    target: target,
+                    allowed: allowed,
+                    home: options.home,
+                    scheduleHelper: options.scheduleAppHelper,
+                    afterPID: options.currentPID,
+                    fileManager: options.fileManager
+                )
+                results.append(item)
+                if item.outcome == .removed || item.outcome == .deferredApp {
+                    removedBytes += target.byteCount
                 }
-                if options.scheduleAppHelper {
-                    let scheduled = scheduleDetachedAppTrash(
-                        appURL: appURL,
-                        afterPID: options.currentPID,
-                        fileManager: options.fileManager
-                    )
-                    if scheduled {
-                        deferredApp = appURL
-                        let item = UninstallItemResult(
-                            targetID: target.id,
-                            displayName: target.displayName,
-                            byteCount: target.byteCount,
-                            outcome: .deferredApp,
-                            message: "after quitting",
-                            revealURL: appURL
-                        )
-                        results.append(item)
-                        removedBytes += target.byteCount
-                        progress?(.finished(item))
-                    } else {
-                        let item = UninstallItemResult(
-                            targetID: target.id,
-                            displayName: target.displayName,
-                            byteCount: target.byteCount,
-                            outcome: .failed,
-                            message: "Vermut doesn't have permission to move Vermut.app to the Trash. Drag it to the Trash from Finder.",
-                            revealURL: appURL
-                        )
-                        results.append(item)
-                        progress?(.finished(item))
-                    }
-                } else {
-                    // Test / dry path: try trash immediately.
-                    let item = trashURLs(
-                        target.urls,
-                        target: target,
-                        allowed: allowed,
-                        home: options.home,
-                        fileManager: options.fileManager
-                    )
-                    results.append(item)
-                    if item.outcome == .removed { removedBytes += target.byteCount }
-                    progress?(.finished(item))
+                if case .deferredHelper = removal {
+                    deferredApp = appURL
                 }
+                progress?(.finished(item))
                 continue
             }
 
@@ -217,23 +179,16 @@ public enum UninstallExecutor {
                 UserDefaults.standard.synchronize()
             }
 
-            // When every custom bottle is selected, trash `custom-bottles.json` once
-            // with the first selected custom bottle target.
             var urls = target.urls
-            if target.category == .bottles, case .custom = target.bottleID {
-                let customs = plan.bottles.filter {
-                    if case .custom = $0.bottleID { return true }
-                    return false
-                }
-                let allCustomSelected = !customs.isEmpty && customs.allSatisfy(\.isSelected)
-                let isFirstSelectedCustom = customs.first(where: \.isSelected)?.id == target.id
-                if allCustomSelected && isFirstSelectedCustom {
-                    let index = options.appSupportURL.appendingPathComponent(
-                        CustomBottleStore.indexFileName
-                    )
-                    if options.fileManager.fileExists(atPath: index.path) {
-                        urls.append(index)
-                    }
+            // When every bottle is selected, also ensure custom-bottles.json goes with bottles.
+            if target.category == .bottles,
+               plan.bottles.allSatisfy(\.isSelected),
+               target.id == plan.bottles.first(where: \.isSelected)?.id {
+                let index = options.appSupportURL.appendingPathComponent(
+                    CustomBottleStore.indexFileName
+                )
+                if options.fileManager.fileExists(atPath: index.path) {
+                    urls.append(index)
                 }
             }
 
@@ -249,11 +204,12 @@ public enum UninstallExecutor {
             progress?(.finished(item))
         }
 
-        // Remove empty Vermut root if everything under it is gone.
         if !isCancelled() {
-            removeEmptyAppSupportIfNeeded(
+            finalizeAppSupportCleanup(
                 plan: plan,
                 appSupport: options.appSupportURL,
+                allowed: allowed,
+                home: options.home,
                 fileManager: options.fileManager
             )
         }
@@ -272,6 +228,103 @@ public enum UninstallExecutor {
         )
     }
 
+    // MARK: - App bundle
+
+    /// Prefer live `trashItem` when writable; otherwise schedule a helper that `mv`s into `~/.Trash`
+    /// (no Finder AppleEvents — Automation -1743).
+    public static func removeAppBundle(
+        _ appURL: URL,
+        target: UninstallTarget,
+        allowed: [URL],
+        home: URL,
+        scheduleHelper: Bool,
+        afterPID: Int32,
+        fileManager: FileManager
+    ) -> (removal: AppRemovalResult, item: UninstallItemResult) {
+        if let reason = UninstallPathPolicy.validateForRemoval(
+            appURL,
+            allowedPrefixes: allowed,
+            home: home
+        ) {
+            return (
+                .failed(message: reason),
+                UninstallItemResult(
+                    targetID: target.id,
+                    displayName: target.displayName,
+                    byteCount: target.byteCount,
+                    outcome: .skipped,
+                    message: reason,
+                    revealURL: appURL
+                )
+            )
+        }
+
+        // 1) Try trash while still running (works when the bundle is writable / not locked).
+        do {
+            var resulting: NSURL?
+            try fileManager.trashItem(at: appURL, resultingItemURL: &resulting)
+            return (
+                .trashedNow,
+                UninstallItemResult(
+                    targetID: target.id,
+                    displayName: target.displayName,
+                    byteCount: target.byteCount,
+                    outcome: .removed,
+                    message: nil,
+                    revealURL: nil
+                )
+            )
+        } catch {
+            // Fall through to helper — common when the running binary locks the bundle.
+        }
+
+        guard scheduleHelper else {
+            let message =
+                "Vermut doesn't have permission to move Vermut.app to the Trash. Drag it to the Trash from Finder."
+            return (
+                .failed(message: message),
+                UninstallItemResult(
+                    targetID: target.id,
+                    displayName: target.displayName,
+                    byteCount: target.byteCount,
+                    outcome: .failed,
+                    message: message,
+                    revealURL: appURL
+                )
+            )
+        }
+
+        if scheduleDetachedAppTrash(appURL: appURL, afterPID: afterPID, fileManager: fileManager) {
+            return (
+                .deferredHelper,
+                UninstallItemResult(
+                    targetID: target.id,
+                    displayName: target.displayName,
+                    byteCount: target.byteCount,
+                    outcome: .deferredApp,
+                    message: "after quitting",
+                    revealURL: appURL
+                )
+            )
+        }
+
+        let message =
+            "Vermut doesn't have permission to move Vermut.app to the Trash. Drag it to the Trash from Finder."
+        return (
+            .failed(message: message),
+            UninstallItemResult(
+                targetID: target.id,
+                displayName: target.displayName,
+                byteCount: target.byteCount,
+                outcome: .failed,
+                message: message,
+                revealURL: appURL
+            )
+        )
+    }
+
+    // MARK: - Trash helpers
+
     private static func trashURLs(
         _ urls: [URL],
         target: UninstallTarget,
@@ -285,8 +338,6 @@ public enum UninstallExecutor {
         var anySkipped = false
 
         for url in urls {
-            // Special-case: if a bottle tree contains dosdevices/z:, trash the bottle root;
-            // FileManager moves the symlink as a link. Still validate the root.
             if let reason = UninstallPathPolicy.validateForRemoval(
                 url,
                 allowedPrefixes: allowed,
@@ -297,13 +348,11 @@ public enum UninstallExecutor {
                 reveal = url
                 continue
             }
-            // If the path is a symlink (including z:), trash the link node only.
             do {
                 var resulting: NSURL?
                 try fileManager.trashItem(at: url, resultingItemURL: &resulting)
                 anyRemoved = true
             } catch {
-                // Permission / in use
                 let ns = error as NSError
                 if ns.domain == NSCocoaErrorDomain, ns.code == NSFileWriteNoPermissionError
                     || ns.code == NSFileReadNoPermissionError {
@@ -338,7 +387,6 @@ public enum UninstallExecutor {
             )
         }
         if let lastError, anyRemoved {
-            // Partial success still counts as failed row with note.
             return UninstallItemResult(
                 targetID: target.id,
                 displayName: target.displayName,
@@ -358,51 +406,96 @@ public enum UninstallExecutor {
         )
     }
 
-    private static func removeEmptyAppSupportIfNeeded(
+    /// After selected removals: drop residual whitelist files / empty dirs, then the root if empty.
+    public static func finalizeAppSupportCleanup(
         plan: UninstallPlan,
         appSupport: URL,
+        allowed: [URL],
+        home: URL,
         fileManager: FileManager
     ) {
-        // Only when bottles are all selected (or none existed) and other categories selected.
-        let bottlesOk = plan.bottles.isEmpty || plan.bottles.allSatisfy(\.isSelected)
-        guard bottlesOk,
-              plan.engines.isSelected,
-              plan.caches.isSelected,
-              plan.preferences.isSelected else { return }
+        let bottlesAllSelected = plan.bottles.isEmpty || plan.bottles.allSatisfy(\.isSelected)
+        let fullDataWipe = bottlesAllSelected
+            && plan.engines.isSelected
+            && plan.caches.isSelected
+            && plan.preferences.isSelected
+
         guard fileManager.fileExists(atPath: appSupport.path) else { return }
-        let remaining = (try? fileManager.contentsOfDirectory(
+
+        func trashIfSafe(_ url: URL) {
+            guard fileManager.fileExists(atPath: url.path) else { return }
+            if UninstallPathPolicy.validateForRemoval(
+                url,
+                allowedPrefixes: allowed,
+                home: home
+            ) != nil {
+                return
+            }
+            var resulting: NSURL?
+            try? fileManager.trashItem(at: url, resultingItemURL: &resulting)
+        }
+
+        if plan.preferences.isSelected {
+            trashIfSafe(appSupport.appendingPathComponent("config.json"))
+            if bottlesAllSelected {
+                trashIfSafe(appSupport.appendingPathComponent(CustomBottleStore.indexFileName))
+            }
+        }
+
+        if bottlesAllSelected {
+            trashIfSafe(appSupport.appendingPathComponent("bottles", isDirectory: true))
+        }
+
+        if plan.engines.isSelected {
+            trashIfSafe(appSupport.appendingPathComponent("engines", isDirectory: true))
+            trashIfSafe(D3DMetalDetector.vermutLibraryURL(appSupport: appSupport))
+        }
+
+        if plan.caches.isSelected {
+            trashIfSafe(appSupport.appendingPathComponent("cache", isDirectory: true))
+        }
+
+        guard fullDataWipe else { return }
+
+        // Force-clean any remaining whitelist children (empty dirs, stray files).
+        if let remaining = try? fileManager.contentsOfDirectory(
+            at: appSupport,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            for url in remaining {
+                trashIfSafe(url)
+            }
+        }
+
+        let stillThere = (try? fileManager.contentsOfDirectory(
             at: appSupport,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )) ?? []
-        if remaining.isEmpty {
-            var resulting: NSURL?
-            try? fileManager.trashItem(at: appSupport, resultingItemURL: &resulting)
+        if stillThere.isEmpty {
+            trashIfSafe(appSupport)
         }
     }
 
-    /// Writes a tiny `/tmp` shell script that waits for PID exit then asks Finder to trash the app.
+    /// `/tmp` shell helper: wait for PID exit, then `mv` the .app into `~/.Trash` (no Finder AE).
     @discardableResult
     public static func scheduleDetachedAppTrash(
         appURL: URL,
         afterPID: Int32,
         fileManager: FileManager = .default
     ) -> Bool {
-        // Refuse obviously non-writable / foreign locations without trying.
-        let path = appURL.path
-        guard path.hasSuffix(".app") || appURL.pathExtension == "app" else { return false }
+        guard appURL.pathExtension == "app" || appURL.path.hasSuffix(".app") else { return false }
         if UninstallPathPolicy.isHardExcluded(appURL) { return false }
 
         let scriptName = "vermut-uninstall-\(afterPID).sh"
         let scriptURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(scriptName)
-        let escapedApp = appURL.path
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedApp = shellEscape(appURL.path)
         let script = """
         #!/bin/sh
-        # Vermut uninstall helper — waits for the app PID, then moves the bundle to Trash via Finder.
+        # Vermut uninstall helper — wait for app PID, then move bundle into ~/.Trash (no Finder).
         pid=\(afterPID)
-        app="\(escapedApp)"
+        app=\(escapedApp)
         i=0
         while kill -0 "$pid" 2>/dev/null; do
           i=$((i+1))
@@ -415,7 +508,16 @@ public enum UninstallExecutor {
         if [ ! -e "$app" ]; then
           exit 0
         fi
-        /usr/bin/osascript -e "tell application \\"Finder\\" to delete (POSIX file \\"$app\\")" >/dev/null 2>&1
+        trash_dir="${HOME}/.Trash"
+        /bin/mkdir -p "$trash_dir" 2>/dev/null
+        base=$(/usr/bin/basename "$app")
+        dest="$trash_dir/$base"
+        n=1
+        while [ -e "$dest" ]; do
+          dest="$trash_dir/${base%.app} ${n}.app"
+          n=$((n+1))
+        done
+        /bin/mv "$app" "$dest"
         exit $?
         """
         do {
@@ -433,12 +535,15 @@ public enum UninstallExecutor {
         process.arguments = [scriptURL.path]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        // Detach: don't wait. Process must outlive Vermut.
         do {
             try process.run()
             return true
         } catch {
             return false
         }
+    }
+
+    private static func shellEscape(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }

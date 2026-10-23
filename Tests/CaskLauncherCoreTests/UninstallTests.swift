@@ -492,4 +492,110 @@ final class UninstallExecutorSafetyTests: XCTestCase {
         XCTAssertEqual(ids, ["logs", "caches", "engines", "bottle-steam", "preferences", "app"])
         _ = plan
     }
+
+    func testFinalizeCleansEmptyDirsConfigAndCustomIndex() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vermut-finalize-\(UUID().uuidString)", isDirectory: true)
+        let bottles = root.appendingPathComponent("bottles", isDirectory: true)
+        let engines = root.appendingPathComponent("engines", isDirectory: true)
+        try FileManager.default.createDirectory(at: bottles, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: engines, withIntermediateDirectories: true)
+        try "{}".data(using: .utf8)!.write(to: root.appendingPathComponent("config.json"))
+        try "[]".data(using: .utf8)!.write(
+            to: root.appendingPathComponent(CustomBottleStore.indexFileName)
+        )
+
+        let plan = UninstallPlan(
+            app: UninstallTarget(
+                id: "app", category: .app, displayName: "App", urls: [], isSelected: true
+            ),
+            bottles: [
+                UninstallTarget(
+                    id: "bottle-steam",
+                    category: .bottles,
+                    bottleID: .store("steam"),
+                    displayName: "Steam",
+                    urls: [bottles.appendingPathComponent("steam")],
+                    isSelected: true
+                )
+            ],
+            engines: UninstallTarget(
+                id: "engines", category: .engines, displayName: "Engines",
+                urls: [engines], isSelected: true
+            ),
+            caches: UninstallTarget(
+                id: "caches", category: .caches, displayName: "Caches", urls: [], isSelected: true
+            ),
+            logs: UninstallTarget(
+                id: "logs", category: .logs, displayName: "Logs", urls: [], isSelected: true
+            ),
+            preferences: UninstallTarget(
+                id: "preferences", category: .preferences, displayName: "Preferences",
+                urls: [root.appendingPathComponent("config.json")], isSelected: true
+            )
+        )
+
+        let allowed = UninstallPathPolicy.allowedPrefixes(
+            appSupport: root,
+            appBundle: nil,
+            home: root
+        )
+        #if os(macOS)
+        UninstallExecutor.finalizeAppSupportCleanup(
+            plan: plan,
+            appSupport: root,
+            allowed: allowed,
+            home: root,
+            fileManager: .default
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+        #else
+        _ = (plan, allowed)
+        try? FileManager.default.removeItem(at: root)
+        #endif
+    }
+
+    func testDetachedHelperScriptAvoidsFinderAutomation() throws {
+        let app = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Vermut-HelperTest-\(UUID().uuidString).app", isDirectory: true)
+        try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
+        // Unlikely-alive PID so the helper exits quickly after scheduling.
+        let pid: Int32 = 1_999_000_001
+        XCTAssertTrue(
+            UninstallExecutor.scheduleDetachedAppTrash(appURL: app, afterPID: pid)
+        )
+        let script = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("vermut-uninstall-\(pid).sh")
+        let text = try String(contentsOf: script, encoding: .utf8)
+        XCTAssertFalse(text.contains("osascript"), "Finder AE causes Automation -1743")
+        XCTAssertFalse(text.contains("Finder"))
+        XCTAssertTrue(text.contains("/.Trash"))
+        XCTAssertTrue(text.contains("/bin/mv"))
+        // Give the helper a moment, then clean leftovers if still present.
+        Thread.sleep(forTimeInterval: 0.6)
+        try? FileManager.default.removeItem(at: app)
+        try? FileManager.default.removeItem(at: script)
+    }
+
+    func testPreferencesPlanIncludesConfigJSON() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vermut-prefs-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let config = root.appendingPathComponent("config.json")
+        try "{}".data(using: .utf8)!.write(to: config)
+        let prefs = UninstallPlanBuilder.makePreferencesTarget(
+            context: UninstallPlanBuilder.Context(
+                appSupportURL: root,
+                bottlesURL: root.appendingPathComponent("bottles"),
+                enginesURL: root.appendingPathComponent("engines"),
+                cacheURL: root.appendingPathComponent("cache"),
+                configURL: config,
+                appBundleURL: nil,
+                home: root
+            ),
+            selected: true
+        )
+        XCTAssertTrue(prefs.urls.contains(where: { $0.lastPathComponent == "config.json" }))
+        try? FileManager.default.removeItem(at: root)
+    }
 }
