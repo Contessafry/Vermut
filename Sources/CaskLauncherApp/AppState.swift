@@ -1127,6 +1127,8 @@ final class AppState: ObservableObject {
     /// Stop background install/status work and latch persistence so wipe leftovers are not recreated.
     func prepareForUninstallWipe() {
         isUninstallComplete = true
+        // Suppress post-wipe recreation. Done → Quit also calls armImmediateExit();
+        // the delegate hard-exits when either latch is set (AppKit terminate is unreliable).
         UninstallPersistenceGate.beginWipe()
         for store in GameStore.allCases {
             installTasks[store]?.cancel()

@@ -551,6 +551,30 @@ final class UninstallExecutorSafetyTests: XCTestCase {
         XCTAssertFalse(UninstallPersistenceGate.writesSuppressed)
         UninstallPersistenceGate.beginWipe()
         XCTAssertTrue(UninstallPersistenceGate.writesSuppressed)
+        XCTAssertFalse(
+            UninstallPersistenceGate.immediateExitArmed,
+            "beginWipe alone must not arm hard-exit (normal Quit after cancel)"
+        )
+    }
+
+    func testImmediateExitArmIsProcessLocalAndIndependentOfAppState() {
+        UninstallPersistenceGate.resetForTests()
+        defer { UninstallPersistenceGate.resetForTests() }
+        XCTAssertFalse(UninstallPersistenceGate.immediateExitArmed)
+        XCTAssertFalse(UninstallPersistenceGate.shouldSkipWineCleanupAndExit)
+        UninstallPersistenceGate.armImmediateExit()
+        XCTAssertTrue(UninstallPersistenceGate.immediateExitArmed)
+        XCTAssertTrue(UninstallPersistenceGate.writesSuppressed)
+        XCTAssertTrue(UninstallPersistenceGate.shouldSkipWineCleanupAndExit)
+    }
+
+    func testBeginWipeImpliesSkipWineCleanupWithoutArmingExitYet() {
+        UninstallPersistenceGate.resetForTests()
+        defer { UninstallPersistenceGate.resetForTests() }
+        UninstallPersistenceGate.beginWipe()
+        // Delegate may hard-exit when writes are suppressed (wipe already ran).
+        XCTAssertTrue(UninstallPersistenceGate.shouldSkipWineCleanupAndExit)
+        XCTAssertFalse(UninstallPersistenceGate.immediateExitArmed)
     }
 
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Darwin
 import CaskLauncherCore
 
 /// Sendable cancel flag for the background trash worker.
@@ -838,11 +839,15 @@ struct UninstallFlowView: View {
         .padding(VermutSpace.s6)
     }
 
-    /// Normal quit after data wipe (no helper / no hard exit).
+    /// Quit after data wipe. AppKit `terminate` / `.terminateNow` left the PID alive in
+    /// Mac QA (AE -128); arm a process-local latch then hard-exit. Normal menu Quit is
+    /// unchanged until wipe/Done arms the gate.
     private func quitAfterUninstall() {
         appState.isUninstallComplete = true
-        UninstallPersistenceGate.beginWipe()
+        UninstallPersistenceGate.armImmediateExit()
+        // Try polite terminate first (delegate also exits when the gate is armed).
         NSApplication.shared.terminate(nil)
+        exit(EXIT_SUCCESS)
     }
 
     // MARK: - Actions
