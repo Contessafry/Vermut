@@ -19,16 +19,15 @@ final class UninstallPathPolicyTests: XCTestCase {
         XCTAssertTrue(paths.contains("/Applications/Steam.app"))
     }
 
-    func testWhitelistAllowsVermutAppSupportAndBundle() {
+    func testWhitelistAllowsVermutAppSupport() {
         let home = URL(fileURLWithPath: "/tmp/vermut-home-\(UUID().uuidString)", isDirectory: true)
         let appSupport = home.appendingPathComponent(
             "Library/Application Support/Vermut",
             isDirectory: true
         )
-        let bundle = URL(fileURLWithPath: "/Applications/Vermut.app", isDirectory: true)
         let allowed = UninstallPathPolicy.allowedPrefixes(
             appSupport: appSupport,
-            appBundle: bundle,
+            appBundle: nil,
             home: home
         )
         XCTAssertTrue(
@@ -36,9 +35,6 @@ final class UninstallPathPolicyTests: XCTestCase {
                 appSupport.appendingPathComponent("engines"),
                 allowedPrefixes: allowed
             )
-        )
-        XCTAssertTrue(
-            UninstallPathPolicy.isWithinWhitelist(bundle, allowedPrefixes: allowed)
         )
         XCTAssertFalse(
             UninstallPathPolicy.isWithinWhitelist(
@@ -100,7 +96,6 @@ final class UninstallPathPolicyTests: XCTestCase {
             appBundle: nil,
             home: home
         )
-        // Link itself is allowed (removal of the link); target `/` is never followed.
         XCTAssertNil(
             UninstallPathPolicy.validateForRemoval(z, allowedPrefixes: allowed, home: home)
         )
@@ -123,7 +118,6 @@ final class UninstallSizeCalculatorTests: XCTestCase {
         try payload.write(to: realFile)
 
         let z = dos.appendingPathComponent("z:")
-        // Symlink to `/` — size walk must not follow into the system root.
         try FileManager.default.createSymbolicLink(
             atPath: z.path,
             withDestinationPath: "/"
@@ -131,7 +125,6 @@ final class UninstallSizeCalculatorTests: XCTestCase {
 
         let bytes = UninstallSizeCalculator.byteCount(of: root)
         XCTAssertEqual(bytes, Int64(payload.count))
-        // Sanity: following `/` would be vastly larger.
         XCTAssertLessThan(bytes, 1_000_000)
         try? FileManager.default.removeItem(at: root)
     }
@@ -143,7 +136,7 @@ final class UninstallSizeCalculatorTests: XCTestCase {
 }
 
 final class UninstallPlanDefaultsTests: XCTestCase {
-    func testDefaultSelectionExcludesBottles() throws {
+    func testDefaultSelectionExcludesBottlesAndHasNoAppTarget() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("vermut-plan-\(UUID().uuidString)", isDirectory: true)
         let bottles = root.appendingPathComponent("bottles", isDirectory: true)
@@ -160,8 +153,6 @@ final class UninstallPlanDefaultsTests: XCTestCase {
             at: engines.appendingPathComponent("grapple-wine", isDirectory: true),
             withIntermediateDirectories: true
         )
-        let fakeApp = root.appendingPathComponent("Vermut.app", isDirectory: true)
-        try FileManager.default.createDirectory(at: fakeApp, withIntermediateDirectories: true)
 
         let plan = UninstallPlanBuilder.makeDefaultPlan(
             context: UninstallPlanBuilder.Context(
@@ -170,7 +161,6 @@ final class UninstallPlanDefaultsTests: XCTestCase {
                 enginesURL: engines,
                 cacheURL: cache,
                 configURL: root.appendingPathComponent("config.json"),
-                appBundleURL: fakeApp,
                 customBottles: [],
                 gameCountByStore: [.steam: 3],
                 home: root,
@@ -178,7 +168,6 @@ final class UninstallPlanDefaultsTests: XCTestCase {
             )
         )
 
-        XCTAssertTrue(plan.app.isSelected)
         XCTAssertTrue(plan.engines.isSelected)
         XCTAssertTrue(plan.caches.isSelected)
         XCTAssertTrue(plan.logs.isSelected)
@@ -188,6 +177,8 @@ final class UninstallPlanDefaultsTests: XCTestCase {
         XCTAssertFalse(plan.bottlesExpanded)
         XCTAssertEqual(plan.bottlesTriState, .off)
         XCTAssertEqual(plan.bottles.first?.detail, "3 games installed")
+        XCTAssertFalse(plan.allTargets.contains { $0.displayName == "Vermut app" })
+        XCTAssertFalse(UninstallCategory.allCases.map(\.rawValue).contains("app"))
 
         try? FileManager.default.removeItem(at: root)
     }
@@ -207,7 +198,6 @@ final class UninstallPlanDefaultsTests: XCTestCase {
                 enginesURL: root.appendingPathComponent("engines"),
                 cacheURL: root.appendingPathComponent("cache"),
                 configURL: root.appendingPathComponent("config.json"),
-                appBundleURL: root.appendingPathComponent("Vermut.app"),
                 home: root
             )
         )
@@ -238,7 +228,6 @@ final class UninstallPlanDefaultsTests: XCTestCase {
                 enginesURL: root.appendingPathComponent("engines"),
                 cacheURL: root.appendingPathComponent("cache"),
                 configURL: root.appendingPathComponent("config.json"),
-                appBundleURL: nil,
                 home: root
             )
         )
@@ -246,6 +235,27 @@ final class UninstallPlanDefaultsTests: XCTestCase {
         plan.setBottleSelected(id: .store("steam"), selected: true)
         XCTAssertEqual(plan.bottlesTriState, .mixed)
         XCTAssertTrue(plan.hasSelectedBottle)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testPreferencesPlanIncludesConfigJSON() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vermut-prefs-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let config = root.appendingPathComponent("config.json")
+        try "{}".data(using: .utf8)!.write(to: config)
+        let prefs = UninstallPlanBuilder.makePreferencesTarget(
+            context: UninstallPlanBuilder.Context(
+                appSupportURL: root,
+                bottlesURL: root.appendingPathComponent("bottles"),
+                enginesURL: root.appendingPathComponent("engines"),
+                cacheURL: root.appendingPathComponent("cache"),
+                configURL: config,
+                home: root
+            ),
+            selected: true
+        )
+        XCTAssertTrue(prefs.urls.contains(where: { $0.lastPathComponent == "config.json" }))
         try? FileManager.default.removeItem(at: root)
     }
 }
@@ -352,13 +362,6 @@ final class UninstallExecutorSafetyTests: XCTestCase {
             isSelected: true
         )
         let plan = UninstallPlan(
-            app: UninstallTarget(
-                id: "app",
-                category: .app,
-                displayName: "App",
-                urls: [],
-                isSelected: false
-            ),
             bottles: [],
             engines: UninstallTarget(
                 id: "engines",
@@ -389,8 +392,7 @@ final class UninstallExecutorSafetyTests: XCTestCase {
             options: UninstallExecutor.Options(
                 appSupportURL: root,
                 home: root,
-                clearUserDefaults: false,
-                scheduleAppHelper: false
+                clearUserDefaults: false
             )
         )
         XCTAssertTrue(summary.hasFailures)
@@ -409,9 +411,6 @@ final class UninstallExecutorSafetyTests: XCTestCase {
         try "{}".data(using: .utf8)!.write(to: file)
 
         let plan = UninstallPlan(
-            app: UninstallTarget(
-                id: "app", category: .app, displayName: "App", urls: [], isSelected: false
-            ),
             bottles: [],
             engines: UninstallTarget(
                 id: "engines", category: .engines, displayName: "Engines", urls: [], isSelected: false
@@ -441,26 +440,20 @@ final class UninstallExecutorSafetyTests: XCTestCase {
             options: UninstallExecutor.Options(
                 appSupportURL: root,
                 home: root,
-                clearUserDefaults: false,
-                scheduleAppHelper: false
+                clearUserDefaults: false
             )
         )
         #if os(macOS)
         XCTAssertFalse(summary.hasFailures)
         XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
         #else
-        // trashItem may be unavailable / behave differently off macOS; skip assert.
         _ = summary
         #endif
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testRemovalOrder() {
-        var plan = UninstallPlan(
-            app: UninstallTarget(
-                id: "app", category: .app, displayName: "App",
-                urls: [], isSelected: true, requiresDetachedAppRemoval: true
-            ),
+    func testRemovalOrderExcludesApp() {
+        let plan = UninstallPlan(
             bottles: [
                 UninstallTarget(
                     id: "bottle-steam",
@@ -489,8 +482,8 @@ final class UninstallExecutorSafetyTests: XCTestCase {
             )
         )
         let ids = UninstallExecutor.orderedTargets(from: plan).map(\.id)
-        XCTAssertEqual(ids, ["logs", "caches", "engines", "bottle-steam", "preferences", "app"])
-        _ = plan
+        XCTAssertEqual(ids, ["logs", "caches", "engines", "bottle-steam", "preferences"])
+        XCTAssertFalse(ids.contains("app"))
     }
 
     func testFinalizeCleansEmptyDirsConfigAndCustomIndex() throws {
@@ -506,9 +499,6 @@ final class UninstallExecutorSafetyTests: XCTestCase {
         )
 
         let plan = UninstallPlan(
-            app: UninstallTarget(
-                id: "app", category: .app, displayName: "App", urls: [], isSelected: true
-            ),
             bottles: [
                 UninstallTarget(
                     id: "bottle-steam",
@@ -555,47 +545,12 @@ final class UninstallExecutorSafetyTests: XCTestCase {
         #endif
     }
 
-    func testDetachedHelperScriptAvoidsFinderAutomation() throws {
-        let app = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Vermut-HelperTest-\(UUID().uuidString).app", isDirectory: true)
-        try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
-        // Unlikely-alive PID so the helper exits quickly after scheduling.
-        let pid: Int32 = 1_999_000_001
-        XCTAssertTrue(
-            UninstallExecutor.scheduleDetachedAppTrash(appURL: app, afterPID: pid)
-        )
-        let script = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("vermut-uninstall-\(pid).sh")
-        let text = try String(contentsOf: script, encoding: .utf8)
-        XCTAssertFalse(text.contains("osascript"), "Finder AE causes Automation -1743")
-        XCTAssertFalse(text.contains("Finder"))
-        XCTAssertTrue(text.contains("/.Trash"))
-        XCTAssertTrue(text.contains("/bin/mv"))
-        // Give the helper a moment, then clean leftovers if still present.
-        Thread.sleep(forTimeInterval: 0.6)
-        try? FileManager.default.removeItem(at: app)
-        try? FileManager.default.removeItem(at: script)
+    func testPersistenceGateBlocksConfigRewrite() {
+        UninstallPersistenceGate.resetForTests()
+        defer { UninstallPersistenceGate.resetForTests() }
+        XCTAssertFalse(UninstallPersistenceGate.writesSuppressed)
+        UninstallPersistenceGate.beginWipe()
+        XCTAssertTrue(UninstallPersistenceGate.writesSuppressed)
     }
 
-    func testPreferencesPlanIncludesConfigJSON() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vermut-prefs-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let config = root.appendingPathComponent("config.json")
-        try "{}".data(using: .utf8)!.write(to: config)
-        let prefs = UninstallPlanBuilder.makePreferencesTarget(
-            context: UninstallPlanBuilder.Context(
-                appSupportURL: root,
-                bottlesURL: root.appendingPathComponent("bottles"),
-                enginesURL: root.appendingPathComponent("engines"),
-                cacheURL: root.appendingPathComponent("cache"),
-                configURL: config,
-                appBundleURL: nil,
-                home: root
-            ),
-            selected: true
-        )
-        XCTAssertTrue(prefs.urls.contains(where: { $0.lastPathComponent == "config.json" }))
-        try? FileManager.default.removeItem(at: root)
-    }
 }

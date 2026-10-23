@@ -86,16 +86,13 @@ final class VermutAppDelegate: NSObject, NSApplicationDelegate {
     private var didReplyToTerminate = false
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Post-uninstall Done: Wine was already stopped (or never needed). Returning
-        // `.terminateLater` left users stuck on the sheet (AE -128 / cancelled quit).
+        // After a data wipe, prefixes are gone — skip Wine cleanup and quit immediately.
         if appState?.isUninstallComplete == true {
             appState?.noteQuitCleanupFinished()
             return .terminateNow
         }
 
         didReplyToTerminate = false
-        // Never block the main thread — cleanup runs detached with the terminator's
-        // ~10s budget; reply promptly either way (avoids AppleScript -1712).
         Task { @MainActor [weak self] in
             await Task.detached(priority: .userInitiated) {
                 WineManager.shared.stopAllVermutManagedProcesses()

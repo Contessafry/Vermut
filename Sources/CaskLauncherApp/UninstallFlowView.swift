@@ -19,7 +19,7 @@ private final class UninstallCancelFlag: @unchecked Sendable {
     }
 }
 
-/// Multi-step Uninstall Vermut sheet (selection → processes → confirm → progress → done).
+/// Multi-step sheet: remove Vermut **data** only. User quits and trashes `.app` manually.
 struct UninstallFlowView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -39,6 +39,8 @@ struct UninstallFlowView: View {
     @State private var cancelFlag: UninstallCancelFlag?
     @State private var summary: UninstallRunSummary?
     @State private var bottlesExpanded = false
+    /// True when user skipped data wipe and only wants the "drag app to Trash" tip.
+    @State private var tipOnlyDone = false
 
     private enum Step: Equatable {
         case selection
@@ -81,8 +83,8 @@ struct UninstallFlowView: View {
             }
         } message: {
             Text(String(
-                localized: "Items go to the Trash. Vermut will quit when it's done.",
-                comment: "Uninstall confirm body"
+                localized: "Selected items go to the Trash. You can quit Vermut and drag the app to the Trash afterward.",
+                comment: "Uninstall confirm body after product pivot"
             ))
         }
         .alert(
@@ -101,7 +103,7 @@ struct UninstallFlowView: View {
         }
     }
 
-    // MARK: - Selection (mockup 1)
+    // MARK: - Selection
 
     private var selectionStep: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -110,8 +112,8 @@ struct UninstallFlowView: View {
                     .font(VermutType.title)
                     .foregroundStyle(Color.Vermut.foreground)
                 Text(String(
-                    localized: "Choose what to remove. Native Steam, Epic and GOG apps on your Mac are never touched.",
-                    comment: "Uninstall sheet subtitle"
+                    localized: "Choose what data to remove. Native Steam, Epic and GOG apps on your Mac are never touched. Vermut.app is removed manually after you quit.",
+                    comment: "Uninstall sheet subtitle after pivot"
                 ))
                 .font(VermutType.body)
                 .foregroundStyle(Color.Vermut.mutedForeground)
@@ -123,17 +125,7 @@ struct UninstallFlowView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: VermutSpace.s1) {
                     if let plan {
-                        selectionRow(
-                            title: plan.app.displayName,
-                            detail: plan.app.detail,
-                            bytes: plan.app.byteCount,
-                            selected: plan.app.isSelected
-                        ) {
-                            self.plan?.app.isSelected.toggle()
-                        }
-
                         bottlesGroup(plan)
-
                         selectionRow(
                             title: plan.engines.displayName,
                             detail: plan.engines.detail,
@@ -212,7 +204,7 @@ struct UninstallFlowView: View {
                     onPrimaryRemove()
                 }
                 .buttonStyle(VermutButtonStyle(kind: .primary))
-                .disabled(plan?.isNothingSelected != false)
+                .disabled(plan == nil)
                 .keyboardShortcut(.defaultAction)
             }
             .padding(VermutSpace.s6)
@@ -400,22 +392,13 @@ struct UninstallFlowView: View {
             return String(localized: "Remove…", comment: "Uninstall primary placeholder")
         }
         if plan.isNothingSelected {
-            return String(localized: "Remove", comment: "Uninstall primary empty")
-        }
-        let onlyApp = plan.app.isSelected
-            && !plan.hasSelectedBottle
-            && !plan.engines.isSelected
-            && !plan.caches.isSelected
-            && !plan.logs.isSelected
-            && !plan.preferences.isSelected
-        if onlyApp {
-            return String(localized: "Remove Vermut", comment: "Uninstall primary app only")
+            return String(localized: "Continue", comment: "Tip-only path when nothing selected")
         }
         let size = UninstallSizeCalculator.formattedByteCount(plan.selectedByteCount)
         return String(localized: "Remove \(size)", comment: "Uninstall primary with size")
     }
 
-    // MARK: - Processes (mockup 2)
+    // MARK: - Processes
 
     private var processesStep: some View {
         VStack(alignment: .leading, spacing: VermutSpace.s4) {
@@ -537,7 +520,7 @@ struct UninstallFlowView: View {
         }
     }
 
-    // MARK: - Bottle type-to-confirm
+    // MARK: - Bottle confirm
 
     private var bottleConfirmStep: some View {
         VStack(alignment: .leading, spacing: VermutSpace.s4) {
@@ -591,8 +574,8 @@ struct UninstallFlowView: View {
     private var bottleConfirmSubtitle: String {
         let count = plan?.selectedBottleCount ?? 0
         let base = String(
-            localized: "Items go to the Trash. Vermut will quit when it's done.",
-            comment: "Uninstall confirm body"
+            localized: "Selected items go to the Trash.",
+            comment: "Confirm body short"
         )
         if count == 1 {
             return base + " " + String(
@@ -659,77 +642,89 @@ struct UninstallFlowView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Color.Vermut.success)
                     .font(.system(size: 22))
-                Text(String(localized: "Vermut removed", comment: "Uninstall success title"))
-                    .font(VermutType.title)
-            }
-            Text(
-                String(localized: "%@ moved to the Trash", comment: "Bytes moved to trash")
-                    .replacingOccurrences(
-                        of: "%@",
-                        with: UninstallSizeCalculator.formattedByteCount(runSummary?.removedByteCount ?? 0)
-                    )
-                + ". "
-                + String(
-                    localized: "Empty the Trash to free up the space.",
-                    comment: "Empty trash hint"
+                Text(
+                    tipOnlyDone
+                        ? String(localized: "Remove Vermut.app", comment: "Tip-only done title")
+                        : String(localized: "Vermut data removed", comment: "Data wipe success title")
                 )
-            )
-            .font(VermutType.body)
-            .foregroundStyle(Color.Vermut.mutedForeground)
-            .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(runSummary?.successResults ?? []) { item in
-                    HStack {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(Color.Vermut.success)
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(item.displayName)
-                            .font(VermutType.body)
-                        if let note = item.message, item.outcome == .deferredApp {
-                            Text("· \(note)")
-                                .font(VermutType.captionRegular)
-                                .foregroundStyle(Color.Vermut.mutedForeground)
-                        }
-                        Spacer()
-                        Text(UninstallSizeCalculator.formattedByteCount(item.byteCount))
-                            .font(VermutType.captionRegular)
-                            .foregroundStyle(Color.Vermut.mutedForeground)
-                    }
-                    .padding(.vertical, VermutSpace.s2)
-                }
+                .font(VermutType.title)
             }
-            .padding(VermutSpace.s3)
-            .overlay(
-                RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous)
-                    .strokeBorder(Color.Vermut.border, lineWidth: 1)
-            )
 
-            if let runSummary, runSummary.keptBottleCount > 0, let path = runSummary.keptBottlesPath {
-                HStack(alignment: .top, spacing: VermutSpace.s2) {
-                    Text(
-                        String(
-                            localized: "Kept: \(runSummary.keptBottleCount) bottles (\(UninstallSizeCalculator.formattedByteCount(runSummary.keptBottleBytes))) in \(path.path)",
-                            comment: "Kept bottles summary"
+            if !tipOnlyDone {
+                Text(
+                    String(localized: "%@ moved to the Trash", comment: "Bytes moved to trash")
+                        .replacingOccurrences(
+                            of: "%@",
+                            with: UninstallSizeCalculator.formattedByteCount(runSummary?.removedByteCount ?? 0)
                         )
+                    + ". "
+                    + String(
+                        localized: "Empty the Trash to free up the space.",
+                        comment: "Empty trash hint"
                     )
-                    .font(VermutType.captionRegular)
-                    .foregroundStyle(Color.Vermut.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
-                    Button(String(localized: "Show in Finder", comment: "Show kept bottles")) {
-                        NSWorkspace.shared.activateFileViewerSelecting([path])
-                    }
-                    .buttonStyle(.plain)
-                    .font(VermutType.caption)
-                    .underline()
-                }
-                .padding(VermutSpace.s3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(
-                    RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous)
-                        .strokeBorder(Color.Vermut.border, lineWidth: 1)
                 )
+                .font(VermutType.body)
+                .foregroundStyle(Color.Vermut.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+
+                if let runSummary, !runSummary.successResults.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(runSummary.successResults) { item in
+                            HStack {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.Vermut.success)
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(item.displayName)
+                                    .font(VermutType.body)
+                                Spacer()
+                                Text(UninstallSizeCalculator.formattedByteCount(item.byteCount))
+                                    .font(VermutType.captionRegular)
+                                    .foregroundStyle(Color.Vermut.mutedForeground)
+                            }
+                            .padding(.vertical, VermutSpace.s2)
+                        }
+                    }
+                    .padding(VermutSpace.s3)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous)
+                            .strokeBorder(Color.Vermut.border, lineWidth: 1)
+                    )
+                }
+
+                if let runSummary, runSummary.keptBottleCount > 0, let path = runSummary.keptBottlesPath {
+                    HStack(alignment: .top, spacing: VermutSpace.s2) {
+                        Text(
+                            String(
+                                localized: "Kept: \(runSummary.keptBottleCount) bottles (\(UninstallSizeCalculator.formattedByteCount(runSummary.keptBottleBytes))) in \(path.path)",
+                                comment: "Kept bottles summary"
+                            )
+                        )
+                        .font(VermutType.captionRegular)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                        Button(String(localized: "Show in Finder", comment: "Show kept bottles")) {
+                            NSWorkspace.shared.activateFileViewerSelecting([path])
+                        }
+                        .buttonStyle(.plain)
+                        .font(VermutType.caption)
+                        .underline()
+                    }
+                    .padding(VermutSpace.s3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous)
+                            .strokeBorder(Color.Vermut.border, lineWidth: 1)
+                    )
+                }
             }
+
+            Text(String(
+                localized: "Quit Vermut, then drag Vermut.app to the Trash.",
+                comment: "Manual app removal next step"
+            ))
+            .font(VermutType.bodyEmphasis)
+            .foregroundStyle(Color.Vermut.foreground)
+            .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: VermutSpace.s4) {
                 Link(
@@ -746,8 +741,12 @@ struct UninstallFlowView: View {
             Spacer(minLength: 0)
 
             HStack {
+                Button(String(localized: "Show in Finder", comment: "Reveal Vermut.app")) {
+                    NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                }
+                .buttonStyle(VermutButtonStyle(kind: .outline))
                 Spacer()
-                Button(String(localized: "Quit Vermut", comment: "Quit after uninstall")) {
+                Button(String(localized: "Quit Vermut", comment: "Quit after data uninstall")) {
                     quitAfterUninstall()
                 }
                 .buttonStyle(VermutButtonStyle(kind: .primary))
@@ -801,14 +800,23 @@ struct UninstallFlowView: View {
                     .strokeBorder(Color.Vermut.border, lineWidth: 1)
             )
 
+            Text(String(
+                localized: "Quit Vermut, then drag Vermut.app to the Trash.",
+                comment: "Manual app removal next step"
+            ))
+            .font(VermutType.bodyEmphasis)
+
             HStack(spacing: VermutSpace.s2) {
                 Button(String(localized: "Show in Finder", comment: "Show failed item")) {
                     if let url = runSummary.failureResults.first?.revealURL {
                         NSWorkspace.shared.activateFileViewerSelecting([url])
+                    } else {
+                        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                     }
                 }
                 .buttonStyle(VermutButtonStyle(kind: .outline))
                 Button(String(localized: "Try Again", comment: "Retry uninstall")) {
+                    tipOnlyDone = false
                     step = .selection
                     self.summary = nil
                     Task { await loadPlan() }
@@ -820,7 +828,7 @@ struct UninstallFlowView: View {
 
             HStack {
                 Spacer()
-                Button(String(localized: "Quit Vermut", comment: "Quit after uninstall")) {
+                Button(String(localized: "Quit Vermut", comment: "Quit after data uninstall")) {
                     quitAfterUninstall()
                 }
                 .buttonStyle(VermutButtonStyle(kind: .primary))
@@ -830,9 +838,10 @@ struct UninstallFlowView: View {
         .padding(VermutSpace.s6)
     }
 
-    /// Marks uninstall complete so the app delegate returns `.terminateNow` (no Wine cleanup).
+    /// Normal quit after data wipe (no helper / no hard exit).
     private func quitAfterUninstall() {
         appState.isUninstallComplete = true
+        UninstallPersistenceGate.beginWipe()
         NSApplication.shared.terminate(nil)
     }
 
@@ -868,7 +877,14 @@ struct UninstallFlowView: View {
     }
 
     private func onPrimaryRemove() {
-        guard let plan, !plan.isNothingSelected else { return }
+        guard let plan else { return }
+        if plan.isNothingSelected {
+            tipOnlyDone = true
+            summary = nil
+            step = .done
+            return
+        }
+        tipOnlyDone = false
         let processes = collectRunning()
         if !processes.isEmpty {
             running = processes
@@ -909,7 +925,6 @@ struct UninstallFlowView: View {
 
     private func quitAndContinue() async {
         let prefixes = Set(running.compactMap(\.prefixPath)).sorted()
-        // Cancel downloads first (AppState).
         await MainActor.run {
             for store in GameStore.allCases {
                 if appState.storeStatuses[store]?.isInstallInProgress == true {
@@ -924,7 +939,6 @@ struct UninstallFlowView: View {
             UninstallProcessScout.softQuit(prefixes: Array(prefixes))
         }.value
 
-        // Re-discover leftovers.
         var leftover = UninstallProcessScout.discoverWineProcesses(
             prefixes: PrefixProcessTerminator.vermutPrefixPaths(),
             bottleLabelForPrefix: UninstallProcessScout.bottleLabel(forPrefix:)
@@ -947,7 +961,6 @@ struct UninstallFlowView: View {
         Task.detached(priority: .userInitiated) {
             _ = UninstallProcessScout.forceQuit(pids: pids)
         }
-        // Refresh list shortly after.
         Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
             let leftover = UninstallProcessScout.discoverWineProcesses(
@@ -970,13 +983,15 @@ struct UninstallFlowView: View {
         guard let plan else { return }
         cancelRequested = false
         let cancelFlag = UninstallCancelFlag()
+        appState.prepareForUninstallWipe()
+        tipOnlyDone = false
         step = .progress
         progressLabel = String(localized: "Removing…", comment: "Removing progress")
         Task {
             let result = await Task.detached(priority: .userInitiated) {
                 UninstallExecutor.run(
                     plan: plan,
-                    options: UninstallExecutor.Options(scheduleAppHelper: plan.app.isSelected),
+                    options: UninstallExecutor.Options(),
                     progress: { event in
                         Task { @MainActor in
                             switch event {
@@ -995,10 +1010,22 @@ struct UninstallFlowView: View {
                     isCancelled: { cancelFlag.isCancelled }
                 )
             }.value
+            await Task.detached(priority: .userInitiated) {
+                let allowed = UninstallPathPolicy.allowedPrefixes(
+                    appSupport: PathManager.shared.appSupportURL,
+                    appBundle: nil
+                )
+                UninstallExecutor.finalizeAppSupportCleanup(
+                    plan: plan,
+                    appSupport: PathManager.shared.appSupportURL,
+                    allowed: allowed,
+                    home: FileManager.default.homeDirectoryForCurrentUser,
+                    fileManager: .default
+                )
+            }.value
             summary = result
             step = .done
         }
-        // Keep UI flag and sendable flag in sync when the user cancels.
         self.cancelFlag = cancelFlag
     }
 

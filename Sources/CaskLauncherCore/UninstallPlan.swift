@@ -13,9 +13,8 @@ public enum UninstallBottleID: Hashable, Sendable, Codable {
     }
 }
 
-/// Top-level removable categories (bottles are expanded separately).
+/// Removable data categories. The running `.app` is never a remove target (product pivot).
 public enum UninstallCategory: String, Hashable, Sendable, CaseIterable, Codable {
-    case app
     case bottles
     case engines
     case caches
@@ -33,8 +32,6 @@ public struct UninstallTarget: Hashable, Sendable {
     public var urls: [URL]
     public var byteCount: Int64
     public var isSelected: Bool
-    /// When true, the app bundle is trashed by a detached helper after quit.
-    public var requiresDetachedAppRemoval: Bool
 
     public init(
         id: String,
@@ -44,8 +41,7 @@ public struct UninstallTarget: Hashable, Sendable {
         detail: String = "",
         urls: [URL],
         byteCount: Int64 = 0,
-        isSelected: Bool,
-        requiresDetachedAppRemoval: Bool = false
+        isSelected: Bool
     ) {
         self.id = id
         self.category = category
@@ -55,13 +51,11 @@ public struct UninstallTarget: Hashable, Sendable {
         self.urls = urls
         self.byteCount = byteCount
         self.isSelected = isSelected
-        self.requiresDetachedAppRemoval = requiresDetachedAppRemoval
     }
 }
 
-/// Selection + size model for the uninstall sheet.
+/// Selection + size model for the uninstall sheet (data only — no `.app`).
 public struct UninstallPlan: Sendable {
-    public var app: UninstallTarget
     public var bottles: [UninstallTarget]
     public var engines: UninstallTarget
     public var caches: UninstallTarget
@@ -70,7 +64,6 @@ public struct UninstallPlan: Sendable {
     public var bottlesExpanded: Bool
 
     public init(
-        app: UninstallTarget,
         bottles: [UninstallTarget],
         engines: UninstallTarget,
         caches: UninstallTarget,
@@ -78,7 +71,6 @@ public struct UninstallPlan: Sendable {
         preferences: UninstallTarget,
         bottlesExpanded: Bool = false
     ) {
-        self.app = app
         self.bottles = bottles
         self.engines = engines
         self.caches = caches
@@ -88,7 +80,7 @@ public struct UninstallPlan: Sendable {
     }
 
     public var allTargets: [UninstallTarget] {
-        [app] + bottles + [engines, caches, logs, preferences]
+        bottles + [engines, caches, logs, preferences]
     }
 
     public var selectedTargets: [UninstallTarget] {
@@ -115,7 +107,6 @@ public struct UninstallPlan: Sendable {
         keptBottles.reduce(0) { $0 + $1.byteCount }
     }
 
-    /// Mixed / on / off for the Bottles parent checkbox.
     public enum TriState: Sendable, Equatable {
         case off
         case on
@@ -139,7 +130,6 @@ public struct UninstallPlan: Sendable {
     }
 
     public mutating func selectAll() {
-        app.isSelected = true
         engines.isSelected = true
         caches.isSelected = true
         logs.isSelected = true
@@ -148,7 +138,6 @@ public struct UninstallPlan: Sendable {
     }
 
     public mutating func deselectAll() {
-        app.isSelected = false
         engines.isSelected = false
         caches.isSelected = false
         logs.isSelected = false
@@ -174,7 +163,6 @@ public enum UninstallPlanBuilder {
         public var enginesURL: URL
         public var cacheURL: URL
         public var configURL: URL
-        public var appBundleURL: URL?
         public var customBottles: [CustomBottle]
         public var gameCountByStore: [GameStore: Int]
         public var home: URL
@@ -186,7 +174,6 @@ public enum UninstallPlanBuilder {
             enginesURL: URL = PathManager.shared.enginesURL,
             cacheURL: URL = PathManager.shared.cacheURL,
             configURL: URL = PathManager.shared.configURL,
-            appBundleURL: URL? = Bundle.main.bundleURL,
             customBottles: [CustomBottle] = (try? CustomBottleStore.shared.load()) ?? [],
             gameCountByStore: [GameStore: Int] = [:],
             home: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -197,7 +184,6 @@ public enum UninstallPlanBuilder {
             self.enginesURL = enginesURL
             self.cacheURL = cacheURL
             self.configURL = configURL
-            self.appBundleURL = appBundleURL
             self.customBottles = customBottles
             self.gameCountByStore = gameCountByStore
             self.home = home
@@ -209,28 +195,12 @@ public enum UninstallPlanBuilder {
     public static func makeDefaultPlan(context: Context = Context()) -> UninstallPlan {
         let bottles = makeBottleTargets(context: context, selected: false)
         return UninstallPlan(
-            app: makeAppTarget(context: context, selected: true),
             bottles: bottles,
             engines: makeEnginesTarget(context: context, selected: true),
             caches: makeCachesTarget(context: context, selected: true),
             logs: makeLogsTarget(context: context, bottles: bottles, selected: true),
             preferences: makePreferencesTarget(context: context, selected: true),
             bottlesExpanded: false
-        )
-    }
-
-    public static func makeAppTarget(context: Context, selected: Bool) -> UninstallTarget {
-        let url = context.appBundleURL ?? URL(fileURLWithPath: "/Applications/Vermut.app")
-        let bytes = UninstallSizeCalculator.byteCount(of: url, fileManager: context.fileManager)
-        return UninstallTarget(
-            id: "app",
-            category: .app,
-            displayName: "Vermut app",
-            detail: url.path,
-            urls: [url],
-            byteCount: bytes,
-            isSelected: selected,
-            requiresDetachedAppRemoval: true
         )
     }
 
@@ -248,7 +218,6 @@ public enum UninstallPlanBuilder {
             } else {
                 detail = store.rawValue
             }
-            // Epic Legendary config lives under the epic bottle folder already.
             let bytes = UninstallSizeCalculator.byteCount(of: url, fileManager: context.fileManager)
             result.append(
                 UninstallTarget(
@@ -280,20 +249,12 @@ public enum UninstallPlanBuilder {
                 )
             )
         }
-        // Index file only when at least one custom bottle exists (or file present).
-        let index = context.appSupportURL.appendingPathComponent(CustomBottleStore.indexFileName)
-        if context.fileManager.fileExists(atPath: index.path),
-           result.contains(where: { if case .custom = $0.bottleID { return true }; return false }) {
-            // Index is removed with the last selected custom bottle in the executor.
-            _ = index
-        }
         return result
     }
 
     public static func makeEnginesTarget(context: Context, selected: Bool) -> UninstallTarget {
         var urls: [URL] = []
         var names: [String] = []
-        // Trash the whole `engines/` tree so the empty parent is not left behind.
         if context.fileManager.fileExists(atPath: context.enginesURL.path) {
             urls.append(context.enginesURL)
             for engine in WineEngine.allCases {
@@ -336,7 +297,6 @@ public enum UninstallPlanBuilder {
             parts.append("Covers, store installers")
         }
         let legacy = UninstallPathPolicy.legacyCaskLauncherURL(home: context.home)
-        // Only list legacy when it is a distinct leftover (not the active appSupport).
         if context.fileManager.fileExists(atPath: legacy.path),
            legacy.standardizedFileURL != context.appSupportURL.standardizedFileURL {
             urls.append(legacy)
@@ -361,7 +321,6 @@ public enum UninstallPlanBuilder {
         bottles: [UninstallTarget],
         selected: Bool
     ) -> UninstallTarget {
-        // Logs for bottles that are *not* selected for removal, plus ~/Library/Logs/Vermut.
         var urls: [URL] = []
         let selectedBottlePaths = Set(
             bottles.filter(\.isSelected).flatMap(\.urls).map { $0.standardizedFileURL.path }
@@ -402,7 +361,6 @@ public enum UninstallPlanBuilder {
 
     public static func makePreferencesTarget(context: Context, selected: Bool) -> UninstallTarget {
         var urls: [URL] = []
-        // Always include config.json when present (Select All wipe must remove it).
         if context.fileManager.fileExists(atPath: context.configURL.path) {
             urls.append(context.configURL)
         }
@@ -410,7 +368,6 @@ public enum UninstallPlanBuilder {
             home: context.home,
             fileManager: context.fileManager
         ).filter { context.fileManager.fileExists(atPath: $0.path) })
-        // `custom-bottles.json` follows bottle selection (see executor finalize), not Preferences alone.
         var seen = Set<String>()
         urls = urls.filter { seen.insert($0.standardizedFileURL.path).inserted }
         let bytes = urls.reduce(Int64(0)) {
@@ -427,7 +384,6 @@ public enum UninstallPlanBuilder {
         )
     }
 
-    /// Recomputes log URLs when bottle selection changes (logs of removed bottles go with the bottle).
     public static func refreshLogs(plan: inout UninstallPlan, context: Context) {
         let selected = plan.logs.isSelected
         plan.logs = makeLogsTarget(context: context, bottles: plan.bottles, selected: selected)

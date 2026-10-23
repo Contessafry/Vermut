@@ -209,8 +209,8 @@ struct SettingsView: View {
                 Text(String(localized: "Uninstall", comment: "Settings uninstall section"))
                     .font(VermutType.headline)
                 Text(String(
-                    localized: "Remove Vermut and choose what data to keep. Native Steam, Epic and GOG apps on your Mac are never touched.",
-                    comment: "Settings uninstall description"
+                    localized: "Remove Vermut data (bottles, engines, caches). Quit afterward and drag Vermut.app to the Trash. Native Steam, Epic and GOG apps are never touched.",
+                    comment: "Settings uninstall description after pivot"
                 ))
                 .font(VermutType.body)
                 .foregroundStyle(Color.Vermut.mutedForeground)
