@@ -126,6 +126,19 @@ final class EngineLayoutTests: XCTestCase {
         XCTAssertNotNil(overlay?.windows32Dir)
     }
 
+    func testDXMTStoreSkipsVersionsChildWhenFlatOverlayPresent() throws {
+        // Classic engines/dxmt layout beside engines/dxmt/versions/<tag> must keep the flat root.
+        let install = tempRoot.appendingPathComponent("dxmt")
+        try touch(install.appendingPathComponent("x86_64-windows/d3d11.dll"))
+        try touch(install.appendingPathComponent("x86_64-windows/dxgi.dll"))
+        try touch(install.appendingPathComponent("versions/v0.80/x86_64-windows/d3d11.dll"))
+        try touch(install.appendingPathComponent("versions/v0.80/x86_64-windows/dxgi.dll"))
+
+        let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: install))
+        XCTAssertEqual(overlay.root.path, install.path)
+        XCTAssertFalse(overlay.root.path.contains("/versions/"))
+    }
+
     func testDXVKNamedOverlay() throws {
         let install = tempRoot.appendingPathComponent("dxvk")
         try touch(install.appendingPathComponent("dxvk-macOS-async-v1.10.3-20230507-repack-builtin/x86_64-windows/d3d11.dll"))

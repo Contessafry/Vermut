@@ -55,4 +55,15 @@ final class PathManagerTests: XCTestCase {
         XCTAssertTrue(gogInstaller.path.contains("setup_galaxy"))
         XCTAssertFalse(gogInstaller.path.hasSuffix("GOG_Galaxy_2.0.exe"))
     }
+
+    func testGameConfigPaths() {
+        let manager = PathManager.shared
+        let url = manager.gameConfigURL(for: .steam, appId: "1245620")
+        XCTAssertTrue(url.path.contains("/bottles/steam/games/"))
+        XCTAssertTrue(url.path.hasSuffix("1245620.json"))
+        XCTAssertEqual(
+            manager.gameConfigURL(for: .epic, appId: "Foo/Bar").lastPathComponent,
+            "Foo_Bar.json"
+        )
+    }
 }

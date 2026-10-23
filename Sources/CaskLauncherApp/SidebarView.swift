@@ -31,6 +31,27 @@ struct SidebarView: View {
                         ForEach(GameStore.allCases) { store in
                             bottleRow(store)
                         }
+                        ForEach(appState.customBottles) { bottle in
+                            customBottleRow(bottle)
+                        }
+                        Button {
+                            appState.showingNewBottleSheet = true
+                        } label: {
+                            Label(
+                                String(localized: "New Bottle…", comment: "Sidebar new bottle"),
+                                systemImage: "plus"
+                            )
+                            .font(VermutType.body)
+                            .foregroundStyle(Color.Vermut.sidebarForeground)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, VermutSpace.s2)
+                            .frame(height: VermutHeight.sidebarRow)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            String(localized: "New Bottle…", comment: "Sidebar new bottle a11y")
+                        )
                     }
                     .padding(.horizontal, VermutSpace.s3)
                     .padding(.bottom, VermutSpace.s4)
@@ -137,6 +158,48 @@ struct SidebarView: View {
         .buttonStyle(.plain)
         .animation(VermutMotion.selection, value: selected)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func customBottleRow(_ bottle: CustomBottle) -> some View {
+        let selected: Bool = {
+            if case .customBottle(let id) = appState.section { return id == bottle.id }
+            return false
+        }()
+        let running = appState.customBottleRunning.contains(bottle.id)
+        return Button {
+            appState.section = .customBottle(bottle.id)
+        } label: {
+            HStack(spacing: VermutSpace.s2) {
+                Image(systemName: "shippingbox")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(selected ? Color.Vermut.foreground : Color.Vermut.mutedForeground)
+                    .frame(width: 16, height: 16)
+                Text(bottle.name)
+                    .font(selected ? VermutType.bodyEmphasis : VermutType.body)
+                    .foregroundStyle(Color.Vermut.sidebarForeground)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if running {
+                    Circle()
+                        .fill(Color.Vermut.success)
+                        .frame(width: 6, height: 6)
+                        .accessibilityLabel("Running")
+                }
+            }
+            .padding(.horizontal, VermutSpace.s2)
+            .frame(height: VermutHeight.sidebarRow)
+            .background(selected ? Color.Vermut.sidebarAccent : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: VermutRadius.sm, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(VermutMotion.selection, value: selected)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityLabel(
+            running
+            ? "\(bottle.name), bottle, running"
+            : "\(bottle.name), bottle"
+        )
     }
 
     private var engineCard: some View {

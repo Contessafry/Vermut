@@ -42,6 +42,7 @@ public final class SystemSetup: @unchecked Sendable {
     }
     
     public func checkDXMTInstalled() -> Bool {
+        _ = DXMTVersionManager.shared.ensureMigrated()
         if PathManager.shared.isDXMTInstalled() {
             return true
         }
@@ -53,11 +54,8 @@ public final class SystemSetup: @unchecked Sendable {
     }
     
     public func checkD3DMetalInstalled() -> Bool {
-        let gptk1Path = "/usr/local/lib/libd3dshared.dylib"
-        let gptk2Path = "/opt/homebrew/lib/libd3dshared.dylib"
-        
-        return fileManager.fileExists(atPath: gptk1Path) || 
-               fileManager.fileExists(atPath: gptk2Path)
+        let custom = (try? ConfigurationManager.shared.loadConfiguration())?.d3dMetalLibraryPath
+        return D3DMetalDetector.detect(customPath: custom).presence.isUsable
     }
     
     public func downloadDefaultEngine(progress: @escaping @Sendable (Double) -> Void) async throws {

@@ -147,7 +147,7 @@ final class LegendaryTests: XCTestCase {
         XCTAssertEqual(EpicStoreCopy.signedInBadge(account: "Ada"), "Signed in · Ada")
         XCTAssertFalse(EpicStoreCopy.graphicsHelp.localizedCaseInsensitiveContains("grapple"))
         XCTAssertFalse(EpicStoreCopy.graphicsHelp.localizedCaseInsensitiveContains("casklauncher"))
-        XCTAssertTrue(EpicStoreCopy.graphicsHelp.contains("Vermut Wine 11"))
+        XCTAssertTrue(EpicStoreCopy.graphicsHelp.contains("Vermut Wine"))
     }
 
     func testLegendaryPathsLiveUnderEnginesAndEpicBottle() {

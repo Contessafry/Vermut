@@ -31,13 +31,15 @@ Wine itself is LGPL, and we download it as a separate component (not statically 
 
 **What it is**: DXMT translates DirectX 10/11 API calls to Apple's Metal graphics API, enabling Windows games to run with native graphics performance on macOS.
 
-**Version**: 2.0.2  
-**License**: LGPL 2.1+  
+**Default version**: v0.80 (users can install and switch between releases side by side)  
+**License**: LGPL 2.1+ **from v0.80 onward** (earlier tags may use a different licence; Vermut defaults to and recommends v0.80+)  
 **Source**: https://github.com/3Shain/dxmt  
-**Downloaded from**: GitHub Releases (3Shain/dxmt)
+**Downloaded from**: GitHub Releases (3Shain/dxmt), SHA-256 verified when the release publishes a digest  
 
-**DXMT Copyright**: Copyright (c) 2024 DXMT Contributors  
-**License URL**: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+**DXMT Copyright**: Copyright (c) 2024–2026 DXMT Contributors  
+**License URL**: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html  
+
+Vermut stores each DXMT build under `Application Support/Vermut/engines/dxmt/versions/<tag>/` and keeps an active-version pointer so users can roll back without re-downloading.
 
 ### DXVK + MoltenVK (Optional - DirectX to Vulkan to Metal)
 
@@ -120,10 +122,10 @@ Outlined “Vermut” in **Bricolage Grotesque** (OFL), wght 700 / wdth 85 / ops
 
 **Important**: Apple's D3DMetal translation layer (part of Game Porting Toolkit) is **NOT** included, bundled, or downloaded by Vermut. It is proprietary Apple software.
 
-If a user has manually installed Apple's Game Porting Toolkit on their system, Vermut can detect it and allow the user to select it as an optional graphics backend for DirectX 12 games. This is similar to how an application might detect and use system-provided frameworks.
+If a user has manually installed Apple's Game Porting Toolkit, Vermut can detect it (preferred folder: `~/Library/Application Support/Vermut/D3DMetal`, plus common GPTK locations — **not** the copy inside CrossOver.app) and allow selecting it as an optional graphics backend for DirectX 12 games. Minimum supported D3DMetal version: **2.0**. Users may also point Vermut at a `redist/lib` folder via Settings › Components.
 
 **Apple GPTK License**: Proprietary (Apple)  
-**Installation**: User must install separately via Apple Developer portal
+**Installation**: User must install separately via [Apple Developer downloads](https://developer.apple.com/download/all/?q=game%20porting%20toolkit)
 
 ## License Compatibility
 

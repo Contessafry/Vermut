@@ -119,9 +119,9 @@ Older builds used a different Application Support folder name; Vermut migrates i
 
 | Engine | Role |
 | --- | --- |
-| **Vermut Wine 11 (DXMT build)** | Default. Wine 11 / CrossOver 26.3 LGPL build; `winemac` exports the Metal views DXMT needs. Source: [MartijnBud/grapple-releases](https://github.com/MartijnBud/grapple-releases). |
-| **Wine Staging 11** | Fallback from [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds). Used automatically for DXVK bottles (the DXMT Wine 11 build has no Vulkan loader). |
-| **Wine Devel 11** | Same Gcenx source, development branch. |
+| **Vermut Wine** | Default. Wine 11 / CrossOver 26.3 LGPL build; `winemac` exports the Metal views DXMT needs. Source: [MartijnBud/grapple-releases](https://github.com/MartijnBud/grapple-releases). |
+| **Wine Staging 11.18** | Gcenx WineHQ build from [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds). Used automatically for DXVK bottles (Vermut Wine has no Vulkan loader). Requires system GStreamer.framework. |
+| **Wine Devel 11.18** | Same Gcenx source, development branch. Requires system GStreamer.framework. |
 
 | Graphics | Notes |
 | --- | --- |
@@ -156,6 +156,27 @@ Vermut is an independent open-source project. It is **not affiliated with, endor
 You must accept each store’s own terms when you sign in. Vermut does not crack games, bypass DRM, or ship store credentials.
 
 Compatibility varies by title. Some games will not run.
+
+## Update channels
+
+Vermut checks GitHub Releases for updates (Settings › General › **Update channel**):
+
+| Channel | Behaviour |
+| --- | --- |
+| **Stable** (default) | Only non–pre-release releases (`/releases/latest`). Switching back from Beta never suggests a downgrade — it waits for the next stable that is newer than what you have. |
+| **Beta** | Considers all releases including pre-releases (`/releases`), and offers the highest SemVer (e.g. `1.2.0` > `1.2.0-beta.2` > `1.2.0-beta.1`). |
+
+A small **Beta** badge (info style, not red) appears when the offered or installed version is a pre-release.
+
+### Publishing a beta
+
+1. Tag the commit `vX.Y.Z-beta.N` (example: `v1.2.0-beta.1`).
+2. Create a GitHub Release for that tag.
+3. Check **Set as a pre-release**.
+4. Do **not** check “Set as the latest release”.
+5. Users on the Beta channel will see it; Stable users will not.
+
+Promote to Stable later with a normal release tag `vX.Y.Z` (no `-beta`) and leave pre-release unchecked.
 
 ## Contributing
 

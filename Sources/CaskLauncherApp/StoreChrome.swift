@@ -58,24 +58,14 @@ extension GameStore {
     }
 }
 
-extension GraphicsBackend {
-    var shortLabel: String {
-        switch self {
-        case .dxmt: return "DXMT"
-        case .dxvk: return "DXVK"
-        case .d3dmetal: return "D3DMetal"
-        case .wined3d: return "WineD3D"
-        }
-    }
-}
-
 extension WineEngine {
     var compactLabel: String { userFacingName }
 }
 
 enum BottleLabels {
     static func engineName(_ config: BottleConfiguration) -> String {
-        WineEngine.resolved(from: config.engine).userFacingName
+        let global = (try? ConfigurationManager.shared.loadConfiguration()) ?? AppConfiguration()
+        return StoreRecipe.effectiveEngine(config, global: global).value.userFacingName
     }
 
     static func graphicsName(_ config: BottleConfiguration, store: GameStore) -> String {

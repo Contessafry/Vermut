@@ -199,6 +199,52 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         "Vermut: launching \(store.identifier) with engine=\(engine.rawValue) wine=\(wine.path) wineserver=\(wineserver.path)"
     }
 
+    /// Keys logged at launch for Mac QA diffs. No secrets / tokens / home paths beyond Wine paths.
+    public static let launchEnvironmentLogKeys: [String] = [
+        "WINEPREFIX",
+        "WINELOADER",
+        "WINESERVER",
+        "WINEDLLPATH",
+        "WINEDEBUG",
+        "WINEESYNC",
+        "WINEMSYNC",
+        "WINEDLLOVERRIDES",
+        "WINEARCH",
+        "PATH"
+    ]
+
+    /// One capped bottle-log line: resolved engine root + selected Wine env (PATH summarized).
+    public static func launchEnvironmentSummary(
+        engineRoot: URL,
+        wine: URL,
+        environment: [String: String]
+    ) -> String {
+        var parts: [String] = [
+            "Vermut: launch-env",
+            "engineRoot=\(engineRoot.path)",
+            "wine=\(wine.path)"
+        ]
+        for key in launchEnvironmentLogKeys.sorted() {
+            guard let raw = environment[key] else { continue }
+            if key == "PATH" {
+                parts.append("PATH=\(summarizeLaunchPATH(raw, wineBin: wine.deletingLastPathComponent().path))")
+            } else {
+                parts.append("\(key)=\(raw)")
+            }
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// Whether the Wine `bin` directory leads PATH (avoids dumping the full host PATH).
+    public static func summarizeLaunchPATH(_ path: String, wineBin: String) -> String {
+        let entries = path.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        guard let first = entries.first else { return "(empty)" }
+        if first == wineBin || path.hasPrefix(wineBin + ":") {
+            return "wine-bin-first+\(max(0, entries.count - 1))-more"
+        }
+        return "wine-bin-not-first first=\(first)"
+    }
+
     public static let syncEnvironmentKeys = ["WINEESYNC", "WINEMSYNC"]
 
     /// Sync mode a store runs with. Every wine process sharing the prefix's
@@ -211,7 +257,8 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         store: GameStore,
         executable: URL,
         wineLibDir: URL,
-        firstRunUpdate: Bool = false
+        firstRunUpdate: Bool = false,
+        steamAppId: String? = nil
     ) -> StoreLaunchRecipe {
         var env: [String: String] = [
             "WINEDEBUG": "-all",
@@ -224,12 +271,22 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
             env["ROSETTA_ADVERTISE_AVX"] = "1"
             env["CX_FWD_COMPAT_GL_CTX"] = "1"
             env["WINEDLLOVERRIDES"] = "gameoverlayrenderer,gameoverlayrenderer64=d"
+            let arguments: [String]
+            if let steamAppId, !steamAppId.isEmpty {
+                arguments = SteamGameLaunch.applaunchArguments(
+                    appId: steamAppId,
+                    firstRunUpdate: firstRunUpdate
+                )
+            } else if firstRunUpdate {
+                arguments = ["steam.exe"]
+            } else {
+                arguments = ["steam.exe", "-no-cef-sandbox", "-cef-disable-gpu", "-noverifyfiles"]
+            }
             return StoreLaunchRecipe(
                 // First run: plain steam.exe so the bootstrapper downloads and
                 // applies the client normally (msync env fix still applies).
-                arguments: firstRunUpdate
-                    ? ["steam.exe"]
-                    : ["steam.exe", "-no-cef-sandbox", "-cef-disable-gpu", "-noverifyfiles"],
+                // Play: steam.exe … -applaunch <appId> so the title starts (not only the client).
+                arguments: arguments,
                 environment: env,
                 workingDirectory: executable.deletingLastPathComponent().path
             )

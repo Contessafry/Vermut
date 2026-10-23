@@ -2,6 +2,29 @@
 
 All notable changes to Vermut are documented here.
 
+## 1.2.0 — 2026-10-23
+
+Promotes the QA’d `1.2.0-beta.4` line to stable.
+
+### Added
+
+- In-app update checker with **Stable** / **Beta** channels (Settings › General)
+- DXMT multi-version manager (default v0.80) in Settings › Components
+- Gcenx Wine Staging / Devel 11.18 engines, downloadable on demand, with GStreamer handling
+- D3DMetal manual detection, validation, and install guide
+- Per-game settings (Library inspector, ⌥⌘I): Wine engine, graphics backend, DXMT version, and log level, with Automatic inheriting from the store
+- Custom Wine bottles: create and manage extra bottles with engine and graphics backend
+- Steam library covers for newer apps (@Fenrhir1)
+- **Remove Vermut Data…**: selective uninstall of bottles, engines, cache, and preferences (then trash `Vermut.app` yourself)
+
+### Fixed
+
+- Steam launch reliability: first-run restart, window activation, `-applaunch`, Installed gated on the real client
+- Quit / cleanup: stop Vermut Wine and bottle Steam processes without SIGKILL of native macOS Steam `ipcserver`
+- Onboarding step counter matches the real step count
+- Custom bottle Running state stays reactive
+- D3DMetal / DXVK unavailable options are rejected; bottle create is gated on name length
+
 ## 1.1.2 — 2026-10-20
 
 ### Fixed

@@ -146,21 +146,87 @@ public enum ComponentCatalog {
         return fallback
     }
 
-    public static func resolveDXMT() async -> ResolvedComponent {
-        if let latest = try? await latestRelease(repo: dxmtRepo) {
-            let asset = latest.assets.first(where: { $0.name.contains("builtin") && $0.name.hasSuffix(".tar.gz") })
-                ?? latest.assets.first(where: { $0.name.hasSuffix(".tar.gz") })
-            if let asset, let url = URL(string: asset.browserDownloadUrl) {
-                return ResolvedComponent(
-                    name: "dxmt",
-                    version: latest.tagName,
-                    url: url,
-                    filename: asset.name,
-                    sha256: parseDigest(asset.digest) ?? dxmtFallback.sha256
-                )
+    /// Prefers the pinned default (`v0.80`) so first installs stay on the LGPL baseline.
+    /// Pass `tag` to resolve a specific release; falls back to the pinned asset when offline.
+    public static func resolveDXMT(tag: String? = nil) async -> ResolvedComponent {
+        let preferred = tag.map(ComponentVersion.canonicalTag) ?? DXMTVersionManager.defaultVersionTag
+        let releases = await listDXMTReleases()
+        if let match = releases.first(where: {
+            ComponentVersion.canonicalTag($0.version) == preferred
+        }) {
+            return match
+        }
+        if tag == nil, let latest = releases.first {
+            // Only use "latest" when the preferred default is missing from the API
+            // and the caller did not ask for a specific tag.
+            if ComponentVersion.canonicalTag(latest.version) == preferred {
+                return latest
             }
         }
+        if preferred == ComponentVersion.canonicalTag(dxmtFallback.version) {
+            return dxmtFallback
+        }
+        // Specific unknown tag: still return fallback metadata shaped for that tag
+        // only when it matches the pinned default; otherwise prefer fallback.
         return dxmtFallback
+    }
+
+    public static func isDXMTBuiltinArchive(_ filename: String) -> Bool {
+        let name = filename.lowercased()
+        return name.hasSuffix(".tar.gz")
+            && name.contains("dxmt")
+            && name.contains("builtin")
+            && !name.contains("source")
+    }
+
+    public static func isDXMTArchive(_ filename: String) -> Bool {
+        let name = filename.lowercased()
+        return name.hasSuffix(".tar.gz")
+            && name.contains("dxmt")
+            && !name.contains("source")
+    }
+
+    /// Lists DXMT GitHub releases that ship a usable overlay tarball (newest first).
+    public static func listDXMTReleases(perPage: Int = 20) async -> [ResolvedComponent] {
+        var results: [ResolvedComponent] = []
+        let releases: [GitHubRelease]
+        if let listed = try? await listReleases(repo: dxmtRepo, perPage: perPage) {
+            releases = listed
+        } else if let latest = try? await latestRelease(repo: dxmtRepo) {
+            releases = [latest]
+        } else {
+            return [dxmtFallback]
+        }
+
+        for release in releases {
+            let asset = release.assets.first(where: { isDXMTBuiltinArchive($0.name) })
+                ?? release.assets.first(where: { isDXMTArchive($0.name) })
+            guard let asset, let url = URL(string: asset.browserDownloadUrl) else { continue }
+            let tag = ComponentVersion.canonicalTag(release.tagName)
+            let sha = parseDigest(asset.digest)
+                ?? (asset.name == dxmtFallback.filename ? dxmtFallback.sha256 : nil)
+            results.append(
+                ResolvedComponent(
+                    name: "dxmt",
+                    version: tag,
+                    url: url,
+                    filename: asset.name,
+                    sha256: sha ?? (tag == dxmtFallback.version ? dxmtFallback.sha256 : nil)
+                )
+            )
+        }
+
+        if results.isEmpty {
+            return [dxmtFallback]
+        }
+        // Ensure the pinned default is present for offline-friendly install UI.
+        let defaultTag = ComponentVersion.canonicalTag(dxmtFallback.version)
+        if !results.contains(where: { ComponentVersion.canonicalTag($0.version) == defaultTag }) {
+            results.append(dxmtFallback)
+        }
+        return results.sorted {
+            ComponentVersion.compare($0.version, $1.version) == .orderedDescending
+        }
     }
 
     /// True for the macOS tarball that ships `x64/dxgi.dll` (not builtin, not the dxgi-less repack).

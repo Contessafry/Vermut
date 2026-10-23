@@ -28,6 +28,15 @@ struct ContentView: View {
                 Text(error)
             }
         }
+        .alert(appState.infoAlertTitle, isPresented: infoPresented) {
+            Button("OK", role: .cancel) {
+                appState.dismissInfoAlert()
+            }
+        } message: {
+            if let info = appState.infoAlertMessage {
+                Text(info)
+            }
+        }
         .fileImporter(
             isPresented: $appState.showingFilePicker,
             allowedContentTypes: [.item]
@@ -49,6 +58,13 @@ struct ContentView: View {
         Binding(
             get: { appState.errorMessage != nil && appState.isSetupComplete && !appState.showOnboarding },
             set: { if !$0 { appState.errorMessage = nil } }
+        )
+    }
+
+    private var infoPresented: Binding<Bool> {
+        Binding(
+            get: { appState.infoAlertMessage != nil && appState.isSetupComplete && !appState.showOnboarding },
+            set: { if !$0 { appState.dismissInfoAlert() } }
         )
     }
 }
@@ -119,14 +135,29 @@ struct AppShell: View {
                         .accessibilityHidden(true)
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) {
-                        if let session = appState.compatFeedbackSession {
-                            CompatFeedbackBanner(
-                                session: session,
-                                autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
-                                onDismiss: { appState.dismissCompatFeedback() }
-                            )
-                            .padding(VermutSpace.s6)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        VStack(spacing: 0) {
+                            if let update = appState.availableUpdate {
+                                UpdateBanner(
+                                    version: update.version,
+                                    url: update.url,
+                                    isPrerelease: update.isPrerelease,
+                                    onDismiss: { appState.dismissUpdate() },
+                                    onUpdate: { appState.performUpdate() }
+                                )
+                                .padding(.horizontal, VermutSpace.s6)
+                                .padding(.top, VermutSpace.s3)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+                            
+                            if let session = appState.compatFeedbackSession {
+                                CompatFeedbackBanner(
+                                    session: session,
+                                    autoDetectedCrash: appState.compatFeedbackAutoDetectedCrash,
+                                    onDismiss: { appState.dismissCompatFeedback() }
+                                )
+                                .padding(VermutSpace.s6)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
                         }
                     }
             }
@@ -134,6 +165,7 @@ struct AppShell: View {
         .navigationSplitViewStyle(.balanced)
         .background(Color.Vermut.background)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : VermutMotion.panel, value: appState.section)
+        .animation(VermutMotion.panel, value: appState.availableUpdate?.version)
         .animation(VermutMotion.panel, value: appState.compatFeedbackSession)
         .sheet(item: $appState.bottleToDelete) { store in
             DeleteBottleSheet(store: store) {
@@ -145,6 +177,14 @@ struct AppShell: View {
         }
         .sheet(isPresented: $appState.showingEpicAuth) {
             EpicAuthSheet()
+                .environmentObject(appState)
+        }
+        .sheet(isPresented: $appState.showingNewBottleSheet) {
+            NewBottleSheet()
+                .environmentObject(appState)
+        }
+        .sheet(isPresented: $appState.showingUninstallSheet) {
+            UninstallFlowView()
                 .environmentObject(appState)
         }
     }
@@ -160,6 +200,8 @@ struct AppShell: View {
             DownloadsView()
         case .bottle(let store):
             BottleDetailView(store: store)
+        case .customBottle(let id):
+            CustomBottleDetailView(bottleID: id)
         case .settings:
             SettingsView()
         }

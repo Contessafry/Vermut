@@ -10,6 +10,9 @@ enum DownloadClient {
         expectedSHA256: String? = nil,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
+        if UninstallPersistenceGate.writesSuppressed {
+            throw CancellationError()
+        }
         let directory = destination.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 

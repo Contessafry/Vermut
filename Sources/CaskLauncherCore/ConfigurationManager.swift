@@ -16,7 +16,10 @@ public final class ConfigurationManager: @unchecked Sendable {
         
         guard fileManager.fileExists(atPath: configURL.path) else {
             let defaultConfig = AppConfiguration()
-            try saveConfiguration(defaultConfig)
+            // Never recreate config.json during / after an uninstall wipe.
+            if !UninstallPersistenceGate.writesSuppressed {
+                try saveConfiguration(defaultConfig)
+            }
             return defaultConfig
         }
         
@@ -29,6 +32,7 @@ public final class ConfigurationManager: @unchecked Sendable {
     }
     
     public func saveConfiguration(_ config: AppConfiguration) throws {
+        if UninstallPersistenceGate.writesSuppressed { return }
         let configURL = PathManager.shared.configURL
         try fileManager.createDirectory(
             at: configURL.deletingLastPathComponent(),

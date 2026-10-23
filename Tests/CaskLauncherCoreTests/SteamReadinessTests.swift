@@ -47,4 +47,52 @@ final class SteamReadinessTests: XCTestCase {
     func testFirstLaunchIsRetried() {
         XCTAssertGreaterThan(SteamReadiness.firstLaunchAttempts, 1)
     }
+
+    func testBootstrapRelaunchWhenProcessDiesBeforeClientReady() {
+        XCTAssertTrue(
+            SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: false,
+                clientReady: false,
+                relaunchesSoFar: 0
+            )
+        )
+        XCTAssertTrue(
+            SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: false,
+                clientReady: false,
+                relaunchesSoFar: 2
+            )
+        )
+        XCTAssertFalse(
+            SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: false,
+                clientReady: false,
+                relaunchesSoFar: SteamReadiness.bootstrapRelaunchAttempts
+            )
+        )
+        XCTAssertFalse(
+            SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: true,
+                clientReady: false,
+                relaunchesSoFar: 0
+            )
+        )
+        XCTAssertFalse(
+            SteamReadiness.shouldRelaunchBootstrap(
+                isRunning: false,
+                clientReady: true,
+                relaunchesSoFar: 0
+            )
+        )
+    }
+
+    func testSteamClientInstalledRequiresFullClientNotBootstrapper() throws {
+        let p = try makeDir()
+        let s = p.appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        try touch(s.appendingPathComponent("steam.exe"))
+        XCTAssertFalse(SteamReadiness.isSteamClientInstalled(inPrefix: p))
+        try touch(s.appendingPathComponent("SteamUI.dll"))
+        try touch(s.appendingPathComponent("bin/cef/cef.win64/steamwebhelper.exe"))
+        XCTAssertTrue(SteamReadiness.isSteamClientInstalled(inPrefix: p))
+    }
 }
