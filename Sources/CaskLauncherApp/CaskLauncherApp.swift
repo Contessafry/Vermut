@@ -57,6 +57,10 @@ struct CaskLauncherApp: App {
                     appState.section = .settings
                 }
                 .keyboardShortcut(",", modifiers: .command)
+                Divider()
+                Button(String(localized: "Uninstall Vermut…", comment: "App menu uninstall")) {
+                    appState.showingUninstallSheet = true
+                }
             }
             CommandGroup(after: .newItem) {
                 Button(String(localized: "New Bottle…", comment: "File menu new bottle")) {

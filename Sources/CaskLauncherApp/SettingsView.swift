@@ -204,6 +204,24 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(.accentColor)
             }
+
+            VStack(alignment: .leading, spacing: VermutSpace.s3) {
+                Text(String(localized: "Uninstall", comment: "Settings uninstall section"))
+                    .font(VermutType.headline)
+                Text(String(
+                    localized: "Remove Vermut and choose what data to keep. Native Steam, Epic and GOG apps on your Mac are never touched.",
+                    comment: "Settings uninstall description"
+                ))
+                .font(VermutType.body)
+                .foregroundStyle(Color.Vermut.mutedForeground)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                Button(String(localized: "Uninstall Vermut…", comment: "Settings uninstall button")) {
+                    appState.showingUninstallSheet = true
+                }
+                .buttonStyle(VermutButtonStyle(kind: .outline))
+            }
+            .padding(.top, VermutSpace.s4)
         }
     }
 

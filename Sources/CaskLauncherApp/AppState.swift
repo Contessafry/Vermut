@@ -65,6 +65,8 @@ final class AppState: ObservableObject {
     @Published var customBottles: [CustomBottle] = []
     @Published var customBottleRunning: Set<UUID> = []
     @Published var showingNewBottleSheet = false
+    /// Uninstall Vermut sheet (menu + Settings › General).
+    @Published var showingUninstallSheet = false
     /// One-shot Steam launch hang recovery (main/login window timeout).
     var steamLaunchWindowRecoveryUsed = false
     var steamWindowWatchTask: Task<Void, Never>?
