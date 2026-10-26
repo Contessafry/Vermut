@@ -44,10 +44,15 @@ struct GameSettingsInspector: View {
         ScrollView {
             VStack(alignment: .leading, spacing: VermutSpace.s4) {
                 header
+                antiCheatSection
+                compatSection
                 engineSection
                 graphicsSection
                 dxmtSection
                 d3dMetalBlock
+                if game.store == .steam {
+                    overlaySection
+                }
                 logLevelSection
                 actionButtons
                 nextLaunchNote
@@ -275,6 +280,110 @@ struct GameSettingsInspector: View {
             d3dMetalModel.isUsable
                 ? String(localized: "D3DMetal, found", comment: "a11y")
                 : String(localized: "D3DMetal, not installed", comment: "a11y")
+        )
+    }
+
+    private var antiCheatSection: some View {
+        Group {
+            if let entry = AntiCheatCatalog.lookup(
+                store: game.store,
+                appId: game.appId,
+                name: game.name
+            ) {
+                HStack(alignment: .top, spacing: VermutSpace.s2) {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .foregroundStyle(Color.Vermut.warning)
+                    VStack(alignment: .leading, spacing: VermutSpace.s1) {
+                        Text(entry.libraryWarning)
+                            .font(VermutType.bodyEmphasis)
+                            .foregroundStyle(Color.Vermut.warningSubtleForeground)
+                        Text(
+                            String(
+                                localized: "Kernel anti-cheat data comes from Are We Anti-Cheat Yet? (areweanticheatyet.com). Linux/Proton “Supported” does not mean it will run in Wine on macOS.",
+                                comment: "Anti-cheat source note"
+                            )
+                        )
+                        .font(VermutType.captionRegular)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(VermutSpace.s3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.Vermut.warningSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compatSection: some View {
+        if let compat = appState.getCompatibility(for: game) {
+            VStack(alignment: .leading, spacing: VermutSpace.s2) {
+                Text(String(localized: "Community compatibility", comment: "Game settings compat"))
+                    .font(VermutType.bodyEmphasis)
+                CompatibilityBadge(compat: compat)
+                if let recommended = compat.effectiveRecommended {
+                    Text("Recommended backend: \(KnownNotWorkingCombo.graphicsName(recommended))")
+                        .font(VermutType.captionRegular)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                } else if !compat.effectiveKnownNotWorking.isEmpty {
+                    Text(
+                        "No working reports yet. Known not working: "
+                            + compat.effectiveKnownNotWorking.map(\.displayLabel).joined(separator: ", ")
+                    )
+                    .font(VermutType.captionRegular)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(VermutSpace.s3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.Vermut.secondary)
+            .clipShape(RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous))
+        }
+    }
+
+    private var overlaySection: some View {
+        VStack(alignment: .leading, spacing: VermutSpace.s2) {
+            Toggle(isOn: overlayBinding) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Steam overlay", comment: "Game settings overlay"))
+                        .font(VermutType.bodyEmphasis)
+                    Text(
+                        String(
+                            localized: "Off by default. The overlay can hang games on DXMT.",
+                            comment: "Steam overlay help"
+                        )
+                    )
+                    .font(VermutType.captionRegular)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(Color.Vermut.primary)
+            if config.steamOverlayEnabled {
+                Text(String(localized: "Modified for this game", comment: "Override indicator"))
+                    .font(VermutType.captionRegular)
+                    .foregroundStyle(Color.Vermut.mutedForeground)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            config.steamOverlayEnabled
+                ? String(localized: "Steam overlay, on", comment: "a11y")
+                : String(localized: "Steam overlay, off", comment: "a11y")
+        )
+    }
+
+    private var overlayBinding: Binding<Bool> {
+        Binding(
+            get: { config.steamOverlayEnabled },
+            set: { newValue in
+                config.steamOverlayEnabled = newValue
+                persist()
+            }
         )
     }
 

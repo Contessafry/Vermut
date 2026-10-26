@@ -127,23 +127,70 @@ public enum ComponentCatalog {
         return fallback
     }
 
-    static func resolveGcenxWine(_ engine: WineEngine) async -> ResolvedComponent {
+    public static func isGcenxWineArchive(_ filename: String, engine: WineEngine) -> Bool {
+        let name = filename.lowercased()
+        return name.hasPrefix(engine.githubAssetPrefix.lowercased())
+            && name.hasSuffix("-osx64.tar.xz")
+    }
+
+    /// Newest matching Gcenx `osx64` tarball first. Versions are never hardcoded.
+    public static func listGcenxWineReleases(
+        engine: WineEngine,
+        perPage: Int = 15
+    ) async -> [ResolvedComponent] {
         let fallback = fallback(for: engine)
-        if let latest = try? await latestRelease(repo: wineRepo) {
-            let prefix = engine.githubAssetPrefix
-            if let asset = latest.assets.first(where: {
-                $0.name.hasPrefix(prefix) && $0.name.hasSuffix("-osx64.tar.xz")
-            }), let url = URL(string: asset.browserDownloadUrl) {
-                return ResolvedComponent(
+        var releases: [GitHubRelease] = []
+        if let listed = try? await listReleases(repo: wineRepo, perPage: perPage) {
+            releases = listed
+        } else if let latest = try? await latestRelease(repo: wineRepo) {
+            releases = [latest]
+        }
+        var results: [ResolvedComponent] = []
+        var seen = Set<String>()
+        for release in releases {
+            guard isOfferedStableRelease(
+                tagName: release.tagName,
+                prerelease: release.prerelease ?? false,
+                draft: release.draft ?? false,
+                assetNames: release.assets.map(\.name)
+            ) else { continue }
+            guard let asset = release.assets.first(where: { isGcenxWineArchive($0.name, engine: engine) }),
+                  let url = URL(string: asset.browserDownloadUrl) else { continue }
+            let tag = release.tagName
+            guard seen.insert(tag).inserted else { continue }
+            results.append(
+                ResolvedComponent(
                     name: fallback.name,
-                    version: latest.tagName,
+                    version: tag,
                     url: url,
                     filename: asset.name,
-                    sha256: parseDigest(asset.digest) ?? fallback.sha256
+                    sha256: parseDigest(asset.digest)
+                        ?? (asset.name == fallback.filename ? fallback.sha256 : nil)
                 )
-            }
+            )
         }
-        return fallback
+        return results.sorted {
+            ComponentVersion.compare($0.version, $1.version) == .orderedDescending
+        }
+    }
+
+    static func resolveGcenxWine(_ engine: WineEngine) async -> ResolvedComponent {
+        let listed = await listGcenxWineReleases(engine: engine)
+        return listed.first ?? fallback(for: engine)
+    }
+
+    /// Nightly / pre-release / draft GitHub assets are never offered for DXMT or Gcenx Wine.
+    public static func isOfferedStableRelease(
+        tagName: String,
+        prerelease: Bool,
+        draft: Bool,
+        assetNames: [String]
+    ) -> Bool {
+        if prerelease || draft { return false }
+        let tag = tagName.lowercased()
+        if tag.contains("nightly") { return false }
+        if assetNames.contains(where: { $0.lowercased().contains("nightly") }) { return false }
+        return true
     }
 
     /// Prefers the pinned default (`v0.80`) so first installs stay on the LGPL baseline.
@@ -199,6 +246,12 @@ public enum ComponentCatalog {
         }
 
         for release in releases {
+            guard isOfferedStableRelease(
+                tagName: release.tagName,
+                prerelease: release.prerelease ?? false,
+                draft: release.draft ?? false,
+                assetNames: release.assets.map(\.name)
+            ) else { continue }
             let asset = release.assets.first(where: { isDXMTBuiltinArchive($0.name) })
                 ?? release.assets.first(where: { isDXMTArchive($0.name) })
             guard let asset, let url = URL(string: asset.browserDownloadUrl) else { continue }
@@ -338,6 +391,17 @@ public enum ComponentCatalog {
 struct GitHubRelease: Decodable, Sendable {
     let tagName: String
     let assets: [GitHubAsset]
+    let prerelease: Bool?
+    let draft: Bool?
+
+    var isOfferedStable: Bool {
+        ComponentCatalog.isOfferedStableRelease(
+            tagName: tagName,
+            prerelease: prerelease ?? false,
+            draft: draft ?? false,
+            assetNames: assets.map(\.name)
+        )
+    }
 }
 
 struct GitHubAsset: Decodable, Sendable {

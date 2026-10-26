@@ -135,11 +135,26 @@ final class SteamRecipeTests: XCTestCase {
         XCTAssertEqual(recipe.environment["WINEDLLPATH"], wineLib.path)
         XCTAssertEqual(
             recipe.environment["WINEDLLOVERRIDES"],
-            "gameoverlayrenderer,gameoverlayrenderer64=d"
+            StoreLaunchRecipe.steamOverlayDisableOverride
         )
+        XCTAssertEqual(recipe.environment["SteamNoOverlay"], "1")
         XCTAssertNil(recipe.environment["WINE_D3D_CONFIG"])
         XCTAssertFalse((recipe.environment["WINEDLLOVERRIDES"] ?? "").contains("winevulkan"))
         XCTAssertNil(recipe.environment["steamwebhelper.exe"])
+    }
+
+    func testSteamOverlayCanBeEnabledPerGame() {
+        let wineLib = URL(fileURLWithPath: "/engines/grapple-wine/lib/wine")
+        let steam = URL(fileURLWithPath: "/bottles/steam/prefix/drive_c/Program Files (x86)/Steam/steam.exe")
+        let recipe = StoreLaunchRecipe.build(
+            store: .steam,
+            executable: steam,
+            wineLibDir: wineLib,
+            steamAppId: "570",
+            steamOverlayEnabled: true
+        )
+        XCTAssertNil(recipe.environment["WINEDLLOVERRIDES"])
+        XCTAssertNil(recipe.environment["SteamNoOverlay"])
     }
 
     func testEpicLaunchDoesNotUseSteamFlags() {
@@ -170,9 +185,13 @@ final class SteamRecipeTests: XCTestCase {
         let recipe = StoreLaunchRecipe.build(store: .gog, executable: exe, wineLibDir: wineLib)
         XCTAssertEqual(
             recipe.arguments,
-            ["GalaxyClient.exe", "--disable-gpu", "--disable-gpu-compositing"]
+            ["GalaxyClient.exe"] + GOGRecipe.launchArguments
         )
-        XCTAssertEqual(recipe.environment["WINEDLLOVERRIDES"], "d3d10core,d3d11,d3d12,dxgi,winemetal=builtin")
+        XCTAssertEqual(recipe.environment["WINEDLLOVERRIDES"], GOGRecipe.dllOverrides)
+        XCTAssertEqual(recipe.environment["QT_OPENGL"], "software")
+        XCTAssertEqual(recipe.environment["QT_QUICK_BACKEND"], "software")
+        XCTAssertEqual(recipe.environment["QSG_RHI_BACKEND"], "software")
+        XCTAssertEqual(recipe.environment["LIBGL_ALWAYS_SOFTWARE"], "1")
         XCTAssertNil(recipe.environment["WINE_D3D_CONFIG"])
         XCTAssertFalse((recipe.environment["WINEDLLOVERRIDES"] ?? "").contains("winevulkan"))
         XCTAssertNil(recipe.environment["WINEESYNC"])
@@ -244,6 +263,9 @@ final class SteamRecipeTests: XCTestCase {
         ).compactMap(\.added)
         XCTAssertFalse(gogWrites.contains { $0.value == "winevulkan" })
         XCTAssertFalse(gogWrites.contains { $0.key.contains("EpicGamesLauncher.exe") })
+        XCTAssertTrue(gogWrites.contains {
+            $0.key == "HKCU\\Software\\Wine\\Direct3D" && $0.value == "renderer" && $0.data == "gdi"
+        })
     }
 
     func testSteamWebHelperAlwaysBuiltin() {

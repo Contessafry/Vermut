@@ -214,13 +214,19 @@ final class StoreRecipeTests: XCTestCase {
         try Data("x".utf8).write(to: url)
     }
 
-    func testGOGIsComingSoonOthersAvailable() {
-        XCTAssertTrue(StoreRecipe.isComingSoon(.gog))
+    func testGOGIsAvailableWithSteamAndEpic() {
+        XCTAssertFalse(StoreRecipe.isComingSoon(.gog))
         XCTAssertFalse(StoreRecipe.isComingSoon(.steam))
         XCTAssertFalse(StoreRecipe.isComingSoon(.epic))
     }
 
-    func testFirstSetupSelectionDropsComingSoonStores() {
-        XCTAssertEqual(StoreRecipe.selectableStores([.steam, .epic, .gog]), [.steam, .epic])
+    func testFirstSetupSelectionKeepsGOG() {
+        XCTAssertEqual(StoreRecipe.selectableStores([.steam, .epic, .gog]), [.steam, .epic, .gog])
+    }
+
+    func testNewGOGBottleUsesStagingAndWineD3D() {
+        let bottle = StoreRecipe.bottleConfiguration(from: AppConfiguration(), for: .gog)
+        XCTAssertEqual(bottle.engine, WineEngine.staging.rawValue)
+        XCTAssertEqual(bottle.graphicsBackend, GraphicsBackend.wined3d.rawValue)
     }
 }

@@ -159,6 +159,9 @@ public enum DllOverridePolicy {
                 ))
             )
         }
+        if store == .gog {
+            ops.append(contentsOf: GOGRecipe.registryWrites())
+        }
         return ops
     }
 }
@@ -253,12 +256,16 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         store == .steam ? ["WINEESYNC": "1", "WINEMSYNC": "1"] : [:]
     }
 
+    /// Wine DLL override that disables Steam's in-process overlay.
+    public static let steamOverlayDisableOverride = "gameoverlayrenderer,gameoverlayrenderer64=d"
+
     public static func build(
         store: GameStore,
         executable: URL,
         wineLibDir: URL,
         firstRunUpdate: Bool = false,
-        steamAppId: String? = nil
+        steamAppId: String? = nil,
+        steamOverlayEnabled: Bool = false
     ) -> StoreLaunchRecipe {
         var env: [String: String] = [
             "WINEDEBUG": "-all",
@@ -270,7 +277,10 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         case .steam:
             env["ROSETTA_ADVERTISE_AVX"] = "1"
             env["CX_FWD_COMPAT_GL_CTX"] = "1"
-            env["WINEDLLOVERRIDES"] = "gameoverlayrenderer,gameoverlayrenderer64=d"
+            if !steamOverlayEnabled {
+                env["WINEDLLOVERRIDES"] = steamOverlayDisableOverride
+                env["SteamNoOverlay"] = "1"
+            }
             let arguments: [String]
             if let steamAppId, !steamAppId.isEmpty {
                 arguments = SteamGameLaunch.applaunchArguments(
@@ -299,13 +309,10 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
                 workingDirectory: nil
             )
         case .gog:
-            env["WINEDLLOVERRIDES"] = "d3d10core,d3d11,d3d12,dxgi,winemetal=builtin"
+            env["WINEDLLOVERRIDES"] = GOGRecipe.dllOverrides
+            GOGRecipe.applySoftwareEnvironment(to: &env)
             return StoreLaunchRecipe(
-                arguments: [
-                    executable.lastPathComponent,
-                    "--disable-gpu",
-                    "--disable-gpu-compositing"
-                ],
+                arguments: [executable.lastPathComponent] + GOGRecipe.launchArguments,
                 environment: env,
                 workingDirectory: executable.deletingLastPathComponent().path
             )

@@ -2,6 +2,21 @@
 
 All notable changes to Vermut are documented here.
 
+## Unreleased
+
+### Added
+
+- Compatibility JSON records **known not working** backend/engine pairs from broken-only reports and no longer marks a `recommended` backend for those titles (e.g. ELDEN RING)
+- Gcenx Wine Staging / Devel versions are detected from GitHub releases (11.19 / 11.20 appear when Gcenx publishes them; UI no longer hardcodes 11.18)
+- Per-game **Steam overlay** toggle in Game Settings (off by default)
+- Library / inspector warning for kernel anti-cheat (Easy Anti-Cheat, BattlEye) from [Are We Anti-Cheat Yet?](https://areweanticheatyet.com/)
+- Settings › **x86_64 emulation**: Rosetta 2 (default) or FEX, with runtime detection. FEX needs ARM64 Wine that is not shipping yet — see `docs/FEX.md`
+- GOG Galaxy is no longer “Coming soon”: Wine Staging + WineD3D + Qt software / GDI recipe (`docs/GOG.md`)
+
+### Changed
+
+- DXMT catalog lists **stable releases only** (pre-release, draft, and nightly assets are skipped)
+
 ## 1.2.0 — 2026-10-23
 
 Promotes the QA’d `1.2.0-beta.4` line to stable.

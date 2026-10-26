@@ -151,6 +151,10 @@ public final class WineManager: @unchecked Sendable {
         try throwIfInstallCancelled(store)
         onSettingUp?()
 
+        if store == .gog {
+            try await ensureEngineInstalled(GOGRecipe.recommendedEngine)
+        }
+
         try await createPrefix(for: store, config: config)
         try throwIfInstallCancelled(store)
 
@@ -341,7 +345,8 @@ public final class WineManager: @unchecked Sendable {
             config: config,
             wineDebug: wineDebug,
             firstRunUpdate: firstRunUpdate,
-            steamAppId: nil
+            steamAppId: nil,
+            steamOverlayEnabled: false
         )
     }
 
@@ -351,7 +356,8 @@ public final class WineManager: @unchecked Sendable {
         config: BottleConfiguration,
         wineDebug: String? = nil,
         firstRunUpdate: Bool = false,
-        steamAppId: String?
+        steamAppId: String?,
+        steamOverlayEnabled: Bool = false
     ) async throws {
         if store == .epic {
             return
@@ -392,11 +398,18 @@ public final class WineManager: @unchecked Sendable {
             executable: executablePath,
             wineLibDir: layout.wineLibDir,
             firstRunUpdate: firstRunUpdate,
-            steamAppId: store == .steam ? steamAppId : nil
+            steamAppId: store == .steam ? steamAppId : nil,
+            steamOverlayEnabled: steamOverlayEnabled
         )
         for (key, value) in recipe.environment {
             environment[key] = value
         }
+        X86Emulation.apply(
+            to: &environment,
+            mode: appConfiguration().resolvedX86Emulation,
+            probe: FEXRuntime.probe(wineURL: wineBinary),
+            store: store
+        )
         // Preferred debug (game or client), then VERMUT_WINEDEBUG (host override always wins).
         // Setup/launch default to err+all into the capped store log — WINEDEBUG=-all
         // leaves no Wine trace when the bootstrapper dies early.
@@ -439,13 +452,15 @@ public final class WineManager: @unchecked Sendable {
     /// Launch a Steam title (`-applaunch`). Client WINEDEBUG stays quiet (`-all`).
     public func launchSteamGame(
         appId: String,
-        config: BottleConfiguration
+        config: BottleConfiguration,
+        steamOverlayEnabled: Bool = false
     ) async throws {
         try await launchStore(
             .steam,
             config: config,
             wineDebug: SteamGameLaunch.clientWineDebug(),
-            steamAppId: appId
+            steamAppId: appId,
+            steamOverlayEnabled: steamOverlayEnabled
         )
     }
 

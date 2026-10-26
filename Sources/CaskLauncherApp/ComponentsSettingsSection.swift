@@ -35,7 +35,7 @@ struct DXMTVersionsSettingsSection: View {
         VStack(alignment: .leading, spacing: VermutSpace.s3) {
             Text("DXMT")
                 .font(VermutType.headline)
-            Text("Translates DirectX 10/11 to Metal. Vermut uses the default version, unless a bottle or game chooses another.")
+            Text("Translates DirectX 10/11 to Metal. Vermut uses the default version, unless a bottle or game chooses another. Only stable GitHub releases are listed — nightly DXMT builds are never offered.")
                 .font(VermutType.body)
                 .foregroundStyle(Color.Vermut.mutedForeground)
                 .lineSpacing(2)

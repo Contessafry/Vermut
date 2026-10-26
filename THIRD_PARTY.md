@@ -10,7 +10,8 @@ Vermut downloads and uses several open-source components. This document lists al
 
 **Versions used**:
 - **grapple-wine** (default): CrossOver 26.3 / Wine 11, LGPL. winemac exports the Metal views DXMT needs.
-- Wine Staging 11.18 and Wine Devel from Gcenx `macOS_Wine_builds` (fallback)
+- Wine Staging / Devel from Gcenx `macOS_Wine_builds` (latest GitHub release; 11.18 remains the offline fallback)
+- Anti-cheat labels derived from Are We Anti-Cheat Yet? `games.json` (CC-style community data; see `docs/ANTI_CHEAT.md`)
 
 **License**: LGPL 2.1 or later  
 **Wine Copyright**: Copyright (c) 1993-2024 the Wine project authors  

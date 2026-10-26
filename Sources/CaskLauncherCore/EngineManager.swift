@@ -15,10 +15,23 @@ public final class EngineManager: @unchecked Sendable {
         WineEngine.allCases.contains { isEngineInstalled($0) }
     }
 
-    public func downloadEngine(_ engine: WineEngine, progress: @escaping @Sendable (Double) -> Void) async throws {
+    public static let installedVersionFileName = ".vermut-version"
+
+    public func installedVersion(of engine: WineEngine) -> String? {
+        let url = PathManager.shared.engineURL(for: engine).appendingPathComponent(Self.installedVersionFileName)
+        guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    public func downloadEngine(
+        _ engine: WineEngine,
+        replaceExisting: Bool = false,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
         if UninstallPersistenceGate.writesSuppressed { throw CancellationError() }
         let engineURL = PathManager.shared.engineURL(for: engine)
-        if EngineLayout.resolve(installRoot: engineURL) != nil {
+        if !replaceExisting, EngineLayout.resolve(installRoot: engineURL) != nil {
             progress(1.0)
             return
         }
@@ -47,6 +60,9 @@ public final class EngineManager: @unchecked Sendable {
         if engine.supportsDXMT, let overlay = layout.bundledDXMTOverlay() ?? OverlayLayout.resolve(installRoot: PathManager.shared.dxmtURL()) {
             try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
         }
+
+        let versionURL = engineURL.appendingPathComponent(Self.installedVersionFileName)
+        try component.version.data(using: .utf8)?.write(to: versionURL, options: .atomic)
 
         try fileManager.removeItem(at: downloadLocation)
     }

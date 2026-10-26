@@ -32,7 +32,8 @@ let package = Package(
                 path: "Sources/CaskLauncherCore",
                 resources: [
                     .copy("BrandAssets"),
-                    .copy("tokens.json")
+                    .copy("tokens.json"),
+                    .copy("kernel-anticheat.json")
                 ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency")

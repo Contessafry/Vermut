@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { computeRecommendation, computeKnownNotWorking, aggregateReports } from './compat-aggregate.js';
 
 // Mock functions for testing parsing logic
 function extractFields(body) {
@@ -39,16 +40,6 @@ function extractFields(body) {
 	return fields;
 }
 
-function computeRecommendation(byGraphics) {
-	const scores = {};
-
-	for (const [graphics, counts] of Object.entries(byGraphics)) {
-		scores[graphics] = counts.perfect * 3 + counts.issues * 1 - counts.broken * 2;
-	}
-
-	const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-	return sorted.length > 0 ? sorted[0][0] : undefined;
-}
 
 test('extractFields parses issue body', () => {
 	const body = `
@@ -134,4 +125,64 @@ test('computeRecommendation handles ties', () => {
 
 	const recommended = computeRecommendation(byGraphics);
 	assert.ok(['dxmt', 'dxvk'].includes(recommended));
+});
+
+test('computeRecommendation ignores backends with only broken reports', () => {
+	const byGraphics = {
+		dxmt: { perfect: 0, issues: 0, broken: 4 },
+		dxvk: { perfect: 0, issues: 0, broken: 1 },
+	};
+
+	assert.strictEqual(computeRecommendation(byGraphics), null);
+});
+
+test('computeRecommendation recommends only from working reports', () => {
+	const byGraphics = {
+		dxmt: { perfect: 0, issues: 0, broken: 8 },
+		dxvk: { perfect: 2, issues: 1, broken: 0 },
+		wined3d: { perfect: 0, issues: 0, broken: 3 },
+	};
+
+	assert.strictEqual(computeRecommendation(byGraphics), 'dxvk');
+});
+
+test('knownNotWorking records backend and engine from broken-only reports', () => {
+	const known = computeKnownNotWorking({
+		'dxmt\tvermut-wine': { perfect: 0, issues: 0, broken: 2 },
+		'dxvk\tstaging': { perfect: 1, issues: 0, broken: 1 },
+		'wined3d\tdevel': { perfect: 0, issues: 0, broken: 1 },
+	});
+
+	assert.deepStrictEqual(known, [
+		{ graphics: 'dxmt', engine: 'vermut-wine' },
+		{ graphics: 'wined3d', engine: 'devel' },
+	]);
+});
+
+test('aggregateReports leaves recommended empty for broken-only games', () => {
+	const games = aggregateReports([
+		{
+			store: 'steam',
+			gameId: '1245620',
+			gameName: 'ELDEN RING',
+			engine: 'vermut-wine',
+			graphics: 'dxmt',
+			result: 'broken',
+		},
+		{
+			store: 'steam',
+			gameId: '1245620',
+			gameName: 'ELDEN RING',
+			engine: 'staging',
+			graphics: 'dxvk',
+			result: 'broken',
+		},
+	]);
+
+	assert.strictEqual(games.length, 1);
+	assert.strictEqual(games[0].recommended, null);
+	assert.deepStrictEqual(games[0].knownNotWorking, [
+		{ graphics: 'dxmt', engine: 'vermut-wine' },
+		{ graphics: 'dxvk', engine: 'staging' },
+	]);
 });

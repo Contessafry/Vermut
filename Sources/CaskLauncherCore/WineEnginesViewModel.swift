@@ -39,6 +39,8 @@ public final class WineEnginesViewModel: ObservableObject {
     @Published public private(set) var busyProgress: Double = 0
     @Published public var errorMessage: String?
     @Published public var pendingDownload: WineEngine?
+    /// Latest Gcenx tags discovered from GitHub (never hardcoded).
+    @Published public private(set) var latestCatalogVersions: [WineEngine: String] = [:]
 
     /// Approximate download size shown before confirming (from fallback assets when known).
     nonisolated public static let approximateDownloadBytes: [WineEngine: Int64] = [
@@ -47,6 +49,8 @@ public final class WineEnginesViewModel: ObservableObject {
     ]
 
     private var downloadTask: Task<Void, Never>?
+    private var catalogTask: Task<Void, Never>?
+    private var replacingEngine: WineEngine?
 
     public init() {
         refresh()
@@ -56,7 +60,14 @@ public final class WineEnginesViewModel: ObservableObject {
         gstreamer = GStreamerProbe.probe()
         rows = WineEngine.allCases.map { engine in
             let installed = EngineManager.shared.isEngineInstalled(engine)
-            let fallback = ComponentCatalog.fallback(for: engine)
+            let installedVersion = EngineManager.shared.installedVersion(of: engine)
+            let catalogVersion = latestCatalogVersions[engine]
+            let versionLabel = installedVersion ?? catalogVersion ?? ComponentCatalog.fallback(for: engine).version
+            let updateAvailable: Bool = {
+                guard installed, engine != .grappleWine,
+                      let catalogVersion, let installedVersion else { return false }
+                return ComponentVersion.compare(catalogVersion, installedVersion) == .orderedDescending
+            }()
             let state: WineEngineRowState
             if engine == .grappleWine, installed {
                 state = .included
@@ -70,18 +81,30 @@ public final class WineEnginesViewModel: ObservableObject {
             return WineEngineRow(
                 engine: engine,
                 state: state,
-                versionLabel: fallback.version,
-                updateAvailable: false
+                versionLabel: versionLabel,
+                updateAvailable: updateAvailable
             )
         }
     }
 
-    public func requestDownload(_ engine: WineEngine) {
+    public func refreshFromNetwork() async {
+        var latest: [WineEngine: String] = [:]
+        for engine in [WineEngine.staging, .devel] {
+            if let first = await ComponentCatalog.listGcenxWineReleases(engine: engine).first {
+                latest[engine] = first.version
+            }
+        }
+        latestCatalogVersions = latest
+        refresh()
+    }
+
+    public func requestDownload(_ engine: WineEngine, replaceExisting: Bool = false) {
         guard engine != .grappleWine else { return }
-        if EngineManager.shared.isEngineInstalled(engine) {
+        if EngineManager.shared.isEngineInstalled(engine), !replaceExisting {
             refresh()
             return
         }
+        replacingEngine = replaceExisting ? engine : nil
         pendingDownload = engine
     }
 
@@ -112,12 +135,16 @@ public final class WineEnginesViewModel: ObservableObject {
     }
 
     public func confirmSheetTitle(for engine: WineEngine) -> String {
-        "Download \(engine.userFacingName)?"
+        let version = latestCatalogVersions[engine].map { " \($0)" } ?? ""
+        if replacingEngine == engine || EngineManager.shared.isEngineInstalled(engine) {
+            return "Update \(engine.userFacingName)\(version)?"
+        }
+        return "Download \(engine.userFacingName)\(version)?"
     }
 
     public func confirmSheetMessage(for engine: WineEngine) -> String {
         let mb = Self.approximateDownloadBytes[engine].map { "About \(Self.formatBytes($0)). " } ?? ""
-        return "\(mb)The bottle keeps using the current engine until the download finishes."
+        return "\(mb)The bottle keeps using the current engine until the download finishes. Versions come from Gcenx/macOS_Wine_builds, not a hardcoded list."
     }
 
     nonisolated public static func formatBytes(_ bytes: Int64) -> String {
@@ -147,12 +174,14 @@ public final class WineEnginesViewModel: ObservableObject {
         errorMessage = nil
         refresh()
         do {
-            try await EngineManager.shared.downloadEngine(engine) { [weak self] value in
+            let replace = replacingEngine == engine
+            try await EngineManager.shared.downloadEngine(engine, replaceExisting: replace) { [weak self] value in
                 Task { @MainActor in
                     self?.busyProgress = value
                     self?.refresh()
                 }
             }
+            replacingEngine = nil
             if Task.isCancelled { return }
             busyEngine = nil
             busyProgress = 0
