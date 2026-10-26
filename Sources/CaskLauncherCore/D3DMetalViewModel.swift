@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Combine)
 import Combine
+#endif
 
 /// Observable surface for Settings › Components › D3DMetal.
 @MainActor

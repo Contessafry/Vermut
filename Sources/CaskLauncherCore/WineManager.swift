@@ -780,10 +780,12 @@ public final class WineManager: @unchecked Sendable {
     }
 
     public static func availableFreeBytes(at url: URL = PathManager.shared.appSupportURL) -> Int64? {
+        #if canImport(Darwin)
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         if let capacity = values?.volumeAvailableCapacityForImportantUsage {
             return capacity
         }
+        #endif
         let attrs = try? FileManager.default.attributesOfFileSystem(forPath: url.path)
         return attrs?[.systemFreeSize] as? Int64
     }
