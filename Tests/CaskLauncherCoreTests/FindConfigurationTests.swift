@@ -167,7 +167,7 @@ final class FindConfigurationPlannerTests: XCTestCase {
         XCTAssertEqual(plan.first?.graphics, .dxvk)
         XCTAssertEqual(plan.first?.engine, .staging)
         XCTAssertFalse(plan.first?.steamOverlayEnabled ?? true)
-        XCTAssertEqual(plan.first?.launchOption, .none)
+        XCTAssertEqual(plan.first?.launchOption, FindLaunchOption.none)
 
         let defaultIndex = plan.firstIndex {
             $0.engine == .grappleWine && $0.graphics == .dxmt && !$0.steamOverlayEnabled && $0.launchOption == .none
@@ -184,7 +184,7 @@ final class FindConfigurationPlannerTests: XCTestCase {
         let context = steamContext(engines: [.grappleWine])
         let plan = FindConfigurationPlanner.plan(context: context)
         let dxmt = plan.filter { $0.engine == .grappleWine && $0.graphics == .dxmt && !$0.steamOverlayEnabled }
-        XCTAssertEqual(dxmt.first?.launchOption, .none)
+        XCTAssertEqual(dxmt.first?.launchOption, FindLaunchOption.none)
         XCTAssertTrue(dxmt.contains { $0.launchOption == .forceGLCore })
         XCTAssertTrue(dxmt.contains { $0.launchOption == .unityD3D11NoSingleThreaded })
         if let none = dxmt.firstIndex(where: { $0.launchOption == .none }),
@@ -456,7 +456,7 @@ final class FindLaunchOptionAndSteamArgsTests: XCTestCase {
     }
 
     func testFromStoredMapsKnownPresets() {
-        XCTAssertEqual(FindLaunchOption.fromStored(""), .none)
+        XCTAssertEqual(FindLaunchOption.fromStored(""), FindLaunchOption.none)
         XCTAssertEqual(FindLaunchOption.fromStored("-force-glcore"), .forceGLCore)
         XCTAssertEqual(FindLaunchOption.fromStored("  -force-d3d11-no-singlethreaded ").id, FindLaunchOption.unityD3D11NoSingleThreaded.id)
     }
