@@ -346,7 +346,8 @@ public final class WineManager: @unchecked Sendable {
             wineDebug: wineDebug,
             firstRunUpdate: firstRunUpdate,
             steamAppId: nil,
-            steamOverlayEnabled: false
+            steamOverlayEnabled: false,
+            extraLaunchOptions: []
         )
     }
 
@@ -357,7 +358,8 @@ public final class WineManager: @unchecked Sendable {
         wineDebug: String? = nil,
         firstRunUpdate: Bool = false,
         steamAppId: String?,
-        steamOverlayEnabled: Bool = false
+        steamOverlayEnabled: Bool = false,
+        extraLaunchOptions: [String] = []
     ) async throws {
         if store == .epic {
             return
@@ -399,7 +401,8 @@ public final class WineManager: @unchecked Sendable {
             wineLibDir: layout.wineLibDir,
             firstRunUpdate: firstRunUpdate,
             steamAppId: store == .steam ? steamAppId : nil,
-            steamOverlayEnabled: steamOverlayEnabled
+            steamOverlayEnabled: steamOverlayEnabled,
+            extraLaunchOptions: extraLaunchOptions
         )
         for (key, value) in recipe.environment {
             environment[key] = value
@@ -421,7 +424,10 @@ public final class WineManager: @unchecked Sendable {
         applyWineDebug(&environment, preferred: preferredDebug)
 
         let logURL = PathManager.shared.logURL(for: store)
-        let appSuffix = steamAppId.map { " applaunch=\($0)" } ?? ""
+        let optionsSuffix = extraLaunchOptions.isEmpty
+            ? ""
+            : " opts=\(extraLaunchOptions.joined(separator: " "))"
+        let appSuffix = (steamAppId.map { " applaunch=\($0)" } ?? "") + optionsSuffix
         appendLaunchLog(
             StoreLaunchRecipe.launchLogLine(
                 store: store,
@@ -453,14 +459,17 @@ public final class WineManager: @unchecked Sendable {
     public func launchSteamGame(
         appId: String,
         config: BottleConfiguration,
-        steamOverlayEnabled: Bool = false
+        steamOverlayEnabled: Bool = false,
+        extraLaunchOptions: [String] = [],
+        wineDebug: String? = nil
     ) async throws {
         try await launchStore(
             .steam,
             config: config,
-            wineDebug: SteamGameLaunch.clientWineDebug(),
+            wineDebug: wineDebug ?? SteamGameLaunch.clientWineDebug(),
             steamAppId: appId,
-            steamOverlayEnabled: steamOverlayEnabled
+            steamOverlayEnabled: steamOverlayEnabled,
+            extraLaunchOptions: extraLaunchOptions
         )
     }
 
@@ -481,7 +490,8 @@ public final class WineManager: @unchecked Sendable {
     public func launchEpicGame(
         appName: String,
         config: BottleConfiguration,
-        wineDebug: String? = nil
+        wineDebug: String? = nil,
+        extraLaunchOptions: [String] = []
     ) async throws {
         var config = StoreRecipe.normalized(config, for: .epic)
         let engine = resolvedEngine(for: .epic, config: config)
@@ -513,7 +523,34 @@ public final class WineManager: @unchecked Sendable {
             appName: appName,
             wine: wine,
             prefix: prefixURL,
-            extraEnvironment: environment
+            extraEnvironment: environment,
+            extraGameArguments: extraLaunchOptions
+        )
+    }
+
+    /// Stop only the game's Wine processes. Leaves Steam / wineserver up when possible.
+    @discardableResult
+    public func stopGameProcesses(
+        store: GameStore,
+        appId: String,
+        installDir: String?
+    ) -> [pid_t] {
+        let prefix = PathManager.shared.prefixURL(for: store).path
+        let snap = FindGameProcess.classify(
+            processLines: PrefixRuntime.processPIDLines(),
+            prefixPath: prefix,
+            installDir: installDir,
+            appId: appId
+        )
+        return FindGameProcess.stop(pids: snap.gamePIDs)
+    }
+
+    public func gameProcessSnapshot(store: GameStore, appId: String, installDir: String?) -> FindGameProcess.Snapshot {
+        FindGameProcess.classify(
+            processLines: PrefixRuntime.processPIDLines(),
+            prefixPath: PathManager.shared.prefixURL(for: store).path,
+            installDir: installDir,
+            appId: appId
         )
     }
 

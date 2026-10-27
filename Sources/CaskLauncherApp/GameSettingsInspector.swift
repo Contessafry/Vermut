@@ -9,8 +9,10 @@ struct GameSettingsInspector: View {
     @State private var config = GameConfiguration.automatic
     @State private var confirmResetAll = false
     @State private var pendingEngineAfterDownload: WineEngine?
+    @State private var showingFindConfiguration = false
     @StateObject private var enginesModel = WineEnginesViewModel()
     @StateObject private var d3dMetalModel = D3DMetalViewModel()
+    @StateObject private var findConfiguration = FindConfigurationController()
 
     private var bottle: BottleConfiguration {
         StoreRecipe.normalized(
@@ -54,6 +56,8 @@ struct GameSettingsInspector: View {
                     overlaySection
                 }
                 logLevelSection
+                launchOptionsSection
+                findConfigurationSection
                 actionButtons
                 nextLaunchNote
             }
@@ -70,6 +74,10 @@ struct GameSettingsInspector: View {
                 persist()
                 pendingEngineAfterDownload = nil
             }
+        }
+        .sheet(isPresented: $showingFindConfiguration) {
+            FindConfigurationSheet(game: game, controller: findConfiguration)
+                .environmentObject(appState)
         }
         .confirmationDialog(
             String(localized: "Reset settings for \(game.name)?", comment: "Confirm reset all game settings"),
@@ -387,6 +395,94 @@ struct GameSettingsInspector: View {
         )
     }
 
+    private var launchOptionsSection: some View {
+        let isOverridden = !config.launchOptions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return VStack(alignment: .leading, spacing: VermutSpace.s2) {
+            HStack(spacing: VermutSpace.s2) {
+                if isOverridden {
+                    Circle()
+                        .fill(Color.Vermut.info)
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                }
+                Text(String(localized: "Launch options", comment: "Game settings field"))
+                    .font(VermutType.bodyEmphasis)
+                    .foregroundStyle(Color.Vermut.foreground)
+            }
+            Picker("", selection: launchOptionsSelection) {
+                Text(String(localized: "None", comment: "No launch options")).tag("")
+                ForEach(FindLaunchOption.searchSet.filter { !$0.arguments.isEmpty }) { option in
+                    Text(option.displayName).tag(option.argumentString)
+                }
+                if isOverridden,
+                   FindLaunchOption.searchSet.allSatisfy({ $0.argumentString != config.launchOptions }) {
+                    Text(config.launchOptions).tag(config.launchOptions)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            if isOverridden {
+                HStack(spacing: VermutSpace.s1) {
+                    Text(String(localized: "Modified for this game", comment: "Override indicator"))
+                        .font(VermutType.captionRegular)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                    Text("·")
+                        .font(VermutType.captionRegular)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                    Button(String(localized: "Reset", comment: "Reset one game setting")) {
+                        config.launchOptions = ""
+                        persist()
+                    }
+                    .buttonStyle(.plain)
+                    .font(VermutType.captionRegular)
+                    .foregroundStyle(Color.Vermut.info)
+                }
+            } else {
+                Text(
+                    String(
+                        localized: "Passed after Steam -applaunch. Leave empty unless a game needs Unity flags such as -force-glcore.",
+                        comment: "Launch options help"
+                    )
+                )
+                .font(VermutType.captionRegular)
+                .foregroundStyle(Color.Vermut.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(launchOptionsAccessibilityLabel)
+    }
+
+    private var findConfigurationSection: some View {
+        VStack(alignment: .leading, spacing: VermutSpace.s2) {
+            Text(String(localized: "Find configuration", comment: "Find configuration section"))
+                .font(VermutType.bodyEmphasis)
+            Text(
+                String(
+                    localized: "If this game will not start, try engines, graphics, overlay, and a few launch options automatically.",
+                    comment: "Find configuration help"
+                )
+            )
+            .font(VermutType.captionRegular)
+            .foregroundStyle(Color.Vermut.mutedForeground)
+            .fixedSize(horizontal: false, vertical: true)
+            Button(String(localized: "Find configuration", comment: "Find configuration button")) {
+                findConfiguration.prepare(
+                    game: game,
+                    appState: appState,
+                    d3dMetalInstalled: appState.hasD3DMetal || d3dMetalModel.isUsable
+                )
+                showingFindConfiguration = true
+            }
+            .buttonStyle(VermutButtonStyle(kind: .outline))
+            .disabled(!game.isInstalled)
+        }
+        .padding(VermutSpace.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.Vermut.secondary)
+        .clipShape(RoundedRectangle(cornerRadius: VermutRadius.md, style: .continuous))
+    }
+
     private var logLevelSection: some View {
         let steamNote = game.store == .steam
             ? String(
@@ -571,6 +667,16 @@ struct GameSettingsInspector: View {
         )
     }
 
+    private var launchOptionsSelection: Binding<String> {
+        Binding(
+            get: { config.launchOptions },
+            set: { newValue in
+                config.launchOptions = newValue
+                persist()
+            }
+        )
+    }
+
     private var logLevelSelection: Binding<String> {
         Binding(
             get: {
@@ -659,6 +765,13 @@ struct GameSettingsInspector: View {
             )
             : config.dxmtVersion
         return String(localized: "DXMT version, \(value)", comment: "a11y")
+    }
+
+    private var launchOptionsAccessibilityLabel: String {
+        let value = config.launchOptions.isEmpty
+            ? String(localized: "None", comment: "No launch options")
+            : config.launchOptions
+        return String(localized: "Launch options, \(value)", comment: "a11y")
     }
 
     private var logLevelAccessibilityLabel: String {

@@ -22,11 +22,15 @@ public struct BottleRuntimeProfile: Equatable, Sendable {
 /// Pure helpers for launching a Steam title with per-game settings.
 public enum SteamGameLaunch {
     /// Steam argv that starts (or forwards to) a specific app.
-    public static func applaunchArguments(appId: String, firstRunUpdate: Bool = false) -> [String] {
+    public static func applaunchArguments(
+        appId: String,
+        firstRunUpdate: Bool = false,
+        extraLaunchOptions: [String] = []
+    ) -> [String] {
         if firstRunUpdate {
             return ["steam.exe"]
         }
-        return [
+        var args = [
             "steam.exe",
             "-no-cef-sandbox",
             "-cef-disable-gpu",
@@ -34,11 +38,19 @@ public enum SteamGameLaunch {
             "-applaunch",
             appId
         ]
+        // Steam forwards tokens after the app id to the game (`-applaunch <id> <opts>`).
+        args.append(contentsOf: extraLaunchOptions.filter { !$0.isEmpty })
+        return args
     }
 
     /// `steam://rungameid/<appId>` URI for an already-running client.
-    public static func rungameURI(appId: String) -> String {
-        "steam://rungameid/\(appId)"
+    /// Extra options use the `//args` form so a live client can start the title without a second wineserver.
+    public static func rungameURI(appId: String, extraLaunchOptions: [String] = []) -> String {
+        let extras = extraLaunchOptions.filter { !$0.isEmpty }
+        if extras.isEmpty {
+            return "steam://rungameid/\(appId)"
+        }
+        return "steam://rungameid/\(appId)//\(extras.joined(separator: " "))"
     }
 
     /// Restart when the running client uses a different engine (or known graphics profile).

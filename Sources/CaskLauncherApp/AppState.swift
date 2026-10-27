@@ -69,6 +69,8 @@ final class AppState: ObservableObject {
     @Published var showingUninstallSheet = false
     /// After uninstall wipe starts / Done: skip Wine quit cleanup; block config/dir recreation.
     @Published var isUninstallComplete = false
+    /// Find configuration is probing — do not run Steam hang recovery or compat sessions.
+    @Published var isFindConfigurationActive = false
     /// One-shot Steam launch hang recovery (main/login window timeout).
     var steamLaunchWindowRecoveryUsed = false
     var steamWindowWatchTask: Task<Void, Never>?
@@ -614,7 +616,7 @@ final class AppState: ObservableObject {
                 SteamWindowWatcher.wineWindowPID(minWidth: 600, minHeight: 400) != nil
             }.value
             guard !hasBigWindow else { return }
-            guard !steamLaunchWindowRecoveryUsed else { return }
+            guard !steamLaunchWindowRecoveryUsed, !isFindConfigurationActive else { return }
             steamLaunchWindowRecoveryUsed = true
             try? WineManager.shared.stopStore(.steam)
             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -861,11 +863,12 @@ final class AppState: ObservableObject {
                         gameName: game.name,
                         resolved: resolved
                     )
-                    try await WineManager.shared.launchEpicGame(
-                        appName: game.appId,
-                        config: launchConfig,
-                        wineDebug: wineDebug
-                    )
+                try await WineManager.shared.launchEpicGame(
+                    appName: game.appId,
+                    config: launchConfig,
+                    wineDebug: wineDebug,
+                    extraLaunchOptions: resolved.launchOptions
+                )
                     storeStatuses[.epic] = .running
                     Task {
                         try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -959,7 +962,8 @@ final class AppState: ObservableObject {
                 try await WineManager.shared.launchSteamGame(
                     appId: game.appId,
                     config: launchConfig,
-                    steamOverlayEnabled: resolved.steamOverlayEnabled
+                    steamOverlayEnabled: resolved.steamOverlayEnabled,
+                    extraLaunchOptions: resolved.launchOptions
                 )
                 steamRuntimeProfile = needed
                 storeRuntimeProfiles[.steam] = needed
@@ -1310,6 +1314,80 @@ final class AppState: ObservableObject {
         startGameSession(store: store, gameId: gameId, gameName: gameName, resolved: resolved)
     }
     
+    /// Quiet probe used by Find configuration: no compat session, no restart alert.
+    func probeLaunch(_ game: InstalledGame, combo: FindConfigurationCombo) async throws {
+        var resolved = resolveLaunchSettings(for: game)
+        resolved.engine = EffectiveSetting(value: combo.engine, source: .game)
+        resolved.graphics = EffectiveSetting(value: combo.graphics, source: .game)
+        resolved.steamOverlayEnabled = combo.steamOverlayEnabled
+        resolved.launchOptions = combo.launchOption.arguments
+        resolved.logLevel = EffectiveSetting(value: .errors, source: .game)
+        let launchConfig = resolved.launchConfiguration
+        let needed = BottleRuntimeProfile(resolved: resolved)
+
+        if game.store == .steam {
+            let running = WineManager.shared.isStoreRunning(.steam)
+            let processEngine = running ? WineManager.shared.runningSteamEngine() : nil
+            let restart = SteamGameLaunch.needsClientRestart(
+                isRunning: running,
+                runningProfile: steamRuntimeProfile,
+                runningEngineFromProcess: processEngine,
+                needed: needed
+            )
+            if restart {
+                try? WineManager.shared.stopStore(.steam)
+                steamRuntimeProfile = nil
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+            try await WineManager.shared.launchSteamGame(
+                appId: game.appId,
+                config: launchConfig,
+                steamOverlayEnabled: combo.steamOverlayEnabled,
+                extraLaunchOptions: combo.launchOption.arguments,
+                wineDebug: WineLogLevel.errors.wineDebug
+            )
+            steamRuntimeProfile = needed
+            storeRuntimeProfiles[.steam] = needed
+            storeStatuses[.steam] = .running
+            return
+        }
+
+        if game.store == .epic {
+            try await WineManager.shared.launchEpicGame(
+                appName: game.appId,
+                config: launchConfig,
+                wineDebug: WineLogLevel.errors.wineDebug,
+                extraLaunchOptions: combo.launchOption.arguments
+            )
+            storeStatuses[.epic] = .running
+            return
+        }
+
+        try await WineManager.shared.launchStore(
+            game.store,
+            config: launchConfig,
+            wineDebug: WineLogLevel.errors.wineDebug
+        )
+        storeStatuses[game.store] = .running
+    }
+
+    func stopFindConfigurationAttempt(game: InstalledGame, next: FindConfigurationCombo?, current: FindConfigurationCombo?) {
+        if FindGameProcess.needsStoreRestart(current: current, next: next ?? current ?? FindConfigurationCombo(engine: .grappleWine, graphics: .dxmt)) {
+            try? WineManager.shared.stopStore(game.store)
+            if game.store == .steam {
+                steamRuntimeProfile = nil
+                storeRuntimeProfiles[.steam] = nil
+            }
+            storeStatuses[game.store] = .installed
+        } else {
+            _ = WineManager.shared.stopGameProcesses(
+                store: game.store,
+                appId: game.appId,
+                installDir: game.installDir
+            )
+        }
+    }
+
     private func graphicsIdentifier(_ backend: GraphicsBackend) -> String {
         switch backend {
         case .dxmt: return "dxmt"
