@@ -130,7 +130,7 @@ Older builds used a different Application Support folder name; Vermut migrates i
 | **WineD3D** | DirectX → OpenGL. Required for GOG Galaxy (Qt software + GDI renderer). |
 | **D3DMetal** | Apple GPTK, DirectX 12. **Not** downloaded. Enable it only if you installed GPTK yourself. |
 
-Steam launches with `-no-cef-sandbox -cef-disable-gpu -noverifyfiles`. The Steam overlay is **off per game by default** (Game Settings toggle) because `gameoverlayrenderer` can hang titles on DXMT. Epic never runs the Windows Epic Games Launcher: Legendary talks to Epic on the host, then starts Windows game binaries inside the bottle.
+Steam launches with `-no-cef-sandbox -cef-disable-gpu -noverifyfiles`. The Steam overlay is **off per game by default** (Game Settings toggle) because `gameoverlayrenderer` can hang titles on DXMT. Game Settings can also **Find configuration**: Vermut tries engines, graphics, overlay, and a few launch options (`-applaunch` extras) until a title stays up, then asks you to confirm before saving. Epic never runs the Windows Epic Games Launcher: Legendary talks to Epic on the host, then starts Windows game binaries inside the bottle.
 
 Library tiles warn when Are We Anti-Cheat Yet? lists **Easy Anti-Cheat** or **BattlEye** for that Steam/Epic id. See [docs/ANTI_CHEAT.md](docs/ANTI_CHEAT.md). x86_64 emulation is Rosetta 2 by default; FEX is a Settings option that stays inactive until an ARM64 Wine + FEX runtime exists ([docs/FEX.md](docs/FEX.md)). GOG recipe: [docs/GOG.md](docs/GOG.md).
 

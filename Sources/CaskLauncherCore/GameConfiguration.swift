@@ -13,23 +13,27 @@ public struct GameConfiguration: Codable, Sendable, Equatable {
     public var logLevel: String
     /// Steam overlay is off by default — `gameoverlayrenderer` can hang games on DXMT.
     public var steamOverlayEnabled: Bool
+    /// Extra game argv (Steam: after `-applaunch <appId>`). Empty means none.
+    public var launchOptions: String
 
     public init(
         engine: String = SettingInheritance.automatic,
         graphicsBackend: String = SettingInheritance.automatic,
         dxmtVersion: String = SettingInheritance.automatic,
         logLevel: String = SettingInheritance.automatic,
-        steamOverlayEnabled: Bool = false
+        steamOverlayEnabled: Bool = false,
+        launchOptions: String = ""
     ) {
         self.engine = engine
         self.graphicsBackend = graphicsBackend
         self.dxmtVersion = dxmtVersion
         self.logLevel = logLevel
         self.steamOverlayEnabled = steamOverlayEnabled
+        self.launchOptions = launchOptions
     }
 
     enum CodingKeys: String, CodingKey {
-        case engine, graphicsBackend, dxmtVersion, logLevel, steamOverlayEnabled
+        case engine, graphicsBackend, dxmtVersion, logLevel, steamOverlayEnabled, launchOptions
     }
 
     public init(from decoder: Decoder) throws {
@@ -43,6 +47,7 @@ public struct GameConfiguration: Codable, Sendable, Equatable {
         logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel)
             ?? SettingInheritance.automatic
         steamOverlayEnabled = try container.decodeIfPresent(Bool.self, forKey: .steamOverlayEnabled) ?? false
+        launchOptions = try container.decodeIfPresent(String.self, forKey: .launchOptions) ?? ""
     }
 
     public var hasOverrides: Bool {
@@ -51,6 +56,7 @@ public struct GameConfiguration: Codable, Sendable, Equatable {
             || !SettingInheritance.isAutomatic(dxmtVersion)
             || !SettingInheritance.isAutomatic(logLevel)
             || steamOverlayEnabled
+            || !launchOptions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     public mutating func resetAll() {
@@ -59,6 +65,7 @@ public struct GameConfiguration: Codable, Sendable, Equatable {
         dxmtVersion = SettingInheritance.automatic
         logLevel = SettingInheritance.automatic
         steamOverlayEnabled = false
+        launchOptions = ""
     }
 
     public static let automatic = GameConfiguration()
@@ -77,6 +84,8 @@ public struct ResolvedLaunchSettings: Equatable, Sendable {
     public var engineForcedForDXVK: Bool
     /// Per-game Steam overlay. Default is off.
     public var steamOverlayEnabled: Bool
+    /// Extra game argv applied at launch (Steam `-applaunch` extras).
+    public var launchOptions: [String]
 
     public init(
         engine: EffectiveSetting<WineEngine>,
@@ -85,7 +94,8 @@ public struct ResolvedLaunchSettings: Equatable, Sendable {
         logLevel: EffectiveSetting<WineLogLevel>,
         bottleBase: BottleConfiguration,
         engineForcedForDXVK: Bool = false,
-        steamOverlayEnabled: Bool = false
+        steamOverlayEnabled: Bool = false,
+        launchOptions: [String] = []
     ) {
         self.engine = engine
         self.graphics = graphics
@@ -94,6 +104,7 @@ public struct ResolvedLaunchSettings: Equatable, Sendable {
         self.bottleBase = bottleBase
         self.engineForcedForDXVK = engineForcedForDXVK
         self.steamOverlayEnabled = steamOverlayEnabled
+        self.launchOptions = launchOptions
     }
 
     /// Whether DXMT was explicitly pinned on the game or bottle (not Automatic inherit).
@@ -182,7 +193,8 @@ public enum GameSettingsResolver {
             logLevel: logLevel,
             bottleBase: bottle,
             engineForcedForDXVK: applied.forcedForDXVK,
-            steamOverlayEnabled: gameConfig.steamOverlayEnabled
+            steamOverlayEnabled: gameConfig.steamOverlayEnabled,
+            launchOptions: FindLaunchOption.tokenize(gameConfig.launchOptions)
         )
     }
 
