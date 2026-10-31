@@ -135,11 +135,26 @@ final class SteamRecipeTests: XCTestCase {
         XCTAssertEqual(recipe.environment["WINEDLLPATH"], wineLib.path)
         XCTAssertEqual(
             recipe.environment["WINEDLLOVERRIDES"],
-            "gameoverlayrenderer,gameoverlayrenderer64=d"
+            StoreLaunchRecipe.steamOverlayDisableOverride
         )
+        XCTAssertEqual(recipe.environment["SteamNoOverlay"], "1")
         XCTAssertNil(recipe.environment["WINE_D3D_CONFIG"])
         XCTAssertFalse((recipe.environment["WINEDLLOVERRIDES"] ?? "").contains("winevulkan"))
         XCTAssertNil(recipe.environment["steamwebhelper.exe"])
+    }
+
+    func testSteamOverlayCanBeEnabledPerGame() {
+        let wineLib = URL(fileURLWithPath: "/engines/grapple-wine/lib/wine")
+        let steam = URL(fileURLWithPath: "/bottles/steam/prefix/drive_c/Program Files (x86)/Steam/steam.exe")
+        let recipe = StoreLaunchRecipe.build(
+            store: .steam,
+            executable: steam,
+            wineLibDir: wineLib,
+            steamAppId: "570",
+            steamOverlayEnabled: true
+        )
+        XCTAssertNil(recipe.environment["WINEDLLOVERRIDES"])
+        XCTAssertNil(recipe.environment["SteamNoOverlay"])
     }
 
     func testEpicLaunchDoesNotUseSteamFlags() {
@@ -170,9 +185,13 @@ final class SteamRecipeTests: XCTestCase {
         let recipe = StoreLaunchRecipe.build(store: .gog, executable: exe, wineLibDir: wineLib)
         XCTAssertEqual(
             recipe.arguments,
-            ["GalaxyClient.exe", "--disable-gpu", "--disable-gpu-compositing"]
+            ["GalaxyClient.exe"] + GOGRecipe.launchArguments
         )
-        XCTAssertEqual(recipe.environment["WINEDLLOVERRIDES"], "d3d10core,d3d11,d3d12,dxgi,winemetal=builtin")
+        XCTAssertEqual(recipe.environment["WINEDLLOVERRIDES"], GOGRecipe.dllOverrides)
+        XCTAssertEqual(recipe.environment["QT_OPENGL"], "software")
+        XCTAssertEqual(recipe.environment["QT_QUICK_BACKEND"], "software")
+        XCTAssertEqual(recipe.environment["QSG_RHI_BACKEND"], "software")
+        XCTAssertEqual(recipe.environment["LIBGL_ALWAYS_SOFTWARE"], "1")
         XCTAssertNil(recipe.environment["WINE_D3D_CONFIG"])
         XCTAssertFalse((recipe.environment["WINEDLLOVERRIDES"] ?? "").contains("winevulkan"))
         XCTAssertNil(recipe.environment["WINEESYNC"])
@@ -244,6 +263,9 @@ final class SteamRecipeTests: XCTestCase {
         ).compactMap(\.added)
         XCTAssertFalse(gogWrites.contains { $0.value == "winevulkan" })
         XCTAssertFalse(gogWrites.contains { $0.key.contains("EpicGamesLauncher.exe") })
+        XCTAssertTrue(gogWrites.contains {
+            $0.key == "HKCU\\Software\\Wine\\Direct3D" && $0.value == "renderer" && $0.data == "gdi"
+        })
     }
 
     func testSteamWebHelperAlwaysBuiltin() {
@@ -427,6 +449,278 @@ final class SteamRecipeTests: XCTestCase {
         XCTAssertTrue(plan.contains { $0.from.lastPathComponent == "d3d11.dll" && $0.to.path.contains("system32") })
     }
 
+    func testDXMTWindowsDLLsReplaceEngineBuiltinsAndCopyWinemetalIntoPrefix() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cask-dxmt-win-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let overlayRoot = root.appendingPathComponent("overlay")
+        let engineRoot = root.appendingPathComponent("engine")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d11.dll"), "dxmt-d3d11")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/dxgi.dll"), "dxmt-dxgi")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d10core.dll"), "dxmt-d3d10core")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/winemetal.dll"), "dxmt-winemetal")
+        try write(overlayRoot.appendingPathComponent("i386-windows/d3d11.dll"), "dxmt-d3d11-32")
+        try write(overlayRoot.appendingPathComponent("i386-windows/dxgi.dll"), "dxmt-dxgi-32")
+        try write(overlayRoot.appendingPathComponent("i386-windows/d3d10core.dll"), "dxmt-d3d10core-32")
+        try write(overlayRoot.appendingPathComponent("i386-windows/winemetal.dll"), "dxmt-winemetal-32")
+        try touch(engineRoot.appendingPathComponent("bin/wine"))
+        try touch(engineRoot.appendingPathComponent("bin/wineserver"))
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll"), "wined3d-d3d11")
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll"), "wined3d-dxgi")
+        try write(engineRoot.appendingPathComponent("lib/wine/i386-windows/d3d11.dll"), "wined3d-d3d11-32")
+
+        let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: overlayRoot))
+        let engine = try XCTUnwrap(EngineLayout.resolve(installRoot: engineRoot))
+        XCTAssertTrue(DXMTWindowsDLLs.needsInstall(overlay: overlay, engine: engine))
+        XCTAssertTrue(DXMTWindowsDLLs.missingRequired(in: overlay).isEmpty)
+
+        let enginePlan = DXMTWindowsDLLs.engineCopyPlan(overlay: overlay, engine: engine)
+        XCTAssertTrue(enginePlan.contains {
+            $0.from.lastPathComponent == "d3d11.dll" && $0.to.path.hasSuffix("lib/wine/x86_64-windows/d3d11.dll")
+        })
+        XCTAssertTrue(enginePlan.contains {
+            $0.from.lastPathComponent == "winemetal.dll" && $0.to.path.hasSuffix("lib/wine/x86_64-windows/winemetal.dll")
+        })
+        XCTAssertTrue(enginePlan.contains {
+            $0.to.path.hasSuffix("lib/wine/i386-windows/d3d11.dll")
+        })
+
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        XCTAssertFalse(DXMTWindowsDLLs.needsInstall(overlay: overlay, engine: engine))
+
+        let win64 = try XCTUnwrap(engine.windows64Dir)
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8), "dxmt-d3d11")
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("dxgi.dll"), encoding: .utf8), "dxmt-dxgi")
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("d3d10core.dll"), encoding: .utf8), "dxmt-d3d10core")
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("winemetal.dll"), encoding: .utf8), "dxmt-winemetal")
+        let win32 = try XCTUnwrap(engine.windows32Dir)
+        XCTAssertEqual(try String(contentsOf: win32.appendingPathComponent("d3d11.dll"), encoding: .utf8), "dxmt-d3d11-32")
+        XCTAssertEqual(try String(contentsOf: win32.appendingPathComponent("winemetal.dll"), encoding: .utf8), "dxmt-winemetal-32")
+
+        let system32 = root.appendingPathComponent("prefix/drive_c/windows/system32")
+        let syswow64 = root.appendingPathComponent("prefix/drive_c/windows/syswow64")
+        try DXMTWindowsDLLs.installIntoPrefix(overlay: overlay, system32: system32, syswow64: syswow64)
+        XCTAssertEqual(try String(contentsOf: system32.appendingPathComponent("winemetal.dll"), encoding: .utf8), "dxmt-winemetal")
+        XCTAssertEqual(try String(contentsOf: system32.appendingPathComponent("d3d11.dll"), encoding: .utf8), "dxmt-d3d11")
+        XCTAssertEqual(try String(contentsOf: syswow64.appendingPathComponent("winemetal.dll"), encoding: .utf8), "dxmt-winemetal-32")
+    }
+
+    func testMissingWinemetalIsDetectedRatherThanSkipped() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cask-dxmt-missing-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let overlayRoot = root.appendingPathComponent("overlay")
+        let engineRoot = root.appendingPathComponent("engine")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d11.dll"), "dxmt-d3d11")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/dxgi.dll"), "dxmt-dxgi")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d10core.dll"), "dxmt-d3d10core")
+        try touch(engineRoot.appendingPathComponent("bin/wine"))
+        try touch(engineRoot.appendingPathComponent("bin/wineserver"))
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll"), "wined3d-d3d11")
+
+        let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: overlayRoot))
+        let engine = try XCTUnwrap(EngineLayout.resolve(installRoot: engineRoot))
+        XCTAssertEqual(DXMTWindowsDLLs.missingRequired(in: overlay), ["winemetal.dll"])
+
+        XCTAssertThrowsError(try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)) { error in
+            guard case EngineError.overlayFileMissing(let name, let file, let path) = error else {
+                return XCTFail("expected overlayFileMissing, got \(error)")
+            }
+            XCTAssertEqual(name, "DXMT")
+            XCTAssertEqual(file, "winemetal.dll")
+            XCTAssertEqual(path, overlay.root.path)
+        }
+        XCTAssertEqual(
+            try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+            "wined3d-d3d11",
+            "partial install must not replace builtins when winemetal is missing"
+        )
+
+        let system32 = root.appendingPathComponent("system32")
+        let syswow64 = root.appendingPathComponent("syswow64")
+        XCTAssertThrowsError(
+            try DXMTWindowsDLLs.installIntoPrefix(overlay: overlay, system32: system32, syswow64: syswow64)
+        ) { error in
+            guard case EngineError.overlayFileMissing(_, let file, _) = error else {
+                return XCTFail("expected overlayFileMissing, got \(error)")
+            }
+            XCTAssertEqual(file, "winemetal.dll")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: system32.appendingPathComponent("d3d11.dll").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: system32.appendingPathComponent("winemetal.dll").path))
+    }
+
+    func testWined3dBackendRestoresEngineBuiltinsAfterDXMTInstall() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cask-dxmt-restore-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let overlayRoot = root.appendingPathComponent("overlay")
+        let engineRoot = root.appendingPathComponent("engine")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d11.dll"), "dxmt-d3d11")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/dxgi.dll"), "dxmt-dxgi")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d10core.dll"), "dxmt-d3d10core")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/winemetal.dll"), "dxmt-winemetal")
+        try touch(engineRoot.appendingPathComponent("bin/wine"))
+        try touch(engineRoot.appendingPathComponent("bin/wineserver"))
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll"), "wined3d-d3d11")
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll"), "wined3d-dxgi")
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d10core.dll"), "wined3d-d3d10core")
+
+        let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: overlayRoot))
+        let engine = try XCTUnwrap(EngineLayout.resolve(installRoot: engineRoot))
+        let win64 = try XCTUnwrap(engine.windows64Dir)
+
+        func assertEngineMatchesBuiltins(cycle: String) throws {
+            XCTAssertEqual(
+                try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+                "wined3d-d3d11",
+                "\(cycle): d3d11 must be the Wine builtin"
+            )
+            XCTAssertNotEqual(
+                try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+                "dxmt-d3d11",
+                "\(cycle): d3d11 must not be the DXMT PE"
+            )
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: win64.appendingPathComponent("winemetal.dll").path),
+                "\(cycle): winemetal.dll must not remain in the engine tree"
+            )
+            for name in DXMTWindowsDLLs.names {
+                let sidecar = win64.appendingPathComponent(name)
+                    .appendingPathExtension(DXMTWindowsDLLs.backupExtension)
+                XCTAssertFalse(
+                    FileManager.default.fileExists(atPath: sidecar.path),
+                    "\(cycle): leftover \(sidecar.lastPathComponent)"
+                )
+            }
+        }
+
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8), "dxmt-d3d11")
+        try DXMTWindowsDLLs.syncEngine(overlay: overlay, engine: engine, backend: .wined3d)
+        try assertEngineMatchesBuiltins(cycle: "first")
+
+        // Second DXMT apply, then another apply while already overlaid (EngineManager + launch).
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        XCTAssertFalse(DXMTWindowsDLLs.needsInstall(overlay: overlay, engine: engine))
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        try DXMTWindowsDLLs.syncEngine(overlay: overlay, engine: engine, backend: .wined3d)
+        try assertEngineMatchesBuiltins(cycle: "second")
+    }
+
+    func testD3DMetalBackendRestoresEngineBuiltinsAfterDXMTInstall() throws {
+        for backend in GraphicsBackend.allCases where backend != .dxmt {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("cask-dxmt-\(backend.shortLabel)-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: root) }
+
+            let overlayRoot = root.appendingPathComponent("overlay")
+            let engineRoot = root.appendingPathComponent("engine")
+            try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d11.dll"), "dxmt-d3d11")
+            try write(overlayRoot.appendingPathComponent("x86_64-windows/dxgi.dll"), "dxmt-dxgi")
+            try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d10core.dll"), "dxmt-d3d10core")
+            try write(overlayRoot.appendingPathComponent("x86_64-windows/winemetal.dll"), "dxmt-winemetal")
+            try touch(engineRoot.appendingPathComponent("bin/wine"))
+            try touch(engineRoot.appendingPathComponent("bin/wineserver"))
+            try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll"), "wined3d-d3d11")
+            try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll"), "wined3d-dxgi")
+            try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d10core.dll"), "wined3d-d3d10core")
+
+            let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: overlayRoot))
+            let engine = try XCTUnwrap(EngineLayout.resolve(installRoot: engineRoot))
+            try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+            XCTAssertEqual(
+                try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+                "dxmt-d3d11"
+            )
+
+            try DXMTWindowsDLLs.syncEngine(overlay: overlay, engine: engine, backend: backend)
+            XCTAssertEqual(
+                try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+                "wined3d-d3d11",
+                "\(backend.shortLabel) must restore the Wine builtin"
+            )
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: engine.windows64Dir!.appendingPathComponent("winemetal.dll").path
+                ),
+                "\(backend.shortLabel) must not leave winemetal.dll in the engine tree"
+            )
+        }
+    }
+
+    func testIncompleteOverlayWithoutD3D11DoesNotReplaceAnyEngineFile() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cask-dxmt-partial-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let overlayRoot = root.appendingPathComponent("overlay")
+        let engineRoot = root.appendingPathComponent("engine")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/dxgi.dll"), "dxmt-dxgi")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/d3d10core.dll"), "dxmt-d3d10core")
+        try write(overlayRoot.appendingPathComponent("x86_64-windows/winemetal.dll"), "dxmt-winemetal")
+        try touch(engineRoot.appendingPathComponent("bin/wine"))
+        try touch(engineRoot.appendingPathComponent("bin/wineserver"))
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll"), "wined3d-d3d11")
+        try write(engineRoot.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll"), "wined3d-dxgi")
+
+        let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: overlayRoot))
+        let engine = try XCTUnwrap(EngineLayout.resolve(installRoot: engineRoot))
+        XCTAssertTrue(DXMTWindowsDLLs.missingRequired(in: overlay).contains("d3d11.dll"))
+
+        XCTAssertThrowsError(try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)) { error in
+            guard case EngineError.overlayFileMissing(let name, let file, _) = error else {
+                return XCTFail("expected overlayFileMissing, got \(error)")
+            }
+            XCTAssertEqual(name, "DXMT")
+            XCTAssertEqual(file, "d3d11.dll")
+        }
+        XCTAssertEqual(
+            try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+            "wined3d-d3d11"
+        )
+        XCTAssertEqual(
+            try String(contentsOf: engine.windows64Dir!.appendingPathComponent("dxgi.dll"), encoding: .utf8),
+            "wined3d-dxgi"
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: engine.windows64Dir!.appendingPathComponent("winemetal.dll").path
+            )
+        )
+    }
+
+    func testWineManagerWiresDXMTPlacementOnLaunchAndWinecfg() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CaskLauncherCore/WineManager.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let bodies = swiftFunctionBodies(in: source)
+        let callers = [
+            "configurePrefix",
+            "launchStore",
+            "configureCustomPrefix",
+            "launchInCustomBottle",
+            "configureLauncherBottle",
+            "openWinecfg",
+            "launchExecutable"
+        ]
+        for name in callers {
+            let body = try XCTUnwrap(bodies[name], "missing \(name) in WineManager.swift")
+            XCTAssertTrue(
+                body.contains("ensureDXMTPlacement"),
+                "\(name) must call ensureDXMTPlacement"
+            )
+        }
+        let placement = try XCTUnwrap(bodies["ensureDXMTPlacement"])
+        XCTAssertTrue(placement.contains("syncEngine"), "ensureDXMTPlacement must sync the engine tree")
+        XCTAssertTrue(
+            placement.contains("graphicsBackend"),
+            "ensureDXMTPlacement must pass the bottle backend into syncEngine"
+        )
+    }
+
     func testRegWriteArgv() {
         let write = WineRegWrite(
             key: #"HKCU\Software\Wine\Mac Driver"#,
@@ -439,12 +733,64 @@ final class SteamRecipeTests: XCTestCase {
         )
     }
 
+    private func swiftFunctionBodies(in source: String) -> [String: String] {
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var result: [String: String] = [:]
+        var index = 0
+        while index < lines.count {
+            guard let name = wineManagerFunctionName(from: lines[index]) else {
+                index += 1
+                continue
+            }
+            var depth = 0
+            var started = false
+            var body: [String] = []
+            var cursor = index
+            while cursor < lines.count {
+                let line = lines[cursor]
+                for character in line {
+                    if character == "{" {
+                        depth += 1
+                        started = true
+                    } else if character == "}" {
+                        depth -= 1
+                    }
+                }
+                if started {
+                    body.append(line)
+                }
+                if started && depth == 0 {
+                    result[name] = body.joined(separator: "\n")
+                    break
+                }
+                cursor += 1
+            }
+            index = cursor + 1
+        }
+        return result
+    }
+
+    private func wineManagerFunctionName(from line: String) -> String? {
+        guard line.hasPrefix("    "), !line.hasPrefix("        ") else { return nil }
+        let rest = String(line.dropFirst(4))
+        for prefix in ["public func ", "private func ", "internal func ", "func "] {
+            guard rest.hasPrefix(prefix) else { continue }
+            let name = rest.dropFirst(prefix.count).prefix(while: { $0.isLetter || $0.isNumber || $0 == "_" })
+            return name.isEmpty ? nil : String(name)
+        }
+        return nil
+    }
+
     private func touch(_ url: URL) throws {
+        try write(url, "x")
+    }
+
+    private func write(_ url: URL, _ contents: String) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try Data("x".utf8).write(to: url)
+        try Data(contents.utf8).write(to: url)
     }
 
     func testSteamFirstRunUpdateUsesPlainArgumentsButKeepsSyncFix() {

@@ -2,6 +2,27 @@
 
 All notable changes to Vermut are documented here.
 
+## Unreleased
+
+### Added
+
+- Compatibility JSON records **known not working** backend/engine pairs from broken-only reports and no longer marks a `recommended` backend for those titles (e.g. ELDEN RING)
+- Gcenx Wine Staging / Devel versions are detected from GitHub releases (11.19 / 11.20 appear when Gcenx publishes them; UI no longer hardcodes 11.18)
+- Per-game **Steam overlay** toggle in Game Settings (off by default)
+- Library / inspector warning for kernel anti-cheat (Easy Anti-Cheat, BattlEye) from [Are We Anti-Cheat Yet?](https://areweanticheatyet.com/)
+- Settings › **x86_64 emulation**: Rosetta 2 (default) or FEX, with runtime detection. FEX needs ARM64 Wine that is not shipping yet — see `docs/FEX.md`
+- GOG Galaxy is no longer “Coming soon”: Wine Staging + WineD3D + Qt software / GDI recipe (`docs/GOG.md`)
+
+### Changed
+
+- DXMT catalog lists **stable releases only** (pre-release, draft, and nightly assets are skipped)
+- GOG silent setup treats Galaxy on disk as success when Inno never exits (leftover `GalaxyClient.exe` is stopped; 15-minute cap unchanged)
+- GOG recipe installs Mesa llvmpipe as `opengl32sw.dll` beside `GalaxyClient.exe` so Qt Quick can create an RHI
+
+### Known
+
+- Engines left by `8b4c701` (DXMT PE in the Wine tree, no `.vermut-wined3d` sidecars) cannot be restored to WineD3D without a reinstall: `restoreIntoEngine` can recognize the overlay bytes, but the original builtin PE is gone. Reinstall the engine.
+
 ## 1.2.0 — 2026-10-23
 
 Promotes the QA’d `1.2.0-beta.4` line to stable.

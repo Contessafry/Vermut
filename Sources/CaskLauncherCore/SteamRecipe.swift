@@ -159,6 +159,9 @@ public enum DllOverridePolicy {
                 ))
             )
         }
+        if store == .gog {
+            ops.append(contentsOf: GOGRecipe.registryWrites())
+        }
         return ops
     }
 }
@@ -253,12 +256,16 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         store == .steam ? ["WINEESYNC": "1", "WINEMSYNC": "1"] : [:]
     }
 
+    /// Wine DLL override that disables Steam's in-process overlay.
+    public static let steamOverlayDisableOverride = "gameoverlayrenderer,gameoverlayrenderer64=d"
+
     public static func build(
         store: GameStore,
         executable: URL,
         wineLibDir: URL,
         firstRunUpdate: Bool = false,
-        steamAppId: String? = nil
+        steamAppId: String? = nil,
+        steamOverlayEnabled: Bool = false
     ) -> StoreLaunchRecipe {
         var env: [String: String] = [
             "WINEDEBUG": "-all",
@@ -270,7 +277,10 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         case .steam:
             env["ROSETTA_ADVERTISE_AVX"] = "1"
             env["CX_FWD_COMPAT_GL_CTX"] = "1"
-            env["WINEDLLOVERRIDES"] = "gameoverlayrenderer,gameoverlayrenderer64=d"
+            if !steamOverlayEnabled {
+                env["WINEDLLOVERRIDES"] = steamOverlayDisableOverride
+                env["SteamNoOverlay"] = "1"
+            }
             let arguments: [String]
             if let steamAppId, !steamAppId.isEmpty {
                 arguments = SteamGameLaunch.applaunchArguments(
@@ -299,13 +309,10 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
                 workingDirectory: nil
             )
         case .gog:
-            env["WINEDLLOVERRIDES"] = "d3d10core,d3d11,d3d12,dxgi,winemetal=builtin"
+            env["WINEDLLOVERRIDES"] = GOGRecipe.dllOverrides
+            GOGRecipe.applySoftwareEnvironment(to: &env)
             return StoreLaunchRecipe(
-                arguments: [
-                    executable.lastPathComponent,
-                    "--disable-gpu",
-                    "--disable-gpu-compositing"
-                ],
+                arguments: [executable.lastPathComponent] + GOGRecipe.launchArguments,
                 environment: env,
                 workingDirectory: executable.deletingLastPathComponent().path
             )
@@ -470,6 +477,8 @@ public enum DXMTUnixLib {
 
 public enum DXMTWindowsDLLs {
     public static let names = ["d3d11.dll", "dxgi.dll", "d3d10core.dll", "winemetal.dll"]
+    /// Sidecar next to each replaced builtin so WineD3D can be restored.
+    public static let backupExtension = "vermut-wined3d"
 
     public static func copyPlan(
         overlay: OverlayLayout,
@@ -488,5 +497,169 @@ public enum DXMTWindowsDLLs {
             }
         }
         return plan
+    }
+
+    /// Wine loads builtin `d3d11`/`dxgi`/`d3d10core` from the engine tree first.
+    /// `WINEDLLPATH` cannot override that, so the overlay PE files must land here.
+    public static func engineCopyPlan(
+        overlay: OverlayLayout,
+        engine: EngineLayout
+    ) -> [(from: URL, to: URL)] {
+        var plan: [(URL, URL)] = []
+        if let win64 = overlay.windows64Dir {
+            let dest = engine.windows64Dir ?? engine.wineLibDir.appendingPathComponent("x86_64-windows")
+            for name in names {
+                plan.append((win64.appendingPathComponent(name), dest.appendingPathComponent(name)))
+            }
+        }
+        if let win32 = overlay.windows32Dir {
+            let dest = engine.windows32Dir ?? engine.wineLibDir.appendingPathComponent("i386-windows")
+            for name in names {
+                plan.append((win32.appendingPathComponent(name), dest.appendingPathComponent(name)))
+            }
+        }
+        return plan
+    }
+
+    /// Every DXMT name must exist in each overlay architecture directory that is present.
+    public static func missingRequired(
+        in overlay: OverlayLayout,
+        fileManager: FileManager = .default
+    ) -> [String] {
+        var missing: [String] = []
+        for dir in [overlay.windows64Dir, overlay.windows32Dir].compactMap({ $0 }) {
+            for name in names {
+                let url = dir.appendingPathComponent(name)
+                if !fileManager.fileExists(atPath: url.path), !missing.contains(name) {
+                    missing.append(name)
+                }
+            }
+        }
+        return missing
+    }
+
+    public static func needsInstall(
+        overlay: OverlayLayout,
+        engine: EngineLayout,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        engineCopyPlan(overlay: overlay, engine: engine).contains { pair in
+            guard fileManager.fileExists(atPath: pair.from.path) else { return false }
+            guard fileManager.fileExists(atPath: pair.to.path) else { return true }
+            let src = try? Data(contentsOf: pair.from)
+            let dst = try? Data(contentsOf: pair.to)
+            return src != dst
+        }
+    }
+
+    /// Install DXMT PE files, or put the engine builtins back for every other backend.
+    public static func syncEngine(
+        overlay: OverlayLayout?,
+        engine: EngineLayout,
+        backend: GraphicsBackend,
+        fileManager: FileManager = .default
+    ) throws {
+        if backend == .dxmt {
+            guard let overlay else { return }
+            try installIntoEngine(overlay: overlay, engine: engine, fileManager: fileManager)
+        } else {
+            try restoreIntoEngine(engine: engine, fileManager: fileManager)
+        }
+    }
+
+    public static func installIntoEngine(
+        overlay: OverlayLayout,
+        engine: EngineLayout,
+        fileManager: FileManager = .default
+    ) throws {
+        try requireCompleteOverlay(overlay, fileManager: fileManager)
+        guard needsInstall(overlay: overlay, engine: engine, fileManager: fileManager) else { return }
+        for pair in engineCopyPlan(overlay: overlay, engine: engine) {
+            try backupOriginalIfNeeded(from: pair.from, to: pair.to, fileManager: fileManager)
+            try replace(from: pair.from, to: pair.to, fileManager: fileManager)
+        }
+    }
+
+    public static func restoreIntoEngine(
+        engine: EngineLayout,
+        fileManager: FileManager = .default
+    ) throws {
+        for dir in engineWindowsDirectories(in: engine, fileManager: fileManager) {
+            for name in names {
+                let dest = dir.appendingPathComponent(name)
+                let backup = backupURL(for: dest)
+                if name == "winemetal.dll" {
+                    // Not a Wine builtin — never restore a sidecar, even a stale DXMT one.
+                    if fileManager.fileExists(atPath: dest.path) {
+                        try fileManager.removeItem(at: dest)
+                    }
+                    if fileManager.fileExists(atPath: backup.path) {
+                        try fileManager.removeItem(at: backup)
+                    }
+                    continue
+                }
+                if fileManager.fileExists(atPath: backup.path) {
+                    try replace(from: backup, to: dest, fileManager: fileManager)
+                    try fileManager.removeItem(at: backup)
+                }
+            }
+        }
+    }
+
+    public static func installIntoPrefix(
+        overlay: OverlayLayout,
+        system32: URL,
+        syswow64: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        try requireCompleteOverlay(overlay, fileManager: fileManager)
+        for pair in copyPlan(overlay: overlay, system32: system32, syswow64: syswow64) {
+            try replace(from: pair.from, to: pair.to, fileManager: fileManager)
+        }
+    }
+
+    private static func requireCompleteOverlay(
+        _ overlay: OverlayLayout,
+        fileManager: FileManager
+    ) throws {
+        let missing = missingRequired(in: overlay, fileManager: fileManager)
+        guard let file = missing.first else { return }
+        throw EngineError.overlayFileMissing("DXMT", file, overlay.root.path)
+    }
+
+    private static func backupURL(for dest: URL) -> URL {
+        dest.appendingPathExtension(backupExtension)
+    }
+
+    private static func backupOriginalIfNeeded(from source: URL, to dest: URL, fileManager: FileManager) throws {
+        // winemetal is overlay-only; a sidecar of it would be restored as "builtin".
+        guard dest.lastPathComponent != "winemetal.dll" else { return }
+        let backup = backupURL(for: dest)
+        guard fileManager.fileExists(atPath: dest.path),
+              !fileManager.fileExists(atPath: backup.path)
+        else { return }
+        let src = try? Data(contentsOf: source)
+        let dst = try? Data(contentsOf: dest)
+        guard src != dst else { return }
+        try fileManager.copyItem(at: dest, to: backup)
+    }
+
+    private static func engineWindowsDirectories(
+        in engine: EngineLayout,
+        fileManager: FileManager
+    ) -> [URL] {
+        let candidates = [
+            engine.windows64Dir ?? engine.wineLibDir.appendingPathComponent("x86_64-windows"),
+            engine.windows32Dir ?? engine.wineLibDir.appendingPathComponent("i386-windows")
+        ]
+        return candidates.filter { existingDir($0, fileManager) != nil }
+    }
+
+    private static func replace(from: URL, to: URL, fileManager: FileManager) throws {
+        try fileManager.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: to.path) {
+            try fileManager.removeItem(at: to)
+        }
+        try fileManager.copyItem(at: from, to: to)
     }
 }

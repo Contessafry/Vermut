@@ -61,9 +61,13 @@ final class EngineLayoutTests: XCTestCase {
         let install = tempRoot.appendingPathComponent("grapple-wine")
         try touch(install.appendingPathComponent("grapple-wine/bin/wine"))
         try touch(install.appendingPathComponent("grapple-wine/bin/wineserver"))
-        try touch(install.appendingPathComponent("grapple-wine/lib/wine/x86_64-windows/d3d11.dll"))
+        try write(install.appendingPathComponent("grapple-wine/lib/wine/x86_64-windows/d3d11.dll"), "wined3d-d3d11")
+        try write(install.appendingPathComponent("grapple-wine/lib/wine/x86_64-windows/dxgi.dll"), "wined3d-dxgi")
         try touch(install.appendingPathComponent("grapple-wine/lib/wine/x86_64-unix/winemac.so"))
-        try touch(install.appendingPathComponent("grapple-wine/share/grapple/dxmt/x86_64-windows/d3d11.dll"))
+        try write(install.appendingPathComponent("grapple-wine/share/grapple/dxmt/x86_64-windows/d3d11.dll"), "dxmt-d3d11")
+        try write(install.appendingPathComponent("grapple-wine/share/grapple/dxmt/x86_64-windows/dxgi.dll"), "dxmt-dxgi")
+        try write(install.appendingPathComponent("grapple-wine/share/grapple/dxmt/x86_64-windows/d3d10core.dll"), "dxmt-d3d10core")
+        try write(install.appendingPathComponent("grapple-wine/share/grapple/dxmt/x86_64-windows/winemetal.dll"), "dxmt-winemetal")
         try touch(install.appendingPathComponent("grapple-wine/share/grapple/dxmt/x86_64-unix/winemetal.so"))
 
         let layout = EngineLayout.resolve(installRoot: install)
@@ -84,6 +88,15 @@ final class EngineLayoutTests: XCTestCase {
                 atPath: layout!.unix64Dir!.appendingPathComponent("winemetal.so").path
             )
         )
+
+        XCTAssertTrue(DXMTWindowsDLLs.needsInstall(overlay: bundled!, engine: layout!))
+        try DXMTWindowsDLLs.installIntoEngine(overlay: bundled!, engine: layout!)
+        XCTAssertFalse(DXMTWindowsDLLs.needsInstall(overlay: bundled!, engine: layout!))
+        let win64 = layout!.windows64Dir!
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8), "dxmt-d3d11")
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("dxgi.dll"), encoding: .utf8), "dxmt-dxgi")
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("d3d10core.dll"), encoding: .utf8), "dxmt-d3d10core")
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("winemetal.dll"), encoding: .utf8), "dxmt-winemetal")
     }
 
     func testFlatBinLayout() throws {
@@ -226,6 +239,9 @@ final class EngineLayoutTests: XCTestCase {
         XCTAssertTrue(message.contains("/tmp/engines/staging"))
         XCTAssertFalse(message.contains("Failed to extract archive"))
         XCTAssertTrue(EngineError.extractionFailed.localizedDescription.contains("tar"))
+        let missing = EngineError.overlayFileMissing("DXMT", "winemetal.dll", "/tmp/dxmt").localizedDescription
+        XCTAssertTrue(missing.contains("winemetal.dll"))
+        XCTAssertTrue(missing.contains("/tmp/dxmt"))
     }
 
     private func writeGcenxTree(at install: URL, appName: String) throws {
@@ -245,10 +261,14 @@ final class EngineLayoutTests: XCTestCase {
     }
 
     private func touch(_ url: URL) throws {
+        try write(url, "x")
+    }
+
+    private func write(_ url: URL, _ contents: String) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try Data("x".utf8).write(to: url)
+        try Data(contents.utf8).write(to: url)
     }
 }

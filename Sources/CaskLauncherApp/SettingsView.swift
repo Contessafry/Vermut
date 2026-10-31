@@ -146,6 +146,28 @@ struct SettingsView: View {
                 }
 
                 settingsRow(
+                    "x86_64 emulation",
+                    help: "Rosetta 2 is the default. FEX needs ARM64 Wine (CrossOver Preview style). Current Gcenx and Vermut Wine builds are Intel/osx64, so FEX stays unavailable until an ARM64 engine ships."
+                ) {
+                    Picker("", selection: $appState.configuration.x86Emulation) {
+                        ForEach(X86EmulationMode.allCases) { mode in
+                            Text(mode.userFacingName).tag(mode.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(minWidth: 160, minHeight: VermutHeight.field)
+                }
+
+                if appState.configuration.resolvedX86Emulation == .fex {
+                    Text(FEXRuntime.probe().statusSummary)
+                        .font(VermutType.captionRegular)
+                        .foregroundStyle(Color.Vermut.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, VermutSpace.s2)
+                }
+
+                settingsRow(
                     "Update channel",
                     help: "Stable uses GitHub releases only. Beta also offers pre-releases. Switching back to Stable never suggests a downgrade."
                 ) {
@@ -179,6 +201,7 @@ struct SettingsView: View {
             }
             .onChange(of: appState.configuration.defaultEngine) { _, _ in appState.saveConfiguration() }
             .onChange(of: appState.configuration.defaultGraphicsBackend) { _, _ in appState.saveConfiguration() }
+            .onChange(of: appState.configuration.x86Emulation) { _, _ in appState.saveConfiguration() }
             .onChange(of: appState.configuration.updateChannel) { _, _ in
                 appState.saveConfiguration()
                 UpdateChecker.shared.clearDismissed()
@@ -292,7 +315,7 @@ struct SettingsView: View {
             }
             .lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
-            Text("Epic Games uses Legendary (\(LegendaryCLI.licenceName)), a free Epic store client by derrod. Vermut runs it as a separate process.")
+            Text("Epic Games uses Legendary (\(LegendaryCLI.licenceName)), a free Epic store client by derrod. Vermut runs it as a separate process. Kernel anti-cheat warnings use Are We Anti-Cheat Yet?")
                 .font(VermutType.body)
                 .foregroundStyle(Color.Vermut.mutedForeground)
                 .lineSpacing(2)

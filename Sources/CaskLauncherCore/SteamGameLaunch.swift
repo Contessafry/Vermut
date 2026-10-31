@@ -4,15 +4,18 @@ import Foundation
 public struct BottleRuntimeProfile: Equatable, Sendable {
     public var engine: WineEngine
     public var graphics: GraphicsBackend
+    public var steamOverlayEnabled: Bool
 
-    public init(engine: WineEngine, graphics: GraphicsBackend) {
+    public init(engine: WineEngine, graphics: GraphicsBackend, steamOverlayEnabled: Bool = false) {
         self.engine = engine
         self.graphics = graphics
+        self.steamOverlayEnabled = steamOverlayEnabled
     }
 
     public init(resolved: ResolvedLaunchSettings) {
         self.engine = resolved.engine.value
         self.graphics = resolved.graphics.value
+        self.steamOverlayEnabled = resolved.steamOverlayEnabled
     }
 }
 

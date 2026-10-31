@@ -26,8 +26,9 @@ final class LeftoverFixesTests: XCTestCase {
         XCTAssertEqual(StoreStatus.refreshed(current: .running, isRunning: false, isInstalled: true), .installed)
     }
 
-    func testLibraryEmptyTextDoesNotOfferGOG() {
-        XCTAssertFalse(VermutProject.libraryEmptyMessage.contains("GOG"))
-        XCTAssertTrue(VermutProject.libraryEmptyMessage.contains("Steam or Epic"))
+    func testLibraryEmptyTextOffersSteamEpicAndGOG() {
+        XCTAssertTrue(VermutProject.libraryEmptyMessage.contains("GOG"))
+        XCTAssertTrue(VermutProject.libraryEmptyMessage.contains("Steam"))
+        XCTAssertTrue(VermutProject.libraryEmptyMessage.contains("Epic"))
     }
 }

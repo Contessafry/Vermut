@@ -59,8 +59,10 @@ final class ModelsTests: XCTestCase {
 
     func testWineEngineUserFacingNamesHideGrappleWine() {
         XCTAssertEqual(WineEngine.grappleWine.userFacingName, "Vermut Wine")
-        XCTAssertEqual(WineEngine.staging.userFacingName, "Wine Staging 11.18")
-        XCTAssertEqual(WineEngine.devel.userFacingName, "Wine Devel 11.18")
+        XCTAssertEqual(WineEngine.staging.userFacingName, "Wine Staging")
+        XCTAssertEqual(WineEngine.devel.userFacingName, "Wine Devel")
+        XCTAssertEqual(WineEngine.staging.userFacingName(version: "11.20"), "Wine Staging 11.20")
+        XCTAssertFalse(WineEngine.staging.userFacingName.contains("11.18"))
         XCTAssertEqual(WineEngine.staging.subtitle, "Gcenx · WineHQ · experimental patches")
         XCTAssertTrue(WineEngine.staging.requiresGStreamer)
         XCTAssertFalse(WineEngine.grappleWine.requiresGStreamer)

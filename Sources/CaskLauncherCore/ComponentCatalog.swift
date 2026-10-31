@@ -65,6 +65,34 @@ public enum ComponentCatalog {
         sha256: "d87978321dba9cb731fab40c72f0a30bed55baca8b5341ab21024c5733cd837e"
     )
 
+    /// pal1000 mesa-dist-win MSVC pack. Qt `QT_OPENGL=software` loads `opengl32sw.dll`;
+    /// this archive ships the Mesa WGL loader as `x64/opengl32.dll` plus `libgallium_wgl.dll`.
+    public static let mesaDistWinFallback = ResolvedComponent(
+        name: "mesa-dist-win",
+        version: "26.2.5",
+        url: URL(string: "https://github.com/pal1000/mesa-dist-win/releases/download/26.2.5/mesa3d-26.2.5-release-msvc.7z")!,
+        filename: "mesa3d-26.2.5-release-msvc.7z",
+        sha256: "997123ef4ce8896204ab912d5b54f19372c487ff9835bcefafa2fca23b8953c2"
+    )
+
+    /// Official 7-Zip extra `7zz` (macOS). Used only to unpack the Mesa `.7z`.
+    public static let sevenZipMacFallback = ResolvedComponent(
+        name: "7zz",
+        version: "25.01",
+        url: URL(string: "https://www.7-zip.org/a/7z2501-mac.tar.xz")!,
+        filename: "7z2501-mac.tar.xz",
+        sha256: "26aa75bc262bb10bf0805617b95569c3035c2c590a99f7db55c7e9607b2685e0"
+    )
+
+    /// Official 7-Zip extra `7zz` (Linux x64). Host-tool fallback for `swift test`.
+    public static let sevenZipLinuxFallback = ResolvedComponent(
+        name: "7zz",
+        version: "25.01",
+        url: URL(string: "https://www.7-zip.org/a/7z2501-linux-x64.tar.xz")!,
+        filename: "7z2501-linux-x64.tar.xz",
+        sha256: "4ca3b7c6f2f67866b92622818b58233dc70367be2f36b498eb0bdeaaa44b53f4"
+    )
+
     /// Full x64 pack with d3d9/d3d10core/d3d11/dxgi. The -repack tarball omits dxgi.
     public static let dxvkFallback = ResolvedComponent(
         name: "dxvk",
@@ -127,23 +155,70 @@ public enum ComponentCatalog {
         return fallback
     }
 
-    static func resolveGcenxWine(_ engine: WineEngine) async -> ResolvedComponent {
+    public static func isGcenxWineArchive(_ filename: String, engine: WineEngine) -> Bool {
+        let name = filename.lowercased()
+        return name.hasPrefix(engine.githubAssetPrefix.lowercased())
+            && name.hasSuffix("-osx64.tar.xz")
+    }
+
+    /// Newest matching Gcenx `osx64` tarball first. Versions are never hardcoded.
+    public static func listGcenxWineReleases(
+        engine: WineEngine,
+        perPage: Int = 15
+    ) async -> [ResolvedComponent] {
         let fallback = fallback(for: engine)
-        if let latest = try? await latestRelease(repo: wineRepo) {
-            let prefix = engine.githubAssetPrefix
-            if let asset = latest.assets.first(where: {
-                $0.name.hasPrefix(prefix) && $0.name.hasSuffix("-osx64.tar.xz")
-            }), let url = URL(string: asset.browserDownloadUrl) {
-                return ResolvedComponent(
+        var releases: [GitHubRelease] = []
+        if let listed = try? await listReleases(repo: wineRepo, perPage: perPage) {
+            releases = listed
+        } else if let latest = try? await latestRelease(repo: wineRepo) {
+            releases = [latest]
+        }
+        var results: [ResolvedComponent] = []
+        var seen = Set<String>()
+        for release in releases {
+            guard isOfferedStableRelease(
+                tagName: release.tagName,
+                prerelease: release.prerelease ?? false,
+                draft: release.draft ?? false,
+                assetNames: release.assets.map(\.name)
+            ) else { continue }
+            guard let asset = release.assets.first(where: { isGcenxWineArchive($0.name, engine: engine) }),
+                  let url = URL(string: asset.browserDownloadUrl) else { continue }
+            let tag = release.tagName
+            guard seen.insert(tag).inserted else { continue }
+            results.append(
+                ResolvedComponent(
                     name: fallback.name,
-                    version: latest.tagName,
+                    version: tag,
                     url: url,
                     filename: asset.name,
-                    sha256: parseDigest(asset.digest) ?? fallback.sha256
+                    sha256: parseDigest(asset.digest)
+                        ?? (asset.name == fallback.filename ? fallback.sha256 : nil)
                 )
-            }
+            )
         }
-        return fallback
+        return results.sorted {
+            ComponentVersion.compare($0.version, $1.version) == .orderedDescending
+        }
+    }
+
+    static func resolveGcenxWine(_ engine: WineEngine) async -> ResolvedComponent {
+        let listed = await listGcenxWineReleases(engine: engine)
+        return listed.first ?? fallback(for: engine)
+    }
+
+    /// Nightly / pre-release / draft GitHub assets are never offered for DXMT or Gcenx Wine.
+    public static func isOfferedStableRelease(
+        tagName: String,
+        prerelease: Bool,
+        draft: Bool,
+        assetNames: [String]
+    ) -> Bool {
+        if prerelease || draft { return false }
+        let tag = tagName.lowercased()
+        if tag.contains("nightly") { return false }
+        if assetNames.contains(where: { $0.lowercased().contains("nightly") }) { return false }
+        return true
     }
 
     /// Prefers the pinned default (`v0.80`) so first installs stay on the LGPL baseline.
@@ -199,6 +274,12 @@ public enum ComponentCatalog {
         }
 
         for release in releases {
+            guard isOfferedStableRelease(
+                tagName: release.tagName,
+                prerelease: release.prerelease ?? false,
+                draft: release.draft ?? false,
+                assetNames: release.assets.map(\.name)
+            ) else { continue }
             let asset = release.assets.first(where: { isDXMTBuiltinArchive($0.name) })
                 ?? release.assets.first(where: { isDXMTArchive($0.name) })
             guard let asset, let url = URL(string: asset.browserDownloadUrl) else { continue }
@@ -338,6 +419,17 @@ public enum ComponentCatalog {
 struct GitHubRelease: Decodable, Sendable {
     let tagName: String
     let assets: [GitHubAsset]
+    let prerelease: Bool?
+    let draft: Bool?
+
+    var isOfferedStable: Bool {
+        ComponentCatalog.isOfferedStableRelease(
+            tagName: tagName,
+            prerelease: prerelease ?? false,
+            draft: draft ?? false,
+            assetNames: assets.map(\.name)
+        )
+    }
 }
 
 struct GitHubAsset: Decodable, Sendable {
