@@ -101,7 +101,9 @@ final class StoreRecipeTests: XCTestCase {
                 "/VERYSILENT",
                 "/SUPPRESSMSGBOXES",
                 "/NORESTART",
-                "/SP-"
+                "/SP-",
+                "/CLOSEAPPLICATIONS",
+                "/FORCECLOSEAPPLICATIONS"
             ]
         )
         XCTAssertFalse(gog.contains("/S"))

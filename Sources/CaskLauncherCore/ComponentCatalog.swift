@@ -65,6 +65,34 @@ public enum ComponentCatalog {
         sha256: "d87978321dba9cb731fab40c72f0a30bed55baca8b5341ab21024c5733cd837e"
     )
 
+    /// pal1000 mesa-dist-win MSVC pack. Qt `QT_OPENGL=software` loads `opengl32sw.dll`;
+    /// this archive ships the Mesa WGL loader as `x64/opengl32.dll` plus `libgallium_wgl.dll`.
+    public static let mesaDistWinFallback = ResolvedComponent(
+        name: "mesa-dist-win",
+        version: "26.2.5",
+        url: URL(string: "https://github.com/pal1000/mesa-dist-win/releases/download/26.2.5/mesa3d-26.2.5-release-msvc.7z")!,
+        filename: "mesa3d-26.2.5-release-msvc.7z",
+        sha256: "997123ef4ce8896204ab912d5b54f19372c487ff9835bcefafa2fca23b8953c2"
+    )
+
+    /// Official 7-Zip extra `7zz` (macOS). Used only to unpack the Mesa `.7z`.
+    public static let sevenZipMacFallback = ResolvedComponent(
+        name: "7zz",
+        version: "25.01",
+        url: URL(string: "https://www.7-zip.org/a/7z2501-mac.tar.xz")!,
+        filename: "7z2501-mac.tar.xz",
+        sha256: "26aa75bc262bb10bf0805617b95569c3035c2c590a99f7db55c7e9607b2685e0"
+    )
+
+    /// Official 7-Zip extra `7zz` (Linux x64). Host-tool fallback for `swift test`.
+    public static let sevenZipLinuxFallback = ResolvedComponent(
+        name: "7zz",
+        version: "25.01",
+        url: URL(string: "https://www.7-zip.org/a/7z2501-linux-x64.tar.xz")!,
+        filename: "7z2501-linux-x64.tar.xz",
+        sha256: "4ca3b7c6f2f67866b92622818b58233dc70367be2f36b498eb0bdeaaa44b53f4"
+    )
+
     /// Full x64 pack with d3d9/d3d10core/d3d11/dxgi. The -repack tarball omits dxgi.
     public static let dxvkFallback = ResolvedComponent(
         name: "dxvk",

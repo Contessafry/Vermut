@@ -197,24 +197,36 @@ public final class WineManager: @unchecked Sendable {
             onAwaitingWindow?()
         }
 
-        // GOG's setup auto-starts `GalaxyClient.exe /firstRun` while it is still
-        // registering services; that run fails ("Essential components … missing")
-        // and blocks setup. Stop only that child; Vermut opens GOG afterwards.
-        let firstRunGuard: Task<Void, Never>? = store == .gog ? Task.detached {
+        // Inno `/VERYSILENT` still launches Galaxy after the files land (with or
+        // without `/firstRun`). That child keeps setup.exe alive. Stop every
+        // GalaxyClient in this prefix; Vermut opens GOG afterwards.
+        let leftoverGuard: Task<Void, Never>? = store == .gog ? Task.detached {
             while !Task.isCancelled {
-                for pid in GOGFirstRun.pids(in: PrefixRuntime.processPIDLines(), prefixPath: prefixURL.path) {
+                for pid in GOGSetupLeftovers.pids(
+                    in: PrefixRuntime.processPIDLines(),
+                    prefixPath: prefixURL.path
+                ) {
                     kill(pid, SIGTERM)
                 }
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         } : nil
 
-        let waitResult = ProcessWait.waitUntilExit(
-            installerProcess,
-            timeout: StoreInstaller.timeout(for: store)
-        )
+        let waitResult: ProcessWait.Result
+        if store == .gog {
+            waitResult = waitForGOGInstaller(
+                installerProcess,
+                prefixURL: prefixURL,
+                timeout: StoreInstaller.timeout(for: store) ?? 15 * 60
+            )
+        } else {
+            waitResult = ProcessWait.waitUntilExit(
+                installerProcess,
+                timeout: StoreInstaller.timeout(for: store)
+            )
+        }
         awaitTask.cancel()
-        firstRunGuard?.cancel()
+        leftoverGuard?.cancel()
         if store == .gog {
             waitForWineserver(prefix: prefixURL, engine: engine, timeout: 30)
         }
@@ -231,8 +243,16 @@ public final class WineManager: @unchecked Sendable {
         }
 
         if case .timedOut = waitResult {
-            try? killPrefix(prefix: prefixURL, engine: engine)
-            throw WineError.installerTimedOut(store)
+            let payloadInstalled = store == .gog
+                && StoreExecutable.resolve(in: prefixURL, store: store) != nil
+            if let error = GOGInstallAcceptance.wineError(
+                timedOut: true,
+                payloadInstalled: payloadInstalled,
+                store: store
+            ) {
+                try? killPrefix(prefix: prefixURL, engine: engine)
+                throw error
+            }
         }
 
         if store == .steam {
@@ -245,6 +265,64 @@ public final class WineManager: @unchecked Sendable {
                 throw WineError.installerFailed(store, status)
             }
             throw WineError.executableNotFound
+        }
+
+        if store == .gog {
+            try await GOGSoftwareRenderer.ensureInstalled(in: prefixURL)
+        }
+    }
+
+    /// Poll GOG setup: kill leftover GalaxyClient, and finish once the payload
+    /// is on disk even if Inno never exits. Does not raise the 15-minute cap.
+    private func waitForGOGInstaller(
+        _ process: Process,
+        prefixURL: URL,
+        timeout: TimeInterval
+    ) -> ProcessWait.Result {
+        let deadline = Date().addingTimeInterval(timeout)
+        var payloadSeenAt: Date?
+        while process.isRunning {
+            let payload = StoreExecutable.resolve(in: prefixURL, store: .gog) != nil
+            if payload, payloadSeenAt == nil {
+                payloadSeenAt = Date()
+            }
+            let leftoverPIDs = GOGSetupLeftovers.pids(
+                in: PrefixRuntime.processPIDLines(),
+                prefixPath: prefixURL.path
+            )
+            let decision = GOGSetupWatch.decide(
+                payloadInstalled: payload,
+                installerRunning: true,
+                secondsSincePayloadSeen: payloadSeenAt.map { Date().timeIntervalSince($0) },
+                leftoverCount: leftoverPIDs.count
+            )
+            switch decision {
+            case .stopLeftovers:
+                leftoverPIDs.forEach { kill($0, SIGTERM) }
+            case .finishBecausePayloadInstalled:
+                terminateInstallerProcess(process)
+                return .exited(0)
+            case .wait:
+                break
+            }
+            if Date() >= deadline {
+                terminateInstallerProcess(process)
+                return payload ? .exited(0) : .timedOut
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return .exited(process.terminationStatus)
+    }
+
+    private func terminateInstallerProcess(_ process: Process) {
+        process.terminate()
+        let grace = Date().addingTimeInterval(5)
+        while process.isRunning, Date() < grace {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+            Thread.sleep(forTimeInterval: 0.05)
         }
     }
 
@@ -387,6 +465,9 @@ public final class WineManager: @unchecked Sendable {
             }
         } else {
             try configureLauncherBottle(for: store, config: config, engine: engine)
+            if store == .gog {
+                try await GOGSoftwareRenderer.ensureInstalled(in: prefixURL)
+            }
         }
 
         let wineBinary = layout.launcherBinary(forWindowsExecutable: executablePath)

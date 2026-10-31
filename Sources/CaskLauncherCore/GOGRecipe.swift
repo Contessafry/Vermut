@@ -1,7 +1,9 @@
 import Foundation
 
-/// Known-good GOG Galaxy recipe. Galaxy's Qt UI needs a software renderer;
-/// DXMT/DXVK leave a blank window (the reason the store was "Coming soon").
+/// Known-good GOG Galaxy recipe. Galaxy's Qt UI needs a software renderer
+/// (`opengl32sw.dll` from Mesa llvmpipe). DXMT/DXVK leave a blank window
+/// (the reason the store was "Coming soon"). GDI makes Qt's D3D11 RHI fail
+/// with `0x80004005` on purpose; that is not the DXMT engine-placement bug.
 ///
 /// Install path that works without a working Galaxy UI: drop official GOG
 /// Windows offline installers into the bottle (`drive_c/GOG Games` or
@@ -14,7 +16,8 @@ public enum GOGRecipe {
         "QT_OPENGL": "software",
         "QT_QUICK_BACKEND": "software",
         "QSG_RHI_BACKEND": "software",
-        "LIBGL_ALWAYS_SOFTWARE": "1"
+        "LIBGL_ALWAYS_SOFTWARE": "1",
+        "GALLIUM_DRIVER": "llvmpipe"
     ]
 
     public static let launchArguments = [

@@ -87,6 +87,23 @@ freely, subject to the following restrictions:
 
 Legendary is executed as a separate process. Vermut does not statically link it.
 
+### Mesa (GOG Galaxy software OpenGL)
+
+**What it is**: Windows Mesa llvmpipe / Gallium WGL used as Qt's `opengl32sw.dll` for GOG Galaxy. Vermut downloads the pal1000 `mesa-dist-win` MSVC pack, copies `x64/opengl32.dll` as `opengl32sw.dll` and `x64/libgallium_wgl.dll` next to `GalaxyClient.exe`.
+
+**Version**: 26.2.5 (`mesa3d-26.2.5-release-msvc.7z`)  
+**License**: MIT (Mesa)  
+**Source**: https://github.com/pal1000/mesa-dist-win  
+**Downloaded from**: GitHub Releases (`pal1000/mesa-dist-win`), SHA-256 verified  
+
+### 7-Zip extra (`7zz`)
+
+**What it is**: Host tool used only to unpack the Mesa `.7z` when `7z`/`7zz` is not already on `PATH`.
+
+**Version**: 25.01  
+**License**: GNU LGPL (7-Zip extra)  
+**Downloaded from**: https://www.7-zip.org/a/7z2501-mac.tar.xz (macOS) / `7z2501-linux-x64.tar.xz` (Linux test hosts), SHA-256 verified
+
 **Legendary Copyright**: Copyright (c) Legendary contributors  
 
 ### Game Store Installers
@@ -135,6 +152,8 @@ Vermut itself is MIT-licensed (`LICENSE`). All components it downloads are eithe
 - GPLv3 (Legendary) - Run as a separate process, not linked. The app bundle does not ship the Legendary binary; it is downloaded at runtime.
 - Zlib (DXVK) - Compatible with MIT
 - Apache 2.0 (MoltenVK) - Compatible with MIT
+- MIT (Mesa / mesa-dist-win) - downloaded separately for GOG Qt software GL
+- LGPL (7-Zip extra `7zz`) - host unpacker, not linked
 - CC0 (Simple Icons) and SIL OFL 1.1 (Bricolage Grotesque) - bundled glyphs/wordmark
 
 Vermut does not statically link any LGPL code. All LGPL components are downloaded as separate binaries and executed as separate processes, which is explicitly permitted by the LGPL.

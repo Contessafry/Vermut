@@ -310,7 +310,9 @@ public enum StoreInstaller {
         "/VERYSILENT",
         "/SUPPRESSMSGBOXES",
         "/NORESTART",
-        "/SP-"
+        "/SP-",
+        "/CLOSEAPPLICATIONS",
+        "/FORCECLOSEAPPLICATIONS"
     ]
 
     public static func downloadURL(for store: GameStore) -> String {

@@ -16,6 +16,12 @@ All notable changes to Vermut are documented here.
 ### Changed
 
 - DXMT catalog lists **stable releases only** (pre-release, draft, and nightly assets are skipped)
+- GOG silent setup treats Galaxy on disk as success when Inno never exits (leftover `GalaxyClient.exe` is stopped; 15-minute cap unchanged)
+- GOG recipe installs Mesa llvmpipe as `opengl32sw.dll` beside `GalaxyClient.exe` so Qt Quick can create an RHI
+
+### Known
+
+- Engines left by `8b4c701` (DXMT PE in the Wine tree, no `.vermut-wined3d` sidecars) cannot be restored to WineD3D without a reinstall: `restoreIntoEngine` can recognize the overlay bytes, but the original builtin PE is gone. Reinstall the engine.
 
 ## 1.2.0 — 2026-10-23
 
