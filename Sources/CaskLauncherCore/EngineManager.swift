@@ -59,6 +59,7 @@ public final class EngineManager: @unchecked Sendable {
         }
         if engine.supportsDXMT, let overlay = layout.bundledDXMTOverlay() ?? OverlayLayout.resolve(installRoot: PathManager.shared.dxmtURL()) {
             try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: layout)
         }
 
         let versionURL = engineURL.appendingPathComponent(Self.installedVersionFileName)
@@ -118,6 +119,7 @@ public final class EngineManager: @unchecked Sendable {
         if let overlay = OverlayLayout.resolve(installRoot: manager.activeOverlayURL()),
            let layout = PathManager.shared.engineLayout(for: .grappleWine) {
             try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: layout)
         }
 
         try fileManager.removeItem(at: downloadLocation)
@@ -128,6 +130,7 @@ public final class EngineManager: @unchecked Sendable {
         if let overlay = OverlayLayout.resolve(installRoot: DXMTVersionManager.shared.activeOverlayURL()),
            let layout = PathManager.shared.engineLayout(for: .grappleWine) {
             try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: layout)
         }
     }
 
@@ -223,23 +226,26 @@ public enum EngineError: LocalizedError {
     case downloadFailed
     case extractionFailed
     case wineBinaryNotFound(String)
-    case overlayNotFound(String, String)
-    case engineNotFound
+        case overlayNotFound(String, String)
+        case overlayFileMissing(String, String, String)
+        case engineNotFound
 
-    public var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "Invalid download URL"
-        case .downloadFailed:
-            return "Download failed"
-        case .extractionFailed:
-            return "Failed to extract archive (tar exited with an error)"
-        case .wineBinaryNotFound(let root):
-            return "Wine was extracted to \(root) but no wine binary was found. Expected Vermut Wine or a Wine Staging/Devel layout."
-        case .overlayNotFound(let name, let root):
-            return "\(name) was extracted to \(root) but d3d11.dll was not found in an x86_64-windows or i386-windows folder."
-        case .engineNotFound:
-            return "Wine engine not found"
+        public var errorDescription: String? {
+            switch self {
+            case .invalidURL:
+                return "Invalid download URL"
+            case .downloadFailed:
+                return "Download failed"
+            case .extractionFailed:
+                return "Failed to extract archive (tar exited with an error)"
+            case .wineBinaryNotFound(let root):
+                return "Wine was extracted to \(root) but no wine binary was found. Expected Vermut Wine or a Wine Staging/Devel layout."
+            case .overlayNotFound(let name, let root):
+                return "\(name) was extracted to \(root) but d3d11.dll was not found in an x86_64-windows or i386-windows folder."
+            case .overlayFileMissing(let name, let file, let root):
+                return "\(name) at \(root) is missing \(file)."
+            case .engineNotFound:
+                return "Wine engine not found"
+            }
         }
-    }
 }

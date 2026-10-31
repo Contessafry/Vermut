@@ -477,6 +477,8 @@ public enum DXMTUnixLib {
 
 public enum DXMTWindowsDLLs {
     public static let names = ["d3d11.dll", "dxgi.dll", "d3d10core.dll", "winemetal.dll"]
+    /// Wine has no builtin `winemetal`; a missing overlay copy used to be skipped.
+    public static let requiredName = "winemetal.dll"
 
     public static func copyPlan(
         overlay: OverlayLayout,
@@ -495,5 +497,93 @@ public enum DXMTWindowsDLLs {
             }
         }
         return plan
+    }
+
+    /// Wine loads builtin `d3d11`/`dxgi`/`d3d10core` from the engine tree first.
+    /// `WINEDLLPATH` cannot override that, so the overlay PE files must land here.
+    public static func engineCopyPlan(
+        overlay: OverlayLayout,
+        engine: EngineLayout
+    ) -> [(from: URL, to: URL)] {
+        var plan: [(URL, URL)] = []
+        if let win64 = overlay.windows64Dir {
+            let dest = engine.windows64Dir ?? engine.wineLibDir.appendingPathComponent("x86_64-windows")
+            for name in names {
+                plan.append((win64.appendingPathComponent(name), dest.appendingPathComponent(name)))
+            }
+        }
+        if let win32 = overlay.windows32Dir {
+            let dest = engine.windows32Dir ?? engine.wineLibDir.appendingPathComponent("i386-windows")
+            for name in names {
+                plan.append((win32.appendingPathComponent(name), dest.appendingPathComponent(name)))
+            }
+        }
+        return plan
+    }
+
+    public static func missingRequired(
+        in overlay: OverlayLayout,
+        fileManager: FileManager = .default
+    ) -> [String] {
+        guard overlay.windowsDLL(requiredName, fileManager: fileManager) == nil else {
+            return []
+        }
+        return [requiredName]
+    }
+
+    public static func needsInstall(
+        overlay: OverlayLayout,
+        engine: EngineLayout,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        engineCopyPlan(overlay: overlay, engine: engine).contains { pair in
+            guard fileManager.fileExists(atPath: pair.from.path) else { return false }
+            guard fileManager.fileExists(atPath: pair.to.path) else { return true }
+            let src = try? Data(contentsOf: pair.from)
+            let dst = try? Data(contentsOf: pair.to)
+            return src != dst
+        }
+    }
+
+    public static func installIntoEngine(
+        overlay: OverlayLayout,
+        engine: EngineLayout,
+        fileManager: FileManager = .default
+    ) throws {
+        try requireWinemetal(in: overlay, fileManager: fileManager)
+        for pair in engineCopyPlan(overlay: overlay, engine: engine) {
+            guard fileManager.fileExists(atPath: pair.from.path) else { continue }
+            try replace(from: pair.from, to: pair.to, fileManager: fileManager)
+        }
+    }
+
+    public static func installIntoPrefix(
+        overlay: OverlayLayout,
+        system32: URL,
+        syswow64: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        try requireWinemetal(in: overlay, fileManager: fileManager)
+        for pair in copyPlan(overlay: overlay, system32: system32, syswow64: syswow64) {
+            guard fileManager.fileExists(atPath: pair.from.path) else { continue }
+            try replace(from: pair.from, to: pair.to, fileManager: fileManager)
+        }
+    }
+
+    private static func requireWinemetal(
+        in overlay: OverlayLayout,
+        fileManager: FileManager
+    ) throws {
+        let missing = missingRequired(in: overlay, fileManager: fileManager)
+        guard let file = missing.first else { return }
+        throw EngineError.overlayFileMissing("DXMT", file, overlay.root.path)
+    }
+
+    private static func replace(from: URL, to: URL, fileManager: FileManager) throws {
+        try fileManager.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: to.path) {
+            try fileManager.removeItem(at: to)
+        }
+        try fileManager.copyItem(at: from, to: to)
     }
 }

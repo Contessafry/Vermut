@@ -705,6 +705,7 @@ public final class WineManager: @unchecked Sendable {
         guard fileManager.fileExists(atPath: prefixURL.path) else {
             throw WineError.prefixCreationFailed
         }
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: .steam)
         var environment = buildEnvironment(for: .steam, config: config)
         environment["WINEPREFIX"] = prefixURL.path
         try launchDetached(
@@ -946,18 +947,20 @@ public final class WineManager: @unchecked Sendable {
             return
         }
 
+        // Empty DllOverrides on grapple-wine: Wine uses builtins from lib/wine.
+        // Overlay PE files must replace those builtins; prefix copies alone do not.
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: layout)
+
         let system32 = prefixURL.appendingPathComponent("drive_c/windows/system32")
         let syswow64 = prefixURL.appendingPathComponent("drive_c/windows/syswow64")
         try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: syswow64, withIntermediateDirectories: true)
-
-        for pair in DXMTWindowsDLLs.copyPlan(overlay: overlay, system32: system32, syswow64: syswow64) {
-            guard fileManager.fileExists(atPath: pair.from.path) else { continue }
-            if fileManager.fileExists(atPath: pair.to.path) {
-                try fileManager.removeItem(at: pair.to)
-            }
-            try fileManager.copyItem(at: pair.from, to: pair.to)
-        }
+        try DXMTWindowsDLLs.installIntoPrefix(
+            overlay: overlay,
+            system32: system32,
+            syswow64: syswow64,
+            fileManager: fileManager
+        )
     }
 
     private func apply(
