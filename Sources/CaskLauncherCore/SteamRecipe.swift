@@ -477,8 +477,8 @@ public enum DXMTUnixLib {
 
 public enum DXMTWindowsDLLs {
     public static let names = ["d3d11.dll", "dxgi.dll", "d3d10core.dll", "winemetal.dll"]
-    /// Wine has no builtin `winemetal`; a missing overlay copy used to be skipped.
-    public static let requiredName = "winemetal.dll"
+    /// Sidecar next to each replaced builtin so WineD3D can be restored.
+    public static let backupExtension = "vermut-wined3d"
 
     public static func copyPlan(
         overlay: OverlayLayout,
@@ -521,14 +521,21 @@ public enum DXMTWindowsDLLs {
         return plan
     }
 
+    /// Every DXMT name must exist in each overlay architecture directory that is present.
     public static func missingRequired(
         in overlay: OverlayLayout,
         fileManager: FileManager = .default
     ) -> [String] {
-        guard overlay.windowsDLL(requiredName, fileManager: fileManager) == nil else {
-            return []
+        var missing: [String] = []
+        for dir in [overlay.windows64Dir, overlay.windows32Dir].compactMap({ $0 }) {
+            for name in names {
+                let url = dir.appendingPathComponent(name)
+                if !fileManager.fileExists(atPath: url.path), !missing.contains(name) {
+                    missing.append(name)
+                }
+            }
         }
-        return [requiredName]
+        return missing
     }
 
     public static func needsInstall(
@@ -545,15 +552,50 @@ public enum DXMTWindowsDLLs {
         }
     }
 
+    /// Install DXMT PE files, or put the engine builtins back for WineD3D.
+    public static func syncEngine(
+        overlay: OverlayLayout?,
+        engine: EngineLayout,
+        backend: GraphicsBackend,
+        fileManager: FileManager = .default
+    ) throws {
+        switch backend {
+        case .dxmt:
+            guard let overlay else { return }
+            try installIntoEngine(overlay: overlay, engine: engine, fileManager: fileManager)
+        case .wined3d:
+            try restoreIntoEngine(engine: engine, fileManager: fileManager)
+        default:
+            break
+        }
+    }
+
     public static func installIntoEngine(
         overlay: OverlayLayout,
         engine: EngineLayout,
         fileManager: FileManager = .default
     ) throws {
-        try requireWinemetal(in: overlay, fileManager: fileManager)
+        try requireCompleteOverlay(overlay, fileManager: fileManager)
         for pair in engineCopyPlan(overlay: overlay, engine: engine) {
-            guard fileManager.fileExists(atPath: pair.from.path) else { continue }
+            try backupOriginalIfNeeded(at: pair.to, fileManager: fileManager)
             try replace(from: pair.from, to: pair.to, fileManager: fileManager)
+        }
+    }
+
+    public static func restoreIntoEngine(
+        engine: EngineLayout,
+        fileManager: FileManager = .default
+    ) throws {
+        for dir in engineWindowsDirectories(in: engine, fileManager: fileManager) {
+            for name in names {
+                let dest = dir.appendingPathComponent(name)
+                let backup = backupURL(for: dest)
+                if fileManager.fileExists(atPath: backup.path) {
+                    try replace(from: backup, to: dest, fileManager: fileManager)
+                } else if name == "winemetal.dll", fileManager.fileExists(atPath: dest.path) {
+                    try fileManager.removeItem(at: dest)
+                }
+            }
         }
     }
 
@@ -563,20 +605,42 @@ public enum DXMTWindowsDLLs {
         syswow64: URL,
         fileManager: FileManager = .default
     ) throws {
-        try requireWinemetal(in: overlay, fileManager: fileManager)
+        try requireCompleteOverlay(overlay, fileManager: fileManager)
         for pair in copyPlan(overlay: overlay, system32: system32, syswow64: syswow64) {
-            guard fileManager.fileExists(atPath: pair.from.path) else { continue }
             try replace(from: pair.from, to: pair.to, fileManager: fileManager)
         }
     }
 
-    private static func requireWinemetal(
-        in overlay: OverlayLayout,
+    private static func requireCompleteOverlay(
+        _ overlay: OverlayLayout,
         fileManager: FileManager
     ) throws {
         let missing = missingRequired(in: overlay, fileManager: fileManager)
         guard let file = missing.first else { return }
         throw EngineError.overlayFileMissing("DXMT", file, overlay.root.path)
+    }
+
+    private static func backupURL(for dest: URL) -> URL {
+        dest.appendingPathExtension(backupExtension)
+    }
+
+    private static func backupOriginalIfNeeded(at dest: URL, fileManager: FileManager) throws {
+        let backup = backupURL(for: dest)
+        guard fileManager.fileExists(atPath: dest.path),
+              !fileManager.fileExists(atPath: backup.path)
+        else { return }
+        try fileManager.copyItem(at: dest, to: backup)
+    }
+
+    private static func engineWindowsDirectories(
+        in engine: EngineLayout,
+        fileManager: FileManager
+    ) -> [URL] {
+        let candidates = [
+            engine.windows64Dir ?? engine.wineLibDir.appendingPathComponent("x86_64-windows"),
+            engine.windows32Dir ?? engine.wineLibDir.appendingPathComponent("i386-windows")
+        ]
+        return candidates.filter { existingDir($0, fileManager) != nil }
     }
 
     private static func replace(from: URL, to: URL, fileManager: FileManager) throws {

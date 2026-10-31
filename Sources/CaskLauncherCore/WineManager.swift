@@ -306,6 +306,7 @@ public final class WineManager: @unchecked Sendable {
         guard fileManager.fileExists(atPath: prefixURL.path) else {
             throw WineError.prefixCreationFailed
         }
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: store)
         var environment = buildEnvironment(for: store, config: config)
         environment["WINEPREFIX"] = prefixURL.path
         try launchDetached(
@@ -587,6 +588,7 @@ public final class WineManager: @unchecked Sendable {
             try fileManager.createDirectory(at: prefixURL, withIntermediateDirectories: true)
         }
 
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: .steam)
         var environment = buildEnvironment(for: .steam, config: config)
         environment["WINEPREFIX"] = prefixURL.path
 
@@ -933,23 +935,28 @@ public final class WineManager: @unchecked Sendable {
             )
             overlay = versioned ?? layout.bundledDXMTOverlay() ?? PathManager.shared.dxmtOverlay()
         }
-        guard let overlay else { return }
-
+        let backend = graphicsBackend(config)
         if engine.supportsDXMT {
-            try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            if let overlay {
+                try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            }
+            // WineD3D restores the backed-up builtins; DXMT overlays them.
+            try DXMTWindowsDLLs.syncEngine(
+                overlay: overlay,
+                engine: layout,
+                backend: backend,
+                fileManager: fileManager
+            )
         }
 
         guard DllOverridePolicy.usesNativeDXMT(
             engine: engine,
-            backend: graphicsBackend(config),
+            backend: backend,
             store: store
         ) else {
             return
         }
-
-        // Empty DllOverrides on grapple-wine: Wine uses builtins from lib/wine.
-        // Overlay PE files must replace those builtins; prefix copies alone do not.
-        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: layout)
+        guard let overlay else { return }
 
         let system32 = prefixURL.appendingPathComponent("drive_c/windows/system32")
         let syswow64 = prefixURL.appendingPathComponent("drive_c/windows/syswow64")
