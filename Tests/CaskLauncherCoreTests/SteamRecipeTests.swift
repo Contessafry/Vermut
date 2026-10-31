@@ -568,26 +568,44 @@ final class SteamRecipeTests: XCTestCase {
 
         let overlay = try XCTUnwrap(OverlayLayout.resolve(installRoot: overlayRoot))
         let engine = try XCTUnwrap(EngineLayout.resolve(installRoot: engineRoot))
-        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
-        XCTAssertEqual(
-            try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
-            "dxmt-d3d11"
-        )
+        let win64 = try XCTUnwrap(engine.windows64Dir)
 
-        try DXMTWindowsDLLs.syncEngine(overlay: overlay, engine: engine, backend: .wined3d)
-        XCTAssertEqual(
-            try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
-            "wined3d-d3d11"
-        )
-        XCTAssertNotEqual(
-            try String(contentsOf: engine.windows64Dir!.appendingPathComponent("d3d11.dll"), encoding: .utf8),
-            "dxmt-d3d11"
-        )
-        XCTAssertFalse(
-            FileManager.default.fileExists(
-                atPath: engine.windows64Dir!.appendingPathComponent("winemetal.dll").path
+        func assertEngineMatchesBuiltins(cycle: String) throws {
+            XCTAssertEqual(
+                try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+                "wined3d-d3d11",
+                "\(cycle): d3d11 must be the Wine builtin"
             )
-        )
+            XCTAssertNotEqual(
+                try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8),
+                "dxmt-d3d11",
+                "\(cycle): d3d11 must not be the DXMT PE"
+            )
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: win64.appendingPathComponent("winemetal.dll").path),
+                "\(cycle): winemetal.dll must not remain in the engine tree"
+            )
+            for name in DXMTWindowsDLLs.names {
+                let sidecar = win64.appendingPathComponent(name)
+                    .appendingPathExtension(DXMTWindowsDLLs.backupExtension)
+                XCTAssertFalse(
+                    FileManager.default.fileExists(atPath: sidecar.path),
+                    "\(cycle): leftover \(sidecar.lastPathComponent)"
+                )
+            }
+        }
+
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        XCTAssertEqual(try String(contentsOf: win64.appendingPathComponent("d3d11.dll"), encoding: .utf8), "dxmt-d3d11")
+        try DXMTWindowsDLLs.syncEngine(overlay: overlay, engine: engine, backend: .wined3d)
+        try assertEngineMatchesBuiltins(cycle: "first")
+
+        // Second DXMT apply, then another apply while already overlaid (EngineManager + launch).
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        XCTAssertFalse(DXMTWindowsDLLs.needsInstall(overlay: overlay, engine: engine))
+        try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: engine)
+        try DXMTWindowsDLLs.syncEngine(overlay: overlay, engine: engine, backend: .wined3d)
+        try assertEngineMatchesBuiltins(cycle: "second")
     }
 
     func testIncompleteOverlayWithoutD3D11DoesNotReplaceAnyEngineFile() throws {

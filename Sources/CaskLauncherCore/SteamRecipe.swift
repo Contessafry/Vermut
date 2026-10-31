@@ -576,8 +576,9 @@ public enum DXMTWindowsDLLs {
         fileManager: FileManager = .default
     ) throws {
         try requireCompleteOverlay(overlay, fileManager: fileManager)
+        guard needsInstall(overlay: overlay, engine: engine, fileManager: fileManager) else { return }
         for pair in engineCopyPlan(overlay: overlay, engine: engine) {
-            try backupOriginalIfNeeded(at: pair.to, fileManager: fileManager)
+            try backupOriginalIfNeeded(from: pair.from, to: pair.to, fileManager: fileManager)
             try replace(from: pair.from, to: pair.to, fileManager: fileManager)
         }
     }
@@ -590,10 +591,19 @@ public enum DXMTWindowsDLLs {
             for name in names {
                 let dest = dir.appendingPathComponent(name)
                 let backup = backupURL(for: dest)
+                if name == "winemetal.dll" {
+                    // Not a Wine builtin — never restore a sidecar, even a stale DXMT one.
+                    if fileManager.fileExists(atPath: dest.path) {
+                        try fileManager.removeItem(at: dest)
+                    }
+                    if fileManager.fileExists(atPath: backup.path) {
+                        try fileManager.removeItem(at: backup)
+                    }
+                    continue
+                }
                 if fileManager.fileExists(atPath: backup.path) {
                     try replace(from: backup, to: dest, fileManager: fileManager)
-                } else if name == "winemetal.dll", fileManager.fileExists(atPath: dest.path) {
-                    try fileManager.removeItem(at: dest)
+                    try fileManager.removeItem(at: backup)
                 }
             }
         }
@@ -624,11 +634,16 @@ public enum DXMTWindowsDLLs {
         dest.appendingPathExtension(backupExtension)
     }
 
-    private static func backupOriginalIfNeeded(at dest: URL, fileManager: FileManager) throws {
+    private static func backupOriginalIfNeeded(from source: URL, to dest: URL, fileManager: FileManager) throws {
+        // winemetal is overlay-only; a sidecar of it would be restored as "builtin".
+        guard dest.lastPathComponent != "winemetal.dll" else { return }
         let backup = backupURL(for: dest)
         guard fileManager.fileExists(atPath: dest.path),
               !fileManager.fileExists(atPath: backup.path)
         else { return }
+        let src = try? Data(contentsOf: source)
+        let dst = try? Data(contentsOf: dest)
+        guard src != dst else { return }
         try fileManager.copyItem(at: dest, to: backup)
     }
 
