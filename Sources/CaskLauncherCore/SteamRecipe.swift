@@ -552,21 +552,18 @@ public enum DXMTWindowsDLLs {
         }
     }
 
-    /// Install DXMT PE files, or put the engine builtins back for WineD3D.
+    /// Install DXMT PE files, or put the engine builtins back for every other backend.
     public static func syncEngine(
         overlay: OverlayLayout?,
         engine: EngineLayout,
         backend: GraphicsBackend,
         fileManager: FileManager = .default
     ) throws {
-        switch backend {
-        case .dxmt:
+        if backend == .dxmt {
             guard let overlay else { return }
             try installIntoEngine(overlay: overlay, engine: engine, fileManager: fileManager)
-        case .wined3d:
+        } else {
             try restoreIntoEngine(engine: engine, fileManager: fileManager)
-        default:
-            break
         }
     }
 

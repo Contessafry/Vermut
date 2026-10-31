@@ -940,7 +940,7 @@ public final class WineManager: @unchecked Sendable {
             if let overlay {
                 try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
             }
-            // WineD3D restores the backed-up builtins; DXMT overlays them.
+            // Non-DXMT backends restore the backed-up builtins; DXMT overlays them.
             try DXMTWindowsDLLs.syncEngine(
                 overlay: overlay,
                 engine: layout,
