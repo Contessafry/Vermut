@@ -15,6 +15,20 @@
       "recommended": "dxmt"
     },
     {
+      "store": "epic",
+      "gameId": "Min",
+      "gameName": "Hades",
+      "byGraphics": {
+        "dxvk": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxvk"
+    },
+    {
       "store": "steam",
       "gameId": "1245620",
       "gameName": "ELDEN RING",
@@ -43,6 +57,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1793610947,
-  "reportCount": 4
+  "generated": 1793669808,
+  "reportCount": 5
 }
