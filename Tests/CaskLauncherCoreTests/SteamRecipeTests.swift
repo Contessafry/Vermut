@@ -179,14 +179,16 @@ final class SteamRecipeTests: XCTestCase {
         XCTAssertNotEqual(recipe.environment["WINEDEBUG"], "-all")
     }
 
-    func testGOGLaunchDisablesCEFGPU() {
+    func testGOGLaunchUsesGalaxyClientFlagsNotChromiumGPU() {
         let wineLib = URL(fileURLWithPath: "/engines/grapple-wine/lib/wine")
         let exe = URL(fileURLWithPath: "/prefix/drive_c/Program Files (x86)/GOG Galaxy/GalaxyClient.exe")
         let recipe = StoreLaunchRecipe.build(store: .gog, executable: exe, wineLibDir: wineLib)
         XCTAssertEqual(
             recipe.arguments,
-            ["GalaxyClient.exe"] + GOGRecipe.launchArguments
+            ["GalaxyClient.exe", "/runWithoutUpdating", "/deelevated"]
         )
+        XCTAssertFalse(recipe.arguments.contains("--disable-gpu"))
+        XCTAssertFalse(recipe.arguments.contains("--disable-gpu-compositing"))
         XCTAssertEqual(recipe.environment["WINEDLLOVERRIDES"], GOGRecipe.dllOverrides)
         XCTAssertEqual(recipe.environment["QT_OPENGL"], "software")
         XCTAssertEqual(recipe.environment["QT_QUICK_BACKEND"], "software")

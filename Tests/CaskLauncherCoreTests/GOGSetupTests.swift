@@ -2,6 +2,12 @@ import XCTest
 @testable import CaskLauncherCore
 
 final class GOGSetupTests: XCTestCase {
+    func testLaunchArgumentsAreGalaxyClientFlagsNotChromiumGPU() {
+        XCTAssertEqual(GOGRecipe.launchArguments, ["/runWithoutUpdating", "/deelevated"])
+        XCTAssertFalse(GOGRecipe.launchArguments.contains("--disable-gpu"))
+        XCTAssertFalse(GOGRecipe.launchArguments.contains("--disable-gpu-compositing"))
+    }
+
     func testHungInstallerWithPayloadIsSuccessNotTimeout() {
         XCTAssertTrue(GOGInstallAcceptance.acceptInstallerResult(timedOut: true, payloadInstalled: true))
         XCTAssertNil(GOGInstallAcceptance.wineError(timedOut: true, payloadInstalled: true, store: .gog))

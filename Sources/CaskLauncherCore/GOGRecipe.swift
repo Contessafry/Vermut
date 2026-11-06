@@ -20,9 +20,13 @@ public enum GOGRecipe {
         "GALLIUM_DRIVER": "llvmpipe"
     ]
 
+    /// Galaxy client flags, not Chromium `--disable-gpu`. Lutris, Bottles, and
+    /// PortWINE all launch `GalaxyClient.exe` this way for Galaxy 2.x (Bottles
+    /// pins the same 2.1.10.56 installer Vermut uses). Galaxy's InitClientStrategy
+    /// ignores Chromium argv — Mac 113d531 logged empty `Command-line parameters`.
     public static let launchArguments = [
-        "--disable-gpu",
-        "--disable-gpu-compositing"
+        "/runWithoutUpdating",
+        "/deelevated"
     ]
 
     public static let dllOverrides = "d3d10core,d3d11,d3d12,dxgi,winemetal=builtin"

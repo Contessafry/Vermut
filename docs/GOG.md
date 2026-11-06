@@ -14,7 +14,7 @@ GOG Galaxy’s Qt UI tries to create a D3D11 renderer. Under DXMT/DXVK that wind
 | Wine Direct3D | `renderer=gdi` |
 | Qt / GL | `QT_OPENGL=software`, `QT_QUICK_BACKEND=software`, `QSG_RHI_BACKEND=software`, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe` |
 | Software renderer | Mesa 26.2.5 `opengl32.dll` copied as `opengl32sw.dll` + `libgallium_wgl.dll` next to `GalaxyClient.exe` |
-| Args | `--disable-gpu --disable-gpu-compositing` |
+| Args | `/runWithoutUpdating /deelevated` (Galaxy client flags; not Chromium `--disable-gpu`) |
 | Installer | Official offline `setup_galaxy_*.exe` (web stub rejected), Inno `/VERYSILENT /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS` |
 | Setup hang | Inno still launches Galaxy after files land. Vermut stops every `GalaxyClient.exe` in the prefix. Payload on disk is success even if setup.exe never exits. 15-minute cap is unchanged. |
 | First-run | Leftover Galaxy during setup (with or without `/firstRun`) is stopped so Inno can finish |
