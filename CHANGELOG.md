@@ -6,6 +6,8 @@ All notable changes to Vermut are documented here.
 
 ### Added
 
+- Game Settings **Find configuration**: tries Wine engine × graphics × Steam overlay × a small launch-option set until a title stays up, then asks “Does it really work?” before saving. Skips impossible / `knownNotWorking` combos; per-attempt Wine logs are capped (2 MiB)
+- Per-game **launch options** (`-applaunch` extras such as `-force-glcore`) saved with the working combo
 - Compatibility JSON records **known not working** backend/engine pairs from broken-only reports and no longer marks a `recommended` backend for those titles (e.g. ELDEN RING)
 - Gcenx Wine Staging / Devel versions are detected from GitHub releases (11.19 / 11.20 appear when Gcenx publishes them; UI no longer hardcodes 11.18)
 - Per-game **Steam overlay** toggle in Game Settings (off by default)

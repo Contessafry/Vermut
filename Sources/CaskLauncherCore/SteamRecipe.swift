@@ -265,7 +265,8 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
         wineLibDir: URL,
         firstRunUpdate: Bool = false,
         steamAppId: String? = nil,
-        steamOverlayEnabled: Bool = false
+        steamOverlayEnabled: Bool = false,
+        extraLaunchOptions: [String] = []
     ) -> StoreLaunchRecipe {
         var env: [String: String] = [
             "WINEDEBUG": "-all",
@@ -285,7 +286,8 @@ public struct StoreLaunchRecipe: Equatable, Sendable {
             if let steamAppId, !steamAppId.isEmpty {
                 arguments = SteamGameLaunch.applaunchArguments(
                     appId: steamAppId,
-                    firstRunUpdate: firstRunUpdate
+                    firstRunUpdate: firstRunUpdate,
+                    extraLaunchOptions: extraLaunchOptions
                 )
             } else if firstRunUpdate {
                 arguments = ["steam.exe"]

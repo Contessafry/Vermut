@@ -40,8 +40,19 @@ public enum LegendaryCLI {
         ["install", appName, "--base-path", basePath, "-y", "--platform", windowsPlatform]
     }
 
-    public static func launchArguments(appName: String, wine: String, prefix: String) -> [String] {
-        ["launch", appName, "--wine", wine, "--wine-prefix", prefix]
+    public static func launchArguments(
+        appName: String,
+        wine: String,
+        prefix: String,
+        extraGameArguments: [String] = []
+    ) -> [String] {
+        var args = ["launch", appName, "--wine", wine, "--wine-prefix", prefix]
+        let extras = extraGameArguments.filter { !$0.isEmpty }
+        if !extras.isEmpty {
+            args.append("--")
+            args.append(contentsOf: extras)
+        }
+        return args
     }
 }
 
@@ -513,13 +524,15 @@ public final class LegendaryManager: @unchecked Sendable {
         appName: String,
         wine: URL,
         prefix: URL,
-        extraEnvironment: [String: String]
+        extraEnvironment: [String: String],
+        extraGameArguments: [String] = []
     ) throws {
         try ensureConfigDirectory()
         let args = LegendaryCLI.launchArguments(
             appName: appName,
             wine: wine.path,
-            prefix: prefix.path
+            prefix: prefix.path,
+            extraGameArguments: extraGameArguments
         )
         var env = processEnvironment(extra: extraEnvironment)
         env["WINEPREFIX"] = prefix.path
