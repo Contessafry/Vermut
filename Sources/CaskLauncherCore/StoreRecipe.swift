@@ -6,10 +6,13 @@ import FoundationNetworking
 /// Per-store bottle policy. Steam and Epic pick DXMT/DXVK; GOG stays on WineD3D.
 /// Grapple-wine has no Vulkan loader, so DXVK bottles use Wine Staging.
 public enum StoreRecipe {
-    /// GOG Galaxy's Qt UI can't create a D3D11 renderer under our engines yet
-    /// (blank window), so the store is shown as "Coming soon" until it works.
+    /// Reserved for stores that are hidden from first-setup. GOG is available
+    /// with the WineD3D + Qt software recipe in `GOGRecipe`.
     public static func isComingSoon(_ store: GameStore) -> Bool {
-        store == .gog
+        switch store {
+        case .steam, .epic, .gog:
+            return false
+        }
     }
 
     /// Drops "Coming soon" stores from a first-setup selection.
@@ -51,7 +54,7 @@ public enum StoreRecipe {
             )
         case .gog:
             return BottleConfiguration(
-                engine: SettingInheritance.automatic,
+                engine: GOGRecipe.recommendedEngine.rawValue,
                 graphicsBackend: GraphicsBackend.wined3d.rawValue,
                 dxmtVersion: SettingInheritance.automatic,
                 enableHiDPI: false,
@@ -307,7 +310,9 @@ public enum StoreInstaller {
         "/VERYSILENT",
         "/SUPPRESSMSGBOXES",
         "/NORESTART",
-        "/SP-"
+        "/SP-",
+        "/CLOSEAPPLICATIONS",
+        "/FORCECLOSEAPPLICATIONS"
     ]
 
     public static func downloadURL(for store: GameStore) -> String {

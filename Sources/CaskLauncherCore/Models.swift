@@ -4,8 +4,8 @@ import Foundation
 public enum VermutProject {
     public static let name = "Vermut"
     public static let version = "1.2.0"
-    /// Library empty state. GOG is "Coming soon", so it is not offered here.
-    public static let libraryEmptyMessage = "Install Steam or Epic from Stores to see your games here."
+    /// Library empty state.
+    public static let libraryEmptyMessage = "Install Steam, Epic, or GOG from Stores to see your games here."
     public static let tagline = "Pour. Click. Play."
     public static let githubOwner = "Contessafry"
     public static let githubRepository = "Vermut"
@@ -150,13 +150,20 @@ public enum WineEngine: String, CaseIterable, Identifiable, Sendable {
         userFacingName
     }
 
-    /// Shown in the UI. Internal id remains `grapple-wine`.
+    /// Shown in the UI. Version numbers come from the Gcenx catalog, not this label.
+    /// Internal id remains `grapple-wine`.
     public var userFacingName: String {
         switch self {
         case .grappleWine: return "Vermut Wine"
-        case .staging: return "Wine Staging 11.18"
-        case .devel: return "Wine Devel 11.18"
+        case .staging: return "Wine Staging"
+        case .devel: return "Wine Devel"
         }
+    }
+
+    /// `userFacingName` plus an optional detected version (`Wine Staging 11.20`).
+    public func userFacingName(version: String?) -> String {
+        guard let version, !version.isEmpty, self != .grappleWine else { return userFacingName }
+        return "\(userFacingName) \(version)"
     }
 
     /// Second line in engine pickers / Settings › Wine Engines.
@@ -243,6 +250,8 @@ public struct AppConfiguration: Codable, Sendable {
     public var d3dMetalLibraryPath: String?
     /// In-app update feed: Stable (default) or Beta (GitHub pre-releases).
     public var updateChannel: String
+    /// x86_64 Windows emulation: `rosetta` (default) or `fex`.
+    public var x86Emulation: String
     public var enableHiDPI: Bool
     public var windowsVersion: String
 
@@ -257,6 +266,7 @@ public struct AppConfiguration: Codable, Sendable {
         defaultLogLevel: String = WineLogLevel.off.rawValue,
         d3dMetalLibraryPath: String? = nil,
         updateChannel: String = UpdateChannel.stable.rawValue,
+        x86Emulation: String = X86EmulationMode.rosetta.rawValue,
         enableHiDPI: Bool = true,
         windowsVersion: String = "win10"
     ) {
@@ -266,13 +276,18 @@ public struct AppConfiguration: Codable, Sendable {
         self.defaultLogLevel = defaultLogLevel
         self.d3dMetalLibraryPath = d3dMetalLibraryPath
         self.updateChannel = updateChannel
+        self.x86Emulation = x86Emulation
         self.enableHiDPI = enableHiDPI
         self.windowsVersion = windowsVersion
     }
 
+    public var resolvedX86Emulation: X86EmulationMode {
+        X86EmulationMode.resolved(from: x86Emulation)
+    }
+
     enum CodingKeys: String, CodingKey {
         case defaultEngine, defaultGraphicsBackend, defaultDXMTVersion, defaultLogLevel
-        case d3dMetalLibraryPath, updateChannel, enableHiDPI, windowsVersion
+        case d3dMetalLibraryPath, updateChannel, x86Emulation, enableHiDPI, windowsVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -288,6 +303,8 @@ public struct AppConfiguration: Codable, Sendable {
         d3dMetalLibraryPath = try container.decodeIfPresent(String.self, forKey: .d3dMetalLibraryPath)
         updateChannel = try container.decodeIfPresent(String.self, forKey: .updateChannel)
             ?? UpdateChannel.stable.rawValue
+        x86Emulation = try container.decodeIfPresent(String.self, forKey: .x86Emulation)
+            ?? X86EmulationMode.rosetta.rawValue
         enableHiDPI = try container.decodeIfPresent(Bool.self, forKey: .enableHiDPI) ?? true
         windowsVersion = try container.decodeIfPresent(String.self, forKey: .windowsVersion) ?? "win10"
     }

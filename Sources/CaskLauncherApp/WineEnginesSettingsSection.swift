@@ -9,7 +9,7 @@ struct WineEnginesSettingsSection: View {
         VStack(alignment: .leading, spacing: VermutSpace.s4) {
             Text("Wine Engines")
                 .font(VermutType.headline)
-            Text("Vermut Wine is the default. Gcenx WineHQ Staging and Devel download on demand and can be selected per bottle.")
+            Text("Vermut Wine is the default. Gcenx WineHQ Staging and Devel are detected from GitHub releases (no hardcoded version). Download on demand and select them per bottle.")
                 .font(VermutType.body)
                 .foregroundStyle(Color.Vermut.mutedForeground)
                 .lineSpacing(2)
@@ -66,7 +66,10 @@ struct WineEnginesSettingsSection: View {
                 .foregroundStyle(Color.Vermut.mutedForeground)
         }
         .frame(maxWidth: 720, alignment: .leading)
-        .onAppear { model.refresh() }
+        .onAppear {
+            model.refresh()
+            Task { await model.refreshFromNetwork() }
+        }
         .alert(
             model.pendingDownload.map { model.confirmSheetTitle(for: $0) } ?? "Download engine?",
             isPresented: Binding(
@@ -87,7 +90,7 @@ struct WineEnginesSettingsSection: View {
         VStack(alignment: .leading, spacing: VermutSpace.s2) {
             HStack(alignment: .firstTextBaseline, spacing: VermutSpace.s2) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(row.engine.userFacingName)")
+                    Text(row.engine.userFacingName(version: row.versionLabel))
                         .font(VermutType.bodyEmphasis)
                     Text(row.engine.subtitle)
                         .font(VermutType.captionRegular)
@@ -108,6 +111,18 @@ struct WineEnginesSettingsSection: View {
                     Spacer()
                     Button("Cancel") { model.cancelDownload() }
                         .buttonStyle(VermutButtonStyle(kind: .outline, height: VermutHeight.buttonSmall, radius: VermutRadius.xsPlus, font: VermutType.callout, horizontalPadding: VermutSpace.s2))
+                }
+            case .installed:
+                if row.updateAvailable {
+                    HStack {
+                        Text("Newer Gcenx build available.")
+                            .font(VermutType.captionRegular)
+                            .foregroundStyle(Color.Vermut.info)
+                        Spacer()
+                        Button("Update") { model.requestDownload(row.engine, replaceExisting: true) }
+                            .buttonStyle(VermutButtonStyle(kind: .outline, height: VermutHeight.buttonSmall, radius: VermutRadius.xsPlus, font: VermutType.callout, horizontalPadding: VermutSpace.s2))
+                            .disabled(model.busyEngine != nil)
+                    }
                 }
             case .available:
                 HStack {

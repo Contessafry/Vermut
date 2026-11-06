@@ -21,14 +21,25 @@ struct CompatibilityBadge: View {
                     .foregroundStyle(Color.Vermut.mutedForeground)
             }
             
-            if let recommendation = compat.recommended,
+            if let recommendation = compat.effectiveRecommended,
                recommendation != "dxmt",
                compat.totalReports >= 3 {
                 Text("Try \(graphicsName(recommendation))")
                     .font(VermutType.captionRegular)
                     .foregroundStyle(Color.Vermut.amber)
+            } else if !compat.effectiveKnownNotWorking.isEmpty {
+                Text("Known not working with \(knownNotWorkingSummary)")
+                    .font(VermutType.captionRegular)
+                    .foregroundStyle(Color.Vermut.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var knownNotWorkingSummary: String {
+        let labels = compat.effectiveKnownNotWorking.map(\.displayLabel)
+        if labels.count <= 2 { return labels.joined(separator: ", ") }
+        return labels.prefix(2).joined(separator: ", ") + "…"
     }
     
     private var statusColor: Color {

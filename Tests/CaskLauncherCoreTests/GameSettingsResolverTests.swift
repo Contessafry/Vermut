@@ -356,6 +356,28 @@ final class StoreRecipeGameTierTests: XCTestCase {
         XCTAssertEqual(resolved.engine.value, .grappleWine)
     }
 
+    func testSteamOverlayDefaultsOffAndPassesThrough() {
+        let global = AppConfiguration()
+        let bottle = BottleConfiguration()
+        let off = StoreRecipe.resolveLaunchSettings(
+            game: .automatic,
+            bottle: bottle,
+            global: global,
+            store: .steam
+        )
+        XCTAssertFalse(off.steamOverlayEnabled)
+        XCTAssertFalse(BottleRuntimeProfile(resolved: off).steamOverlayEnabled)
+
+        let on = StoreRecipe.resolveLaunchSettings(
+            game: GameConfiguration(steamOverlayEnabled: true),
+            bottle: bottle,
+            global: global,
+            store: .steam
+        )
+        XCTAssertTrue(on.steamOverlayEnabled)
+        XCTAssertTrue(BottleRuntimeProfile(resolved: on).steamOverlayEnabled)
+    }
+
     func testEffectiveHelpersAcceptGame() {
         let global = AppConfiguration()
         let bottle = BottleConfiguration(engine: SettingInheritance.automatic)

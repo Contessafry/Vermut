@@ -1,0 +1,3462 @@
+{
+  "source": "AreWeAntiCheatYet/AreWeAntiCheatYet",
+  "sourceUrl": "https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet/blob/master/games.json",
+  "homepage": "https://areweanticheatyet.com/",
+  "generated": "2026-10-26",
+  "note": "Crowd-sourced Proton/Linux anti-cheat status. Kernel-mode Easy Anti-Cheat and BattlEye almost never work on Wine-on-macOS, even when linuxStatus is Supported.",
+  "games": [
+    {
+      "steamId": "251570",
+      "epicId": null,
+      "name": "7 Days to Die",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "7-days-to-die"
+    },
+    {
+      "steamId": "2304660",
+      "epicId": null,
+      "name": "A Twisted Path to Renown",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "a-twisted-path-to-renown"
+    },
+    {
+      "steamId": "473690",
+      "epicId": null,
+      "name": "Absolver",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "absolver"
+    },
+    {
+      "steamId": "971700",
+      "epicId": null,
+      "name": "ALARA Prime",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "alara-prime"
+    },
+    {
+      "steamId": "761890",
+      "epicId": null,
+      "name": "Albion Online",
+      "anticheats": [
+        "BattlEye",
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "albion-online"
+    },
+    {
+      "steamId": "1587100",
+      "epicId": null,
+      "name": "Anarchy Legends Online",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "anarchy-legends-online"
+    },
+    {
+      "steamId": "1133060",
+      "epicId": null,
+      "name": "Anarchy: Wolf's Law",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "anarchy-wolfs-law"
+    },
+    {
+      "steamId": "1172470",
+      "epicId": null,
+      "name": "Apex Legends",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "apex-legends"
+    },
+    {
+      "steamId": "1808500",
+      "epicId": "{'namespace': 'b4bb52a95d0b43d9af543c6ec3c54e04', 'slug': 'arc-raiders'}",
+      "name": "ARC Raiders",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "arc-raiders"
+    },
+    {
+      "steamId": "304030",
+      "epicId": null,
+      "name": "ArcheAge",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "archeage"
+    },
+    {
+      "steamId": "1147660",
+      "epicId": null,
+      "name": "Archeage: Unchained",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "archeage-unchained"
+    },
+    {
+      "steamId": "2562000",
+      "epicId": null,
+      "name": "Argo",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "argo"
+    },
+    {
+      "steamId": "2399830",
+      "epicId": null,
+      "name": "ARK: Survival Ascended",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "ark-survival-ascended"
+    },
+    {
+      "steamId": "346110",
+      "epicId": "{'namespace': 'ark', 'slug': 'ark'}",
+      "name": "ARK: Survival Evolved",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "ark-survival-evolved"
+    },
+    {
+      "steamId": "407530",
+      "epicId": null,
+      "name": "ARK: Survival of the Fittest",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "ark-survival-of-the-fittest"
+    },
+    {
+      "steamId": "33900",
+      "epicId": null,
+      "name": "ArmA 2",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "arma-2"
+    },
+    {
+      "steamId": "107410",
+      "epicId": null,
+      "name": "ArmA 3",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "arma-3"
+    },
+    {
+      "steamId": "1874880",
+      "epicId": null,
+      "name": "ArmA Reforger",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "arma-reforger"
+    },
+    {
+      "steamId": "1888160",
+      "epicId": null,
+      "name": "Armored Core VI: Fires of Rubicon",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "armored-core-6"
+    },
+    {
+      "steamId": "1803110",
+      "epicId": null,
+      "name": "Ascendant.com",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "ascendantdotcom"
+    },
+    {
+      "steamId": "1133430",
+      "epicId": null,
+      "name": "Ashes of Creation Apocalypse",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "ashes-of-creation-apocalypse"
+    },
+    {
+      "steamId": "834910",
+      "epicId": null,
+      "name": "Atlas",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "atlas"
+    },
+    {
+      "steamId": "815940",
+      "epicId": null,
+      "name": "AVA: Dog Tag",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "aliance-of-valiant-arms-dog-tag"
+    },
+    {
+      "steamId": "889750",
+      "epicId": null,
+      "name": "Babylon's Fall",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "babylons-fall"
+    },
+    {
+      "steamId": "924970",
+      "epicId": "{'namespace': '57dfd95548214a138218e56cd9e5b9d8', 'slug': 'back-4-blood'}",
+      "name": "Back 4 Blood",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "back-4-blood"
+    },
+    {
+      "steamId": "489940",
+      "epicId": null,
+      "name": "BATTALION: Legacy",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "battalion-legacy"
+    },
+    {
+      "steamId": "2287920",
+      "epicId": null,
+      "name": "Battle Crush",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "battle-crush"
+    },
+    {
+      "steamId": "671860",
+      "epicId": null,
+      "name": "BattleBit Remastered",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "battlebit-remastered"
+    },
+    {
+      "steamId": "689570",
+      "epicId": null,
+      "name": "BattleCore Arena",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "battlecore-arena"
+    },
+    {
+      "steamId": "573100",
+      "epicId": null,
+      "name": "Battlefleet Gothic: Armada 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "battlefleet-gothic-armada-2"
+    },
+    {
+      "steamId": "719890",
+      "epicId": null,
+      "name": "Beasts of Bermuda",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "beasts-of-bermuda"
+    },
+    {
+      "steamId": "1313230",
+      "epicId": null,
+      "name": "Beautiful Light",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "beautiful-light"
+    },
+    {
+      "steamId": "1058650",
+      "epicId": null,
+      "name": "Beyond the Wire",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "beyond-the-wire"
+    },
+    {
+      "steamId": "714080",
+      "epicId": null,
+      "name": "Black Clover: Quartet Knights",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "black-clover-quartet-knights"
+    },
+    {
+      "steamId": "550650",
+      "epicId": null,
+      "name": "Black Squad",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "black-squad"
+    },
+    {
+      "steamId": "209870",
+      "epicId": null,
+      "name": "Blacklight: Retribution",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "blacklight-retribution"
+    },
+    {
+      "steamId": "1575680",
+      "epicId": null,
+      "name": "BlasterBeat",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "blasterbeat"
+    },
+    {
+      "steamId": "1158940",
+      "epicId": null,
+      "name": "Blazing Sails",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "blazing-sails"
+    },
+    {
+      "steamId": "1189800",
+      "epicId": null,
+      "name": "Bleeding Edge",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "bleeding-edge"
+    },
+    {
+      "steamId": "681660",
+      "epicId": null,
+      "name": "Bless Online",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "bless-online"
+    },
+    {
+      "steamId": "1254120",
+      "epicId": null,
+      "name": "Bless Unleashed",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "bless-unleashed"
+    },
+    {
+      "steamId": "2854480",
+      "epicId": null,
+      "name": "Blindfire",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "blindfire"
+    },
+    {
+      "steamId": "299360",
+      "epicId": null,
+      "name": "Block N Load",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "block-n-load"
+    },
+    {
+      "steamId": "1551810",
+      "epicId": null,
+      "name": "Block N Load 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "block-n-load-2"
+    },
+    {
+      "steamId": "2393590",
+      "epicId": null,
+      "name": "Blockade",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "blockade"
+    },
+    {
+      "steamId": "291550",
+      "epicId": null,
+      "name": "Brawlhalla",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "brawlhalla"
+    },
+    {
+      "steamId": "1922010",
+      "epicId": null,
+      "name": "Breachers",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "breachers-vr"
+    },
+    {
+      "steamId": "307950",
+      "epicId": null,
+      "name": "Caliber",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "caliber"
+    },
+    {
+      "steamId": "1163550",
+      "epicId": null,
+      "name": "Captain Tsubasa: Rise of New Champions",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "captain-tsubasa-rise-of-new-champions"
+    },
+    {
+      "steamId": "918570",
+      "epicId": "{'namespace': 'f698d5d792654ac99f47d67e93916bef', 'slug': 'century-age-of-ashes'}",
+      "name": "Century: Age of Ashes",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "century-age-of-ashes"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': 'bd46d4ce259349e5bd8b3ded20274737', 'slug': 'chivalry-2'}",
+      "name": "Chivalry 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "chivalry-2"
+    },
+    {
+      "steamId": "876460",
+      "epicId": null,
+      "name": "CityBattle | Virtual_Earth",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "citybattle-virtual-earth"
+    },
+    {
+      "steamId": "993870",
+      "epicId": null,
+      "name": "CODE2040",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "code2040"
+    },
+    {
+      "steamId": "1263550",
+      "epicId": null,
+      "name": "Combat Arms: the Classic",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "combat-arms-the-classic"
+    },
+    {
+      "steamId": "440900",
+      "epicId": "{'namespace': 'conanexiles', 'slug': 'conan-exiles'}",
+      "name": "Conan Exiles",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "conan-exiles"
+    },
+    {
+      "steamId": "907630",
+      "epicId": null,
+      "name": "Concord",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "concord"
+    },
+    {
+      "steamId": "2445510",
+      "epicId": null,
+      "name": "Contenders: Arena",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "contenders-arena"
+    },
+    {
+      "steamId": "386180",
+      "epicId": null,
+      "name": "Crossout",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "crossout"
+    },
+    {
+      "steamId": "884660",
+      "epicId": "{'namespace': '2b352b4aea3849bd9519842dda263ac7', 'slug': 'crsed-f-o-a-d'}",
+      "name": "CRSED: F.O.A.D.",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "crsed-foad"
+    },
+    {
+      "steamId": "1057240",
+      "epicId": null,
+      "name": "Crucible",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "crucible"
+    },
+    {
+      "steamId": "544920",
+      "epicId": null,
+      "name": "Darwin Project",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "darwin-project"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': 'jackal', 'slug': 'dauntless'}",
+      "name": "Dauntless",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "dauntless"
+    },
+    {
+      "steamId": "1088090",
+      "epicId": null,
+      "name": "Day of Dragons",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "day-of-dragons"
+    },
+    {
+      "steamId": "447820",
+      "epicId": null,
+      "name": "Day of Infamy",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "day-of-infamy"
+    },
+    {
+      "steamId": "454350",
+      "epicId": null,
+      "name": "Days of War",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "days-of-war"
+    },
+    {
+      "steamId": "221100",
+      "epicId": null,
+      "name": "DayZ",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "dayz"
+    },
+    {
+      "steamId": "381210",
+      "epicId": "{'namespace': '611482b8586142cda48a0786eb8a127c', 'slug': 'dead-by-daylight'}",
+      "name": "Dead By Daylight",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "dead-by-daylight"
+    },
+    {
+      "steamId": "895400",
+      "epicId": null,
+      "name": "Deadside",
+      "anticheats": [
+        "BattlEye",
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "deadside"
+    },
+    {
+      "steamId": "555440",
+      "epicId": null,
+      "name": "Deathgarden: Bloodharvest",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "deathgarden-bloodharvest"
+    },
+    {
+      "steamId": "466240",
+      "epicId": null,
+      "name": "Deceit",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "deceit"
+    },
+    {
+      "steamId": "2064870",
+      "epicId": null,
+      "name": "Deceit 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "deceit-2"
+    },
+    {
+      "steamId": "820520",
+      "epicId": "{'namespace': 'cccdbadd66124f609ba706a9c4c73756', 'slug': 'deceive-inc'}",
+      "name": "Deceive Inc.",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "deceive-inc"
+    },
+    {
+      "steamId": "1354980",
+      "epicId": null,
+      "name": "Decimated",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "decimated"
+    },
+    {
+      "steamId": "499470",
+      "epicId": null,
+      "name": "Decksplash",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "decksplash"
+    },
+    {
+      "steamId": "1085660",
+      "epicId": "{'namespace': '428115def4ca4deea9d69c99c5a5a99e', 'slug': 'destiny-2'}",
+      "name": "Destiny 2",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "destiny-2"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': '36336ee97ec543bbae85abaca618182b', 'slug': 'diabotical'}",
+      "name": "Diabotical",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "diabotical"
+    },
+    {
+      "steamId": "2805060",
+      "epicId": null,
+      "name": "Diabotical Rogue",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "diabotical-rogue"
+    },
+    {
+      "steamId": "333930",
+      "epicId": null,
+      "name": "Dirty Bomb",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "dirty-bomb"
+    },
+    {
+      "steamId": "2175780",
+      "epicId": null,
+      "name": "Dominance",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dominance"
+    },
+    {
+      "steamId": "678950",
+      "epicId": null,
+      "name": "DRAGON BALL FighterZ",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dragon-ball-fighterz"
+    },
+    {
+      "steamId": "454650",
+      "epicId": null,
+      "name": "DRAGON BALL XENOVERSE 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dragon-ball-xenoverse-2"
+    },
+    {
+      "steamId": "1790600",
+      "epicId": null,
+      "name": "DRAGON BALL: Sparking! ZERO",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "dragon-ball-sparking-zero"
+    },
+    {
+      "steamId": "1692200",
+      "epicId": null,
+      "name": "DRAGON BALL: THE BREAKERS",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dragon-ball-the-breakers"
+    },
+    {
+      "steamId": "381990",
+      "epicId": null,
+      "name": "Dragon Saga",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dragon-saga"
+    },
+    {
+      "steamId": "1464970",
+      "epicId": null,
+      "name": "Dread Hunger",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "dread-hunger"
+    },
+    {
+      "steamId": "1054690",
+      "epicId": null,
+      "name": "Dreadlands",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dreadlands"
+    },
+    {
+      "steamId": "835860",
+      "epicId": null,
+      "name": "Dreadnought",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dreadnought"
+    },
+    {
+      "steamId": "2000270",
+      "epicId": null,
+      "name": "Dual Universe",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dual-universe"
+    },
+    {
+      "steamId": "2682580",
+      "epicId": null,
+      "name": "DUCKSIDE",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "duckside"
+    },
+    {
+      "steamId": "753650",
+      "epicId": null,
+      "name": "Due Process",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Planned",
+      "slug": "due-process"
+    },
+    {
+      "steamId": "1172710",
+      "epicId": null,
+      "name": "Dune: Awakening",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "dune-awakening"
+    },
+    {
+      "steamId": "2939830",
+      "epicId": null,
+      "name": "Dungeon Done",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dungeon-done"
+    },
+    {
+      "steamId": "1562450",
+      "epicId": null,
+      "name": "Dysterra",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "dysterra"
+    },
+    {
+      "steamId": "1760250",
+      "epicId": null,
+      "name": "EA SPORTS\u2122 Madden NFL 23",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "madden-nfl-23"
+    },
+    {
+      "steamId": "1245620",
+      "epicId": null,
+      "name": "Elden Ring",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "elden-ring"
+    },
+    {
+      "steamId": "2622380",
+      "epicId": null,
+      "name": "Elden Ring: Nightreign",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "elden-ring-nightreign"
+    },
+    {
+      "steamId": "383120",
+      "epicId": null,
+      "name": "Empyrion - Galactic Survival",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "empyrion-galactic-survival"
+    },
+    {
+      "steamId": "2051620",
+      "epicId": null,
+      "name": "Enlisted: Reinforced",
+      "anticheats": [
+        "BattlEye",
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "enlisted-reinforced"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': '95e09a8c24c44684bca1a6f25aea920c', 'slug': 'evil-dead-the-game'}",
+      "name": "Evil Dead: The Game",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "evil-dead-the-game"
+    },
+    {
+      "steamId": "2705130",
+      "epicId": null,
+      "name": "Exoborne",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "exoborne"
+    },
+    {
+      "steamId": "1286320",
+      "epicId": null,
+      "name": "Exoprimal",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "exoprimal"
+    },
+    {
+      "steamId": "2590150",
+      "epicId": null,
+      "name": "Faaast Penguin",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "faaast-penguin"
+    },
+    {
+      "steamId": "1097150",
+      "epicId": "{'namespace': '50118b7f954e450f8823df1614b24e80', 'slug': 'fall-guys'}",
+      "name": "Fall Guys: Ultimate Knockout",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "fall-guys-ultimate-knockout"
+    },
+    {
+      "steamId": "552520",
+      "epicId": "{'namespace': 'coriander', 'slug': 'far-cry-5'}",
+      "name": "Far Cry 5",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "far-cry-5"
+    },
+    {
+      "steamId": "1106750",
+      "epicId": null,
+      "name": "Fault: Elder Orb",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "fault-elder-orb"
+    },
+    {
+      "steamId": "764920",
+      "epicId": null,
+      "name": "Fear the Night",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "fear-the-night"
+    },
+    {
+      "steamId": "819500",
+      "epicId": null,
+      "name": "Fear the Wolves",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "fear-the-wolves"
+    },
+    {
+      "steamId": "1025560",
+      "epicId": null,
+      "name": "Flea Madness",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "flea-madness"
+    },
+    {
+      "steamId": "1765520",
+      "epicId": null,
+      "name": "Flippin Misfits",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "flippin-misfits"
+    },
+    {
+      "steamId": "304390",
+      "epicId": "{'namespace': 'sundrop', 'slug': 'for-honor'}",
+      "name": "For Honor",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "for-honor"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': 'fn', 'slug': 'fortnite'}",
+      "name": "Fortnite",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "fortnite"
+    },
+    {
+      "steamId": "751240",
+      "epicId": null,
+      "name": "Fractured Lands",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "fractured-lands"
+    },
+    {
+      "steamId": "3004100",
+      "epicId": null,
+      "name": "Freedom Wars Remastered",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "freedom-wars-remastered"
+    },
+    {
+      "steamId": "438740",
+      "epicId": null,
+      "name": "Friday The 13th: The Game",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "friday-the-13th-the-game"
+    },
+    {
+      "steamId": "1785150",
+      "epicId": null,
+      "name": "Friends vs Friends",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "friends-vs-friends"
+    },
+    {
+      "steamId": "715400",
+      "epicId": null,
+      "name": "Frozen Flame",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "frozen-flame"
+    },
+    {
+      "steamId": "1097840",
+      "epicId": null,
+      "name": "Gears 5",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "gears-5"
+    },
+    {
+      "steamId": "1293660",
+      "epicId": null,
+      "name": "Gemini: Binary Conflict",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "gemini-binary-conflict"
+    },
+    {
+      "steamId": "1924490",
+      "epicId": null,
+      "name": "Gigantic: Rampage Edition",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "gigantic-rampage"
+    },
+    {
+      "steamId": "1568590",
+      "epicId": null,
+      "name": "Goose Goose Duck",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "goose-goose-duck"
+    },
+    {
+      "steamId": "271590",
+      "epicId": "{'namespace': '0584d2013f0149a791e7b9bad0eec102', 'slug': 'grand-theft-auto-v'}",
+      "name": "Grand Theft Auto V",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "grand-theft-auto-v"
+    },
+    {
+      "steamId": "2479810",
+      "epicId": null,
+      "name": "Gray Zone Warfare",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "gray-zone-warfare"
+    },
+    {
+      "steamId": "1816670",
+      "epicId": null,
+      "name": "Gundam Evolution",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "gundam-evolution"
+    },
+    {
+      "steamId": "1240440",
+      "epicId": null,
+      "name": "Halo Infinite",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "halo-infinite"
+    },
+    {
+      "steamId": "976730",
+      "epicId": null,
+      "name": "Halo: The Master Chief Collection",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "halo-the-master-chief-collection"
+    },
+    {
+      "steamId": "2878600",
+      "epicId": null,
+      "name": "Harry Potter: Quidditch Champions",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "harry-potter-quidditch-champions"
+    },
+    {
+      "steamId": "656240",
+      "epicId": null,
+      "name": "Heat",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "heat"
+    },
+    {
+      "steamId": "2091110",
+      "epicId": "{'namespace': '0e70be0cea0446599acb4c26d2e925f9', 'slug': 'hell-is-others-789262'}",
+      "name": "Hell is Others",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "hell-is-others"
+    },
+    {
+      "steamId": "686810",
+      "epicId": "{'namespace': '3e02273b543f4ff0a1c24d3b534a9ac3', 'slug': 'hell-let-loose-03f036'}",
+      "name": "Hell Let Loose",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "hell-let-loose"
+    },
+    {
+      "steamId": "269210",
+      "epicId": null,
+      "name": "Hero Siege",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "hero-siege"
+    },
+    {
+      "steamId": "227940",
+      "epicId": "{'namespace': 'c3e63401d6ba410493de31ed69a798a1', 'slug': 'heroes-and-generals-wwii'}",
+      "name": "Heroes & Generals",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "heroes-generals"
+    },
+    {
+      "steamId": "377140",
+      "epicId": null,
+      "name": "Hide & Hold Out - H2o",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "hide-and-hold-out-h2o"
+    },
+    {
+      "steamId": "927350",
+      "epicId": "{'namespace': '5a2108f4db804040aaf44d139bd21bd1', 'slug': 'hood-outlaws-and-legends'}",
+      "name": "Hood: Outlaws & Legends",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "hood-outlaws-legends"
+    },
+    {
+      "steamId": "2051120",
+      "epicId": null,
+      "name": "Hot Wheels UNLEASHED 2 - Turbocharged",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "hot-wheels-unleashed-2-turbocharged"
+    },
+    {
+      "steamId": "594650",
+      "epicId": null,
+      "name": "Hunt: Showdown 1896",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "hunt-showdown"
+    },
+    {
+      "steamId": "393420",
+      "epicId": null,
+      "name": "Hurtworld",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "hurtworld"
+    },
+    {
+      "steamId": "2799860",
+      "epicId": null,
+      "name": "INAZUMA ELEVEN: Victory Road",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "inazuma-eleven-victory-road"
+    },
+    {
+      "steamId": "222880",
+      "epicId": null,
+      "name": "Insurgency",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "insurgency"
+    },
+    {
+      "steamId": "581320",
+      "epicId": "{'namespace': '94cec4802e954a6c9579e29e8b817f3a', 'slug': 'insurgency-sandstorm'}",
+      "name": "Insurgency: Sandstorm",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "insurgency-sandstorm"
+    },
+    {
+      "steamId": "520530",
+      "epicId": null,
+      "name": "Intershelter",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "intershelter"
+    },
+    {
+      "steamId": "518150",
+      "epicId": null,
+      "name": "Intruder",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "intruder"
+    },
+    {
+      "steamId": "266410",
+      "epicId": "{'namespace': '1d3e38b5e921433caffbbef89e265517', 'slug': 'iracing'}",
+      "name": "iRacing",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "iracing"
+    },
+    {
+      "steamId": "1940990",
+      "epicId": null,
+      "name": "Ironsight",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "ironsight"
+    },
+    {
+      "steamId": "728540",
+      "epicId": null,
+      "name": "Islands of Nyne: Battle Royale",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "islands-of-nyne-battle-royale"
+    },
+    {
+      "steamId": "1372110",
+      "epicId": null,
+      "name": "JoJo's Bizarre Adventure: All-Star Battle R",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "jojos-bizarre-adventure-all-star-battle-r"
+    },
+    {
+      "steamId": "816020",
+      "epicId": null,
+      "name": "JUMP FORCE",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "jump-force"
+    },
+    {
+      "steamId": "2394590",
+      "epicId": null,
+      "name": "Just Survive",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "just-survive"
+    },
+    {
+      "steamId": "1556100",
+      "epicId": null,
+      "name": "Killer Klowns from Outer Space: The Game",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "killer-klowns-from-outer-space-the-game"
+    },
+    {
+      "steamId": "922620",
+      "epicId": null,
+      "name": "Kingshunt",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "kingshunt"
+    },
+    {
+      "steamId": "1301210",
+      "epicId": "{'namespace': '5bb3d43818ae4188850fe1dbad9d57a5', 'slug': 'knockout-city'}",
+      "name": "Knockout City",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "knockout-city"
+    },
+    {
+      "steamId": "903950",
+      "epicId": null,
+      "name": "Last Oasis",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "last-oasis"
+    },
+    {
+      "steamId": "1195460",
+      "epicId": null,
+      "name": "Last Year",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "last-year"
+    },
+    {
+      "steamId": "1867420",
+      "epicId": null,
+      "name": "LEAP",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "leap"
+    },
+    {
+      "steamId": "2344320",
+      "epicId": null,
+      "name": "Legacy: Steel & Sorcery",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "legacy-steel-and-sorcery"
+    },
+    {
+      "steamId": "594770",
+      "epicId": null,
+      "name": "Legends of Aria",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "legends-of-aria"
+    },
+    {
+      "steamId": "3126860",
+      "epicId": null,
+      "name": "Legends of Kailrate",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "legends-of-kailrate"
+    },
+    {
+      "steamId": "950180",
+      "epicId": null,
+      "name": "Lemnis Gate",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "lemnis-gate"
+    },
+    {
+      "steamId": "700030",
+      "epicId": null,
+      "name": "Life is Feudal: MMO",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "life-is-feudal-mmo"
+    },
+    {
+      "steamId": "419520",
+      "epicId": null,
+      "name": "Lifeless",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "lifeless"
+    },
+    {
+      "steamId": "436520",
+      "epicId": null,
+      "name": "Line of Sight",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "line-of-sight"
+    },
+    {
+      "steamId": "1635450",
+      "epicId": null,
+      "name": "Longvinter",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "longvinter"
+    },
+    {
+      "steamId": "1599340",
+      "epicId": null,
+      "name": "Lost Ark",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "lost-ark"
+    },
+    {
+      "steamId": "331810",
+      "epicId": null,
+      "name": "Lost Region",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "lost-region"
+    },
+    {
+      "steamId": "314430",
+      "epicId": null,
+      "name": "M.A.R.S.",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "m-a-r-s"
+    },
+    {
+      "steamId": "3065800",
+      "epicId": null,
+      "name": "Marathon",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "marathon"
+    },
+    {
+      "steamId": "1789480",
+      "epicId": null,
+      "name": "Marauders",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "marauders"
+    },
+    {
+      "steamId": "1194810",
+      "epicId": null,
+      "name": "Meet Your Maker",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "meet-your-maker"
+    },
+    {
+      "steamId": "2450450",
+      "epicId": null,
+      "name": "MEGATON MUSASHI W: WIRED",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "megaton-musashi-w-wired"
+    },
+    {
+      "steamId": "644290",
+      "epicId": null,
+      "name": "Memories of Mars",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "memories-of-mars"
+    },
+    {
+      "steamId": "439370",
+      "epicId": null,
+      "name": "Midair",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "midair"
+    },
+    {
+      "steamId": "1469060",
+      "epicId": null,
+      "name": "Midair 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "midair-2"
+    },
+    {
+      "steamId": "915810",
+      "epicId": "{'namespace': '456f53b28c384f02865874299f956501', 'slug': 'midnight-ghost-hunt'}",
+      "name": "Midnight Ghost Hunt",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "midnight-ghost-hunt"
+    },
+    {
+      "steamId": "1877600",
+      "epicId": null,
+      "name": "Midnight Guns",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "midnight-guns"
+    },
+    {
+      "steamId": "1657090",
+      "epicId": null,
+      "name": "Mini Royale",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "mini-royale"
+    },
+    {
+      "steamId": "299740",
+      "epicId": null,
+      "name": "Miscreated",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "miscreated"
+    },
+    {
+      "steamId": "1367080",
+      "epicId": null,
+      "name": "Mobile Suit Gundam Battle Operation 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "mobile-suit-gundam-battle-operation2"
+    },
+    {
+      "steamId": "2350280",
+      "epicId": null,
+      "name": "Monster Jam\u2122 Showdown",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "monster-jam-showdown"
+    },
+    {
+      "steamId": "1093170",
+      "epicId": null,
+      "name": "Monstrum 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "monstrum-2"
+    },
+    {
+      "steamId": "1725420",
+      "epicId": null,
+      "name": "Mortal Online 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "mortal-online2"
+    },
+    {
+      "steamId": "2581700",
+      "epicId": null,
+      "name": "MotoGP\u212224",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "motogp-24"
+    },
+    {
+      "steamId": "3077390",
+      "epicId": null,
+      "name": "MotoGP\u212225",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "motogp-25"
+    },
+    {
+      "steamId": "261550",
+      "epicId": "{'namespace': 'aeac94c7a11048758064b82f8f8d20ed', 'slug': 'mount-and-blade-2'}",
+      "name": "Mount & Blade II: Bannerlord",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "mount-blade-ii-bannerlord"
+    },
+    {
+      "steamId": "1818750",
+      "epicId": "{'namespace': '3a212c0da4f1438e840c21565df4b6fe', 'slug': 'multiversus'}",
+      "name": "Multiversus",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "multiversus"
+    },
+    {
+      "steamId": "1607250",
+      "epicId": null,
+      "name": "MY HERO ULTRA RUMBLE",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "my-hero-ultra-rumble"
+    },
+    {
+      "steamId": "1371580",
+      "epicId": null,
+      "name": "Myth of Empires",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "myth-of-empires"
+    },
+    {
+      "steamId": "633230",
+      "epicId": null,
+      "name": "NARUTO TO BORUTO: SHINOBI STRIKER",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "naruto-to-boruto-shinobi-striker"
+    },
+    {
+      "steamId": "2878980",
+      "epicId": null,
+      "name": "NBA 2K25",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "nba-2k25"
+    },
+    {
+      "steamId": "738530",
+      "epicId": null,
+      "name": "New Gundam Breaker",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "new-gundam-breaker"
+    },
+    {
+      "steamId": "1724660",
+      "epicId": null,
+      "name": "New World: Aeternum",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "new-world-aeternum"
+    },
+    {
+      "steamId": "519190",
+      "epicId": null,
+      "name": "Next Day: Survival",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "next-day-survival"
+    },
+    {
+      "steamId": "1377380",
+      "epicId": null,
+      "name": "Night of the Dead",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "night-of-the-dead"
+    },
+    {
+      "steamId": "1504620",
+      "epicId": null,
+      "name": "Nine to Five",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "nine-to-five"
+    },
+    {
+      "steamId": "292000",
+      "epicId": null,
+      "name": "No More Room In Hell 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "no-more-room-in-hell-2"
+    },
+    {
+      "steamId": "3659280",
+      "epicId": null,
+      "name": "Off The Grid",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "off-the-grid"
+    },
+    {
+      "steamId": "622170",
+      "epicId": null,
+      "name": "Offensive Combat: Redux!",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "offensive-combat-redux"
+    },
+    {
+      "steamId": "991560",
+      "epicId": null,
+      "name": "One Punch Man: A Hero Nobody Knows",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "one-punch-man-a-hero-nobody-knows"
+    },
+    {
+      "steamId": "496240",
+      "epicId": null,
+      "name": "Onward",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "onward"
+    },
+    {
+      "steamId": "867400",
+      "epicId": null,
+      "name": "Out of Reach: Treasure Royale",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "out-of-reach-treasure-royale"
+    },
+    {
+      "steamId": "840800",
+      "epicId": null,
+      "name": "Outlaws of the Old West",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "outlaws-of-the-old-west"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': 'c6e54ebd92da4ee8819c1c0956cebdc4', 'slug': 'outriders'}",
+      "name": "Outriders",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "outriders"
+    },
+    {
+      "steamId": "1008580",
+      "epicId": null,
+      "name": "Overstep",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "overstep"
+    },
+    {
+      "steamId": "805110",
+      "epicId": null,
+      "name": "P.A.S.",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "p-a-s"
+    },
+    {
+      "steamId": "444090",
+      "epicId": "{'namespace': 'badb0ee71b474ed591ec43212547cfc8', 'slug': 'paladins'}",
+      "name": "Paladins",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "paladins"
+    },
+    {
+      "steamId": "939510",
+      "epicId": null,
+      "name": "Pandemic Express - Zombie Escape",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "pandemic-express-zombie-escape"
+    },
+    {
+      "steamId": "763420",
+      "epicId": null,
+      "name": "Panzer Arena: Coop",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "panzer-arena"
+    },
+    {
+      "steamId": "555160",
+      "epicId": null,
+      "name": "Pavlov VR",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "pavlov-vr"
+    },
+    {
+      "steamId": "1995520",
+      "epicId": null,
+      "name": "Pax Dei",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "pax-dei"
+    },
+    {
+      "steamId": "593600",
+      "epicId": null,
+      "name": "PixARK",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "pixark"
+    },
+    {
+      "steamId": "218230",
+      "epicId": null,
+      "name": "PlanetSide 2",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "planetside-2"
+    },
+    {
+      "steamId": "1241100",
+      "epicId": null,
+      "name": "POLYGON",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "polygon"
+    },
+    {
+      "steamId": "736220",
+      "epicId": null,
+      "name": "Post Scriptum",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "post-scriptum"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': '5a82d5954a1943d79dc6b49cde2fe972', 'slug': 'predator-hunting-grounds'}",
+      "name": "Predator: Hunting Grounds",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "predator-hunting-grounds"
+    },
+    {
+      "steamId": "961200",
+      "epicId": "{'namespace': '97b084f37e344733ac82f493ac90753c', 'slug': 'predecessor'}",
+      "name": "Predecessor",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "predecessor"
+    },
+    {
+      "steamId": "378860",
+      "epicId": null,
+      "name": "Project CARS 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "project-cars-2"
+    },
+    {
+      "steamId": "2139090",
+      "epicId": null,
+      "name": "Project ETHOS",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "project-ethos"
+    },
+    {
+      "steamId": "1419640",
+      "epicId": null,
+      "name": "Project F",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "project-f"
+    },
+    {
+      "steamId": "2803360",
+      "epicId": null,
+      "name": "Project L33T",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "project-l33t"
+    },
+    {
+      "steamId": "1618710",
+      "epicId": null,
+      "name": "Project Sparrow",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "project-sparrow"
+    },
+    {
+      "steamId": "1401240",
+      "epicId": null,
+      "name": "Project Xandata",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "project-xendata"
+    },
+    {
+      "steamId": "2257910",
+      "epicId": null,
+      "name": "Project Zero",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "project-zero"
+    },
+    {
+      "steamId": "1961460",
+      "epicId": null,
+      "name": "PROJECT: PLAYTIME",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "project-playtime"
+    },
+    {
+      "steamId": "1743770",
+      "epicId": null,
+      "name": "Propnight",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "propnight"
+    },
+    {
+      "steamId": "578080",
+      "epicId": "{'namespace': '9361c8c6d2f34b42b5f2f61093eedf48', 'slug': 'pubg-59c1d9'}",
+      "name": "PUBG: Battlegrounds",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "pubg-battlegrounds"
+    },
+    {
+      "steamId": "1648190",
+      "epicId": null,
+      "name": "Qanga",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "qanga"
+    },
+    {
+      "steamId": "1227800",
+      "epicId": null,
+      "name": "Quantum League",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "quantum-league"
+    },
+    {
+      "steamId": "2073930",
+      "epicId": null,
+      "name": "Radikal Fighters",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "radikal-fighters"
+    },
+    {
+      "steamId": "215100",
+      "epicId": null,
+      "name": "Ragnarok Online",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "ragnarok-online"
+    },
+    {
+      "steamId": "660330",
+      "epicId": null,
+      "name": "Ragnarok RE:START",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "ragnarok-re-start"
+    },
+    {
+      "steamId": "1908530",
+      "epicId": null,
+      "name": "Raise Your Tribe",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "raise-your-tribe"
+    },
+    {
+      "steamId": "813820",
+      "epicId": null,
+      "name": "Realm Royale",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "realm-royale"
+    },
+    {
+      "steamId": "813820",
+      "epicId": null,
+      "name": "Realm Royale Reforged",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "realm-royale-reforged"
+    },
+    {
+      "steamId": "471710",
+      "epicId": null,
+      "name": "Rec Room",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "rec-room"
+    },
+    {
+      "steamId": "1442910",
+      "epicId": null,
+      "name": "Reign Of Dwarf",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "reign-of-dwarf"
+    },
+    {
+      "steamId": "344760",
+      "epicId": null,
+      "name": "Reign of Kings",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "reign-of-kings"
+    },
+    {
+      "steamId": "547860",
+      "epicId": null,
+      "name": "Rend",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "rend"
+    },
+    {
+      "steamId": "1759220",
+      "epicId": null,
+      "name": "Return Alive",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "return-alive"
+    },
+    {
+      "steamId": "2247220",
+      "epicId": null,
+      "name": "Revenblade",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "revenblade"
+    },
+    {
+      "steamId": "2290180",
+      "epicId": null,
+      "name": "Riders Republic",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "riders-republic"
+    },
+    {
+      "steamId": "2077110",
+      "epicId": null,
+      "name": "Rise of Agon",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "darkfall-rise-of-agon"
+    },
+    {
+      "steamId": "418460",
+      "epicId": "{'namespace': '3542a1df211e492bb2abecb7c734f7f9', 'slug': 'rising-storm-2-vietnam'}",
+      "name": "Rising Storm 2: Vietnam",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "rising-storm-2-vietnam"
+    },
+    {
+      "steamId": "301520",
+      "epicId": null,
+      "name": "Robocraft",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "robocraft"
+    },
+    {
+      "steamId": "1991140",
+      "epicId": null,
+      "name": "Robocraft 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "robocraft2"
+    },
+    {
+      "steamId": "804810",
+      "epicId": null,
+      "name": "Robocraft Royale",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "robocraft-royale"
+    },
+    {
+      "steamId": "630700",
+      "epicId": null,
+      "name": "Rocket Arena",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "rocket-arena"
+    },
+    {
+      "steamId": "252950",
+      "epicId": "{'namespace': '9773aa1aa54f4f7b80e44bef04986cea', 'slug': 'rocket-league'}",
+      "name": "Rocket League\u00ae",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "rocket-league"
+    },
+    {
+      "steamId": "653120",
+      "epicId": null,
+      "name": "RockShot",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "rockshot"
+    },
+    {
+      "steamId": "872200",
+      "epicId": "{'namespace': '933ada2ec45e4184ae840d64c99e0ba9', 'slug': 'rogue-company'}",
+      "name": "Rogue Company",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "rogue-company"
+    },
+    {
+      "steamId": "252490",
+      "epicId": null,
+      "name": "Rust",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "rust"
+    },
+    {
+      "steamId": "1183940",
+      "epicId": null,
+      "name": "Scavengers",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "scavengers"
+    },
+    {
+      "steamId": "513710",
+      "epicId": null,
+      "name": "SCUM",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "scum"
+    },
+    {
+      "steamId": "1172620",
+      "epicId": null,
+      "name": "Sea of Thieves",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "sea-of-thieves"
+    },
+    {
+      "steamId": "1024890",
+      "epicId": null,
+      "name": "Sector's Edge",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "sectors-edge"
+    },
+    {
+      "steamId": "1226470",
+      "epicId": null,
+      "name": "Shadow Arena",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "shadow-arena"
+    },
+    {
+      "steamId": "2087030",
+      "epicId": null,
+      "name": "Shatterline",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "shatterline"
+    },
+    {
+      "steamId": "1204040",
+      "epicId": null,
+      "name": "Shoot on Sight",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "shoot-on-sight"
+    },
+    {
+      "steamId": "2853730",
+      "epicId": null,
+      "name": "Skull and Bones",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "skull-and-bones"
+    },
+    {
+      "steamId": "569530",
+      "epicId": null,
+      "name": "Sky Noon",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "sky-noon"
+    },
+    {
+      "steamId": "1799530",
+      "epicId": null,
+      "name": "Smelogs Playground",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "smelogs-playground"
+    },
+    {
+      "steamId": "386360",
+      "epicId": "{'namespace': '076207fa2b5c4803a636af606c3c28b7', 'slug': 'smite'}",
+      "name": "SMITE",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "smite"
+    },
+    {
+      "steamId": "2437170",
+      "epicId": null,
+      "name": "Smite 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "smite-2"
+    },
+    {
+      "steamId": "1029690",
+      "epicId": null,
+      "name": "Sniper Elite 5",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "sniper-elite-5"
+    },
+    {
+      "steamId": "973580",
+      "epicId": null,
+      "name": "Sniper Ghost Warrior Contracts",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "sniper-ghost-warrior-contracts"
+    },
+    {
+      "steamId": "619080",
+      "epicId": null,
+      "name": "SOS",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "sos"
+    },
+    {
+      "steamId": "1383550",
+      "epicId": null,
+      "name": "Soul Dossier",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "soul-dossier"
+    },
+    {
+      "steamId": "2302770",
+      "epicId": null,
+      "name": "Space Gears",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "space-gears"
+    },
+    {
+      "steamId": "647590",
+      "epicId": null,
+      "name": "Space Junkies",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "space-junkies"
+    },
+    {
+      "steamId": "672890",
+      "epicId": null,
+      "name": "Sparkball",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "sparkball"
+    },
+    {
+      "steamId": "2641470",
+      "epicId": null,
+      "name": "Spectre Divide",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "spectre-divide"
+    },
+    {
+      "steamId": "1399780",
+      "epicId": "{'namespace': 'newt', 'slug': 'spellbreak'}",
+      "name": "Spellbreak",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "spellbreak"
+    },
+    {
+      "steamId": "1872760",
+      "epicId": null,
+      "name": "Spirit Detective",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "spirit-detective"
+    },
+    {
+      "steamId": "393380",
+      "epicId": null,
+      "name": "Squad",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "squad"
+    },
+    {
+      "steamId": "736220",
+      "epicId": null,
+      "name": "Squad 44",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "squad44"
+    },
+    {
+      "steamId": "1222730",
+      "epicId": "{'namespace': 'bc2b0372eaa448469cb9a769f27acea1', 'slug': 'star-wars-squadrons'}",
+      "name": "STAR WARS\u2122: Squadrons",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "star-wars-squadrons"
+    },
+    {
+      "steamId": "1268750",
+      "epicId": null,
+      "name": "Starship Troopers: Extermination",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "starship-troopers-extermination"
+    },
+    {
+      "steamId": "2170420",
+      "epicId": null,
+      "name": "Starsiege: Deadzone",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "starsiege-deadzone"
+    },
+    {
+      "steamId": "1180380",
+      "epicId": null,
+      "name": "Stay Out",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "stay-out"
+    },
+    {
+      "steamId": "1691340",
+      "epicId": null,
+      "name": "Steel Hunters",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "steel-hunters"
+    },
+    {
+      "steamId": "883120",
+      "epicId": null,
+      "name": "Stormdivers",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "stormdivers"
+    },
+    {
+      "steamId": "2012510",
+      "epicId": null,
+      "name": "Stormgate",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "stormgate"
+    },
+    {
+      "steamId": "315210",
+      "epicId": null,
+      "name": "Suicide Squad: Kill the Justice League",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "suicide-squad-kill-the-justice-league"
+    },
+    {
+      "steamId": "1815230",
+      "epicId": null,
+      "name": "Summum Aeterna",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "summum-aeterna"
+    },
+    {
+      "steamId": "1903270",
+      "epicId": null,
+      "name": "Sunset World Online",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "sunset-world-online"
+    },
+    {
+      "steamId": "798510",
+      "epicId": null,
+      "name": "Super Dragon Ball Heroes World Mission",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "super-dragon-ball-heroes-world-mission"
+    },
+    {
+      "steamId": "1190340",
+      "epicId": null,
+      "name": "SUPER PEOPLE",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "super-people"
+    },
+    {
+      "steamId": "355840",
+      "epicId": null,
+      "name": "Survarium",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "survarium"
+    },
+    {
+      "steamId": "2730410",
+      "epicId": null,
+      "name": "Sweet Time",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "sweet-time"
+    },
+    {
+      "steamId": "1009290",
+      "epicId": null,
+      "name": "SWORD ART ONLINE Alicization Lycoris",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "sword-art-online-alicization-lycoris"
+    },
+    {
+      "steamId": "1858630",
+      "epicId": null,
+      "name": "SWORD ART ONLINE Fractured Daydream",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "sword-art-online-fractured-daydream"
+    },
+    {
+      "steamId": "1566880",
+      "epicId": null,
+      "name": "Sword Art Online Last Recollection",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "sword-art-online-last-recollection"
+    },
+    {
+      "steamId": "626690",
+      "epicId": null,
+      "name": "Sword Art Online: Fatal Bullet",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "sword-art-online-fatal-bullet"
+    },
+    {
+      "steamId": "1245480",
+      "epicId": null,
+      "name": "SYNDUALITY Echo of Ada",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "synduality-echo-of-ada"
+    },
+    {
+      "steamId": "328060",
+      "epicId": null,
+      "name": "Tales Runner",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "tales-runner"
+    },
+    {
+      "steamId": "2411280",
+      "epicId": null,
+      "name": "The Bornless",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "the-bornless"
+    },
+    {
+      "steamId": "646910",
+      "epicId": "{'namespace': '599d248ca46b45a8b40a3b4e484712cb', 'slug': 'the-crew-2'}",
+      "name": "The Crew\u2122 2",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "the-crew-2"
+    },
+    {
+      "steamId": "2698940",
+      "epicId": null,
+      "name": "The Crew\u2122 Motorfest",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "the-crew-motorfest"
+    },
+    {
+      "steamId": "437220",
+      "epicId": null,
+      "name": "The Culling",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "the-culling"
+    },
+    {
+      "steamId": "1600360",
+      "epicId": null,
+      "name": "The Cycle: Frontier",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "the-cycle-frontier"
+    },
+    {
+      "steamId": "2073850",
+      "epicId": null,
+      "name": "THE FINALS",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "the-finals"
+    },
+    {
+      "steamId": "2074920",
+      "epicId": null,
+      "name": "The First Descendant",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "the-first-descendant"
+    },
+    {
+      "steamId": "2285150",
+      "epicId": null,
+      "name": "The Front",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "the-front"
+    },
+    {
+      "steamId": "376210",
+      "epicId": null,
+      "name": "The Isle",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "the-isle"
+    },
+    {
+      "steamId": "2022330",
+      "epicId": null,
+      "name": "The Riflemen",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "the-rifleman"
+    },
+    {
+      "steamId": "1433140",
+      "epicId": null,
+      "name": "The Texas Chain Saw Massacre",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "the-texas-chain-saw-massacre"
+    },
+    {
+      "steamId": "2429640",
+      "epicId": null,
+      "name": "Throne and Liberty",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "throne-and-liberty"
+    },
+    {
+      "steamId": "2231380",
+      "epicId": "{'namespace': '2dbd2f64abdc4bbab077424d5c85e01b', 'slug': 'ghost-recon-breakpoint'}",
+      "name": "Tom Clancy's Ghost Recon Breakpoint",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "tom-clancys-ghost-recon-breakpoint"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': 'hyacinth', 'slug': 'ghost-recon-wildlands'}",
+      "name": "Tom Clancy's Ghost Recon Wildlands",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "tom-clancys-ghost-recon-wildlands"
+    },
+    {
+      "steamId": "359550",
+      "epicId": "{'namespace': 'carnation', 'slug': 'rainbow-six-siege'}",
+      "name": "Tom Clancy's Rainbow Six\u00ae Siege",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "rainbow-six-siege"
+    },
+    {
+      "steamId": "359550",
+      "epicId": "{'namespace': 'carnation', 'slug': 'rainbow-six-siege'}",
+      "name": "Tom Clancy's Rainbow Six\u00ae Siege X",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "rainbow-six-siege-x"
+    },
+    {
+      "steamId": "2221490",
+      "epicId": "{'namespace': 'impala', 'slug': 'the-division-2'}",
+      "name": "Tom Clancy's The Division 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "tom-clancys-the-division-2"
+    },
+    {
+      "steamId": "1121710",
+      "epicId": null,
+      "name": "Total Lockdown",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "total-lockdown"
+    },
+    {
+      "steamId": "823130",
+      "epicId": null,
+      "name": "Totally Accurate Battlegrounds",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "totally-accurate-battlegrounds"
+    },
+    {
+      "steamId": "2119490",
+      "epicId": null,
+      "name": "TRAHA Global",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "traha-global"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': 'argyle', 'slug': 'trials-rising'}",
+      "name": "Trials Rising",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "trials-rising"
+    },
+    {
+      "steamId": "2083800",
+      "epicId": null,
+      "name": "Trimurti Online",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "trimurti-online"
+    },
+    {
+      "steamId": "2152790",
+      "epicId": null,
+      "name": "United 1944",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "united-1944"
+    },
+    {
+      "steamId": "304930",
+      "epicId": null,
+      "name": "Unturned",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "unturned"
+    },
+    {
+      "steamId": "760160",
+      "epicId": null,
+      "name": "Vampire: The Masquerade - Bloodhunt",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Denied",
+      "slug": "vampire-the-masquerade-bloodhunt"
+    },
+    {
+      "steamId": "886250",
+      "epicId": null,
+      "name": "Vegas Infinite by PokerStars",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "vegas-infinite-by-pokerstars"
+    },
+    {
+      "steamId": "1979310",
+      "epicId": null,
+      "name": "Veiled Experts",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Running",
+      "slug": "veiled-experts"
+    },
+    {
+      "steamId": "2790930",
+      "epicId": null,
+      "name": "Velev",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "velev"
+    },
+    {
+      "steamId": "556440",
+      "epicId": null,
+      "name": "Vicious Circle",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "vicious-circle"
+    },
+    {
+      "steamId": "611360",
+      "epicId": null,
+      "name": "Video Horror Society",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "video-horror-society"
+    },
+    {
+      "steamId": "2818260",
+      "epicId": null,
+      "name": "Vigor",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "vigor"
+    },
+    {
+      "steamId": "1123160",
+      "epicId": null,
+      "name": "Voids Adrift",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "voids-adrift"
+    },
+    {
+      "steamId": "438100",
+      "epicId": null,
+      "name": "VRChat",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "vrchat"
+    },
+    {
+      "steamId": "880850",
+      "epicId": null,
+      "name": "War Rock",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "war-rock"
+    },
+    {
+      "steamId": "236390",
+      "epicId": null,
+      "name": "War Thunder",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "war-thunder"
+    },
+    {
+      "steamId": "1769930",
+      "epicId": null,
+      "name": "Warcos",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "warcos"
+    },
+    {
+      "steamId": "1361210",
+      "epicId": null,
+      "name": "Warhammer 40,000: Darktide",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "w40k-darktide"
+    },
+    {
+      "steamId": "375230",
+      "epicId": null,
+      "name": "Warhammer 40,000: Eternal Crusade",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "warhammer-40k-eternal-crusade"
+    },
+    {
+      "steamId": "2078450",
+      "epicId": null,
+      "name": "Warhammer 40,000: Speed Freeks",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "wh40k-speed-freeks"
+    },
+    {
+      "steamId": "552500",
+      "epicId": null,
+      "name": "Warhammer: Vermintide 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "warhammer-vermintide-2"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': '0a84818055e740a7be21a2e5b6162703', 'slug': 'watch-dogs-legion'}",
+      "name": "Watch Dogs\u00ae: Legion",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Supported",
+      "slug": "watch-dogs-legion"
+    },
+    {
+      "steamId": "447040",
+      "epicId": "{'namespace': 'angelonia', 'slug': 'watch-dogs-2'}",
+      "name": "Watch_Dogs\u00ae 2",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "watch-dogs-2"
+    },
+    {
+      "steamId": "1171690",
+      "epicId": null,
+      "name": "Wayfinder",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "wayfinder"
+    },
+    {
+      "steamId": "2827230",
+      "epicId": null,
+      "name": "Wild Assault",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "wild-assault"
+    },
+    {
+      "steamId": "1206370",
+      "epicId": "{'namespace': '6fd5e6a8632c499fa2657cf650c96b14', 'slug': ''}",
+      "name": "Wild Card Football",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "wild-card-football"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': '0ad0ed7b851c46378f9fcac07b72b548', 'slug': 'wildgate-2e3419'}",
+      "name": "Wildgate",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "wildgate"
+    },
+    {
+      "steamId": "707010",
+      "epicId": null,
+      "name": "Will To Live Online",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "will-to-live-online"
+    },
+    {
+      "steamId": "674020",
+      "epicId": null,
+      "name": "World War 3",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "world-war-3"
+    },
+    {
+      "steamId": "322780",
+      "epicId": null,
+      "name": "Worlds Adrift",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "worlds-adrift"
+    },
+    {
+      "steamId": null,
+      "epicId": "{'namespace': '2016da2363da487bbf78961d8faec81c', 'slug': 'worms-rumble'}",
+      "name": "Worms Rumble",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "worms-rumble"
+    },
+    {
+      "steamId": "2353050",
+      "epicId": null,
+      "name": "WTF: Waifu Tactical Force",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "wtf-waifu-tactical-force"
+    },
+    {
+      "steamId": "625340",
+      "epicId": null,
+      "name": "XERA: Survival",
+      "anticheats": [
+        "Easy Anti-Cheat"
+      ],
+      "linuxStatus": "Running",
+      "slug": "xera-survival"
+    },
+    {
+      "steamId": "747610",
+      "epicId": null,
+      "name": "Zula Global",
+      "anticheats": [
+        "BattlEye"
+      ],
+      "linuxStatus": "Broken",
+      "slug": "zula"
+    }
+  ]
+}

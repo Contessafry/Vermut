@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 import { Octokit } from '@octokit/rest';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
+import { pathToFileURL } from 'url';
+import { aggregateReports } from './compat-aggregate.js';
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const [owner, repo] = ['Contessafry', 'Vermut'];
@@ -50,7 +52,7 @@ async function main() {
 	const deduped = deduplicateReports(reports);
 	console.log(`After deduplication: ${deduped.length}`);
 
-	// Aggregate by game
+	// Aggregate by game (recommended only from working reports)
 	const aggregated = aggregateReports(deduped);
 
 	// Write to compat/compatibility.json
@@ -197,54 +199,6 @@ function deduplicateReports(reports) {
 	return Array.from(seen.values());
 }
 
-function aggregateReports(reports) {
-	const gameMap = new Map();
-
-	for (const report of reports) {
-		const key = `${report.store}:${report.gameId}`;
-
-		if (!gameMap.has(key)) {
-			gameMap.set(key, {
-				store: report.store,
-				gameId: report.gameId,
-				gameName: report.gameName,
-				byGraphics: {},
-				totalReports: 0,
-			});
-		}
-
-		const game = gameMap.get(key);
-		game.gameName = report.gameName; // Update to latest name
-
-		if (!game.byGraphics[report.graphics]) {
-			game.byGraphics[report.graphics] = { perfect: 0, issues: 0, broken: 0 };
-		}
-
-		game.byGraphics[report.graphics][report.result]++;
-		game.totalReports++;
-	}
-
-	// Compute recommendations
-	const games = Array.from(gameMap.values());
-	for (const game of games) {
-		game.recommended = computeRecommendation(game.byGraphics);
-	}
-
-	return games.sort((a, b) => b.totalReports - a.totalReports);
-}
-
-function computeRecommendation(byGraphics) {
-	const scores = {};
-
-	for (const [graphics, counts] of Object.entries(byGraphics)) {
-		// Scoring: perfect=3, issues=1, broken=-2
-		scores[graphics] = counts.perfect * 3 + counts.issues * 1 - counts.broken * 2;
-	}
-
-	const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-	return sorted.length > 0 ? sorted[0][0] : undefined;
-}
-
 async function markInvalid(issueNumber, error) {
 	try {
 		// Add invalid-report label
@@ -318,7 +272,9 @@ async function ensureDir(path) {
 	}
 }
 
-main().catch((err) => {
-	console.error('Fatal error:', err);
-	process.exit(1);
-});
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main().catch((err) => {
+		console.error('Fatal error:', err);
+		process.exit(1);
+	});
+}

@@ -26,7 +26,7 @@ Epic Games is **beta**: login, library, install and launch go through [Legendary
 - **Steam** — downloads the official installer, sets up an isolated bottle, and launches Steam with a tested CEF recipe
 - **GOG Galaxy** — official offline installer, WineD3D bottle
 - **Epic Games (beta)** — native Legendary CLI, in-app sign-in, library covers, install into `drive_c/Games`, launch with Wine
-- **Wine 11** — default **Vermut Wine 11 (DXMT build)** for DirectX 10/11 on Metal; Wine Staging 11 and Wine Devel 11 as fallbacks
+- **Wine 11** — default **Vermut Wine 11 (DXMT build)** for DirectX 10/11 on Metal; Gcenx Wine Staging / Devel detected from GitHub releases (no hardcoded version)
 - **Per-bottle graphics** — DXMT, DXVK + MoltenVK, WineD3D, or Apple D3DMetal if you already installed Game Porting Toolkit
 - **Run a Windows `.exe` / `.msi` / `.bat`** from the toolbar
 - **Library** — installed titles from Steam, GOG, and Epic
@@ -120,17 +120,19 @@ Older builds used a different Application Support folder name; Vermut migrates i
 | Engine | Role |
 | --- | --- |
 | **Vermut Wine** | Default. Wine 11 / CrossOver 26.3 LGPL build; `winemac` exports the Metal views DXMT needs. Source: [MartijnBud/grapple-releases](https://github.com/MartijnBud/grapple-releases). |
-| **Wine Staging 11.18** | Gcenx WineHQ build from [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds). Used automatically for DXVK bottles (Vermut Wine has no Vulkan loader). Requires system GStreamer.framework. |
-| **Wine Devel 11.18** | Same Gcenx source, development branch. Requires system GStreamer.framework. |
+| **Wine Staging** | Latest Gcenx WineHQ build from [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds) (auto-detected, not a pinned 11.18). Used automatically for DXVK bottles (Vermut Wine has no Vulkan loader). Requires system GStreamer.framework. |
+| **Wine Devel** | Same Gcenx source, development branch, latest detected tag. Requires system GStreamer.framework. |
 
 | Graphics | Notes |
 | --- | --- |
 | **DXMT** | DirectX 10/11 → Metal. Default for Steam and Epic. |
 | **DXVK + MoltenVK** | DirectX → Vulkan → Metal. Optional. |
-| **WineD3D** | DirectX → OpenGL. Required for GOG Galaxy. |
+| **WineD3D** | DirectX → OpenGL. Required for GOG Galaxy (Qt software + GDI renderer). |
 | **D3DMetal** | Apple GPTK, DirectX 12. **Not** downloaded. Enable it only if you installed GPTK yourself. |
 
-Steam launches with `-no-cef-sandbox -cef-disable-gpu -noverifyfiles`. Epic never runs the Windows Epic Games Launcher: Legendary talks to Epic on the host, then starts Windows game binaries inside the bottle.
+Steam launches with `-no-cef-sandbox -cef-disable-gpu -noverifyfiles`. The Steam overlay is **off per game by default** (Game Settings toggle) because `gameoverlayrenderer` can hang titles on DXMT. Epic never runs the Windows Epic Games Launcher: Legendary talks to Epic on the host, then starts Windows game binaries inside the bottle.
+
+Library tiles warn when Are We Anti-Cheat Yet? lists **Easy Anti-Cheat** or **BattlEye** for that Steam/Epic id. See [docs/ANTI_CHEAT.md](docs/ANTI_CHEAT.md). x86_64 emulation is Rosetta 2 by default; FEX is a Settings option that stays inactive until an ARM64 Wine + FEX runtime exists ([docs/FEX.md](docs/FEX.md)). GOG recipe: [docs/GOG.md](docs/GOG.md).
 
 ## Credits and licences
 

@@ -60,7 +60,7 @@ final class ComponentCatalogTests: XCTestCase {
     func testWineEngineCases() {
         XCTAssertEqual(WineEngine.allCases.map(\.rawValue), ["grapple-wine", "staging", "devel"])
         XCTAssertEqual(WineEngine.grappleWine.displayName, "Vermut Wine")
-        XCTAssertEqual(WineEngine.staging.displayName, "Wine Staging 11.18")
+        XCTAssertEqual(WineEngine.staging.displayName, "Wine Staging")
         XCTAssertEqual(WineEngine.defaultEngine, .grappleWine)
         XCTAssertTrue(WineEngine.grappleWine.supportsDXMT)
         XCTAssertFalse(WineEngine.staging.supportsDXMT)

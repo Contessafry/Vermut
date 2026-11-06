@@ -206,8 +206,7 @@ public enum UninstallExecutor {
                 continue
             }
             do {
-                var resulting: NSURL?
-                try fileManager.trashItem(at: url, resultingItemURL: &resulting)
+                try trashURL(url, fileManager: fileManager)
                 anyRemoved = true
             } catch {
                 let ns = error as NSError
@@ -288,8 +287,7 @@ public enum UninstallExecutor {
             ) != nil {
                 return
             }
-            var resulting: NSURL?
-            try? fileManager.trashItem(at: url, resultingItemURL: &resulting)
+            try? trashURL(url, fileManager: fileManager)
         }
 
         if plan.preferences.isSelected {
@@ -332,5 +330,15 @@ public enum UninstallExecutor {
         if stillThere.isEmpty {
             trashIfSafe(appSupport)
         }
+    }
+
+    /// Finder Trash on macOS; `removeItem` on Linux CI.
+    private static func trashURL(_ url: URL, fileManager: FileManager) throws {
+        #if canImport(Darwin)
+        var resulting: NSURL?
+        try fileManager.trashItem(at: url, resultingItemURL: &resulting)
+        #else
+        try fileManager.removeItem(at: url)
+        #endif
     }
 }

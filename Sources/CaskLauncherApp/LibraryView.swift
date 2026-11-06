@@ -261,6 +261,14 @@ struct LibraryGameTile: View {
                 Spacer()
             }
             
+            if let anticheat = AntiCheatCatalog.lookup(
+                store: game.store,
+                appId: game.appId,
+                name: game.name
+            ) {
+                AntiCheatBadge(entry: anticheat)
+            }
+
             if let compat = appState.getCompatibility(for: game) {
                 CompatibilityBadge(compat: compat)
             }

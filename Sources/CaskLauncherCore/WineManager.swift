@@ -151,6 +151,10 @@ public final class WineManager: @unchecked Sendable {
         try throwIfInstallCancelled(store)
         onSettingUp?()
 
+        if store == .gog {
+            try await ensureEngineInstalled(GOGRecipe.recommendedEngine)
+        }
+
         try await createPrefix(for: store, config: config)
         try throwIfInstallCancelled(store)
 
@@ -193,24 +197,36 @@ public final class WineManager: @unchecked Sendable {
             onAwaitingWindow?()
         }
 
-        // GOG's setup auto-starts `GalaxyClient.exe /firstRun` while it is still
-        // registering services; that run fails ("Essential components … missing")
-        // and blocks setup. Stop only that child; Vermut opens GOG afterwards.
-        let firstRunGuard: Task<Void, Never>? = store == .gog ? Task.detached {
+        // Inno `[Run]` starts `GalaxyClient.exe /firstRun`, which races Wine SCM
+        // (Error 1055) and holds setup.exe. Stop only that child. Elevated
+        // `/command=installservice` must live so CreateService can finish.
+        let leftoverGuard: Task<Void, Never>? = store == .gog ? Task.detached {
             while !Task.isCancelled {
-                for pid in GOGFirstRun.pids(in: PrefixRuntime.processPIDLines(), prefixPath: prefixURL.path) {
+                for pid in GOGFirstRun.pids(
+                    in: PrefixRuntime.processPIDLines(),
+                    prefixPath: prefixURL.path
+                ) {
                     kill(pid, SIGTERM)
                 }
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         } : nil
 
-        let waitResult = ProcessWait.waitUntilExit(
-            installerProcess,
-            timeout: StoreInstaller.timeout(for: store)
-        )
+        let waitResult: ProcessWait.Result
+        if store == .gog {
+            waitResult = waitForGOGInstaller(
+                installerProcess,
+                prefixURL: prefixURL,
+                timeout: StoreInstaller.timeout(for: store) ?? 15 * 60
+            )
+        } else {
+            waitResult = ProcessWait.waitUntilExit(
+                installerProcess,
+                timeout: StoreInstaller.timeout(for: store)
+            )
+        }
         awaitTask.cancel()
-        firstRunGuard?.cancel()
+        leftoverGuard?.cancel()
         if store == .gog {
             waitForWineserver(prefix: prefixURL, engine: engine, timeout: 30)
         }
@@ -227,8 +243,16 @@ public final class WineManager: @unchecked Sendable {
         }
 
         if case .timedOut = waitResult {
-            try? killPrefix(prefix: prefixURL, engine: engine)
-            throw WineError.installerTimedOut(store)
+            let payloadInstalled = store == .gog
+                && StoreExecutable.resolve(in: prefixURL, store: store) != nil
+            if let error = GOGInstallAcceptance.wineError(
+                timedOut: true,
+                payloadInstalled: payloadInstalled,
+                store: store
+            ) {
+                try? killPrefix(prefix: prefixURL, engine: engine)
+                throw error
+            }
         }
 
         if store == .steam {
@@ -241,6 +265,73 @@ public final class WineManager: @unchecked Sendable {
                 throw WineError.installerFailed(store, status)
             }
             throw WineError.executableNotFound
+        }
+
+        if store == .gog {
+            try await GOGSoftwareRenderer.ensureInstalled(in: prefixURL)
+        }
+    }
+
+    /// Poll GOG setup: stop leftover `/firstRun`, and finish once the payload
+    /// is on disk even if Inno never exits. Does not raise the 15-minute cap.
+    private func waitForGOGInstaller(
+        _ process: Process,
+        prefixURL: URL,
+        timeout: TimeInterval
+    ) -> ProcessWait.Result {
+        let deadline = Date().addingTimeInterval(timeout)
+        var payloadSeenAt: Date?
+        while process.isRunning {
+            let payload = StoreExecutable.resolve(in: prefixURL, store: .gog) != nil
+            if payload, payloadSeenAt == nil {
+                payloadSeenAt = Date()
+            }
+            let leftoverPIDs = GOGFirstRun.pids(
+                in: PrefixRuntime.processPIDLines(),
+                prefixPath: prefixURL.path
+            )
+            let decision = GOGSetupWatch.decide(
+                payloadInstalled: payload,
+                installerRunning: true,
+                secondsSincePayloadSeen: payloadSeenAt.map { Date().timeIntervalSince($0) },
+                leftoverCount: leftoverPIDs.count
+            )
+            switch decision {
+            case .stopLeftovers:
+                leftoverPIDs.forEach { kill($0, SIGTERM) }
+            case .finishBecausePayloadInstalled:
+                terminateInstallerProcess(process)
+                return .exited(0)
+            case .wait:
+                break
+            }
+            if Date() >= deadline {
+                terminateInstallerProcess(process)
+                return payload ? .exited(0) : .timedOut
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return .exited(process.terminationStatus)
+    }
+
+    private func stopGOGFirstRun(prefixURL: URL) {
+        for pid in GOGFirstRun.pids(
+            in: PrefixRuntime.processPIDLines(),
+            prefixPath: prefixURL.path
+        ) {
+            kill(pid, SIGTERM)
+        }
+    }
+
+    private func terminateInstallerProcess(_ process: Process) {
+        process.terminate()
+        let grace = Date().addingTimeInterval(5)
+        while process.isRunning, Date() < grace {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+            Thread.sleep(forTimeInterval: 0.05)
         }
     }
 
@@ -302,6 +393,7 @@ public final class WineManager: @unchecked Sendable {
         guard fileManager.fileExists(atPath: prefixURL.path) else {
             throw WineError.prefixCreationFailed
         }
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: store)
         var environment = buildEnvironment(for: store, config: config)
         environment["WINEPREFIX"] = prefixURL.path
         try launchDetached(
@@ -341,7 +433,8 @@ public final class WineManager: @unchecked Sendable {
             config: config,
             wineDebug: wineDebug,
             firstRunUpdate: firstRunUpdate,
-            steamAppId: nil
+            steamAppId: nil,
+            steamOverlayEnabled: false
         )
     }
 
@@ -351,7 +444,8 @@ public final class WineManager: @unchecked Sendable {
         config: BottleConfiguration,
         wineDebug: String? = nil,
         firstRunUpdate: Bool = false,
-        steamAppId: String?
+        steamAppId: String?,
+        steamOverlayEnabled: Bool = false
     ) async throws {
         if store == .epic {
             return
@@ -380,6 +474,10 @@ public final class WineManager: @unchecked Sendable {
             }
         } else {
             try configureLauncherBottle(for: store, config: config, engine: engine)
+            if store == .gog {
+                try await GOGSoftwareRenderer.ensureInstalled(in: prefixURL)
+                stopGOGFirstRun(prefixURL: prefixURL)
+            }
         }
 
         let wineBinary = layout.launcherBinary(forWindowsExecutable: executablePath)
@@ -392,11 +490,18 @@ public final class WineManager: @unchecked Sendable {
             executable: executablePath,
             wineLibDir: layout.wineLibDir,
             firstRunUpdate: firstRunUpdate,
-            steamAppId: store == .steam ? steamAppId : nil
+            steamAppId: store == .steam ? steamAppId : nil,
+            steamOverlayEnabled: steamOverlayEnabled
         )
         for (key, value) in recipe.environment {
             environment[key] = value
         }
+        X86Emulation.apply(
+            to: &environment,
+            mode: appConfiguration().resolvedX86Emulation,
+            probe: FEXRuntime.probe(wineURL: wineBinary),
+            store: store
+        )
         // Preferred debug (game or client), then VERMUT_WINEDEBUG (host override always wins).
         // Setup/launch default to err+all into the capped store log — WINEDEBUG=-all
         // leaves no Wine trace when the bootstrapper dies early.
@@ -439,13 +544,15 @@ public final class WineManager: @unchecked Sendable {
     /// Launch a Steam title (`-applaunch`). Client WINEDEBUG stays quiet (`-all`).
     public func launchSteamGame(
         appId: String,
-        config: BottleConfiguration
+        config: BottleConfiguration,
+        steamOverlayEnabled: Bool = false
     ) async throws {
         try await launchStore(
             .steam,
             config: config,
             wineDebug: SteamGameLaunch.clientWineDebug(),
-            steamAppId: appId
+            steamAppId: appId,
+            steamOverlayEnabled: steamOverlayEnabled
         )
     }
 
@@ -572,6 +679,7 @@ public final class WineManager: @unchecked Sendable {
             try fileManager.createDirectory(at: prefixURL, withIntermediateDirectories: true)
         }
 
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: .steam)
         var environment = buildEnvironment(for: .steam, config: config)
         environment["WINEPREFIX"] = prefixURL.path
 
@@ -690,6 +798,7 @@ public final class WineManager: @unchecked Sendable {
         guard fileManager.fileExists(atPath: prefixURL.path) else {
             throw WineError.prefixCreationFailed
         }
+        try ensureDXMTPlacement(engine: engine, config: config, prefixURL: prefixURL, store: .steam)
         var environment = buildEnvironment(for: .steam, config: config)
         environment["WINEPREFIX"] = prefixURL.path
         try launchDetached(
@@ -765,10 +874,12 @@ public final class WineManager: @unchecked Sendable {
     }
 
     public static func availableFreeBytes(at url: URL = PathManager.shared.appSupportURL) -> Int64? {
+        #if canImport(Darwin)
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         if let capacity = values?.volumeAvailableCapacityForImportantUsage {
             return capacity
         }
+        #endif
         let attrs = try? FileManager.default.attributesOfFileSystem(forPath: url.path)
         return attrs?[.systemFreeSize] as? Int64
     }
@@ -915,32 +1026,39 @@ public final class WineManager: @unchecked Sendable {
             )
             overlay = versioned ?? layout.bundledDXMTOverlay() ?? PathManager.shared.dxmtOverlay()
         }
-        guard let overlay else { return }
-
+        let backend = graphicsBackend(config)
         if engine.supportsDXMT {
-            try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            if let overlay {
+                try DXMTUnixLib.installIfNeeded(overlay: overlay, engine: layout)
+            }
+            // Non-DXMT backends restore the backed-up builtins; DXMT overlays them.
+            try DXMTWindowsDLLs.syncEngine(
+                overlay: overlay,
+                engine: layout,
+                backend: backend,
+                fileManager: fileManager
+            )
         }
 
         guard DllOverridePolicy.usesNativeDXMT(
             engine: engine,
-            backend: graphicsBackend(config),
+            backend: backend,
             store: store
         ) else {
             return
         }
+        guard let overlay else { return }
 
         let system32 = prefixURL.appendingPathComponent("drive_c/windows/system32")
         let syswow64 = prefixURL.appendingPathComponent("drive_c/windows/syswow64")
         try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: syswow64, withIntermediateDirectories: true)
-
-        for pair in DXMTWindowsDLLs.copyPlan(overlay: overlay, system32: system32, syswow64: syswow64) {
-            guard fileManager.fileExists(atPath: pair.from.path) else { continue }
-            if fileManager.fileExists(atPath: pair.to.path) {
-                try fileManager.removeItem(at: pair.to)
-            }
-            try fileManager.copyItem(at: pair.from, to: pair.to)
-        }
+        try DXMTWindowsDLLs.installIntoPrefix(
+            overlay: overlay,
+            system32: system32,
+            syswow64: syswow64,
+            fileManager: fileManager
+        )
     }
 
     private func apply(
@@ -1335,14 +1453,38 @@ public enum WineError: LocalizedError {
 }
 
 /// Finds GOG Galaxy's installer-spawned `/firstRun` client in one prefix.
+/// Wine often hides `WINEPREFIX` on Windows processes (`C:\…\GalaxyClient.exe`).
 public enum GOGFirstRun {
     public static func pids(in psLines: [String], prefixPath: String) -> [pid_t] {
-        psLines.compactMap { raw in
+        let prefixWineRunning = PrefixRuntime.hasWineProcess(
+            prefixPath: prefixPath,
+            processLines: psLines
+        )
+        return psLines.compactMap { raw in
             let line = raw.trimmingCharacters(in: .whitespaces)
-            guard line.contains("GalaxyClient.exe"),
-                  line.contains("/firstRun"),
-                  line.contains("WINEPREFIX=\(prefixPath)") else { return nil }
+            guard isFirstRunLine(line),
+                  belongsToPrefix(line, prefixPath: prefixPath, prefixWineRunning: prefixWineRunning)
+            else { return nil }
             return line.split(separator: " ", maxSplits: 1).first.flatMap { pid_t($0) }
         }
+    }
+
+    public static func isFirstRunLine(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        guard lower.contains("galaxyclient.exe"), line.contains("/firstRun") else { return false }
+        if lower.contains("/command=installservice") { return false }
+        if lower.contains("/command=\"installservice\"") { return false }
+        return true
+    }
+
+    public static func belongsToPrefix(
+        _ line: String,
+        prefixPath: String,
+        prefixWineRunning: Bool
+    ) -> Bool {
+        if line.contains("WINEPREFIX=\(prefixPath)") { return true }
+        if line.contains("WINEPREFIX=") { return false }
+        guard prefixWineRunning else { return false }
+        return line.localizedCaseInsensitiveContains("GalaxyClient.exe")
     }
 }

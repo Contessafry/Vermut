@@ -715,6 +715,23 @@ final class AppState: ObservableObject {
             openEpicLibraryOrSignIn()
             return
         }
+        if store == .gog {
+            let bottle = StoreRecipe.normalized(loadBottle(.gog), for: .gog, global: configuration)
+            let engine = StoreLaunchRecipe.engine(
+                for: .gog,
+                defaultEngine: configuration.defaultEngine,
+                bottleEngine: bottle.engine
+            )
+            if engine == .staging, !EngineManager.shared.isEngineInstalled(.staging) {
+                infoAlertTitle = String(localized: "Wine Staging required", comment: "GOG needs Staging")
+                infoAlertMessage = String(
+                    localized: "GOG Galaxy uses Wine Staging and WineD3D. Download it from Settings › Wine Engines, then open GOG again.",
+                    comment: "Offer Staging before opening GOG"
+                )
+                settingsTab = .wineEngines
+                return
+            }
+        }
         Task {
             do {
                 var bottleConfig = try WineManager.shared.loadBottleConfig(for: store)
@@ -861,6 +878,18 @@ final class AppState: ObservableObject {
             return
         }
 
+        if game.store == .gog,
+           resolved.engine.value == .staging,
+           !EngineManager.shared.isEngineInstalled(.staging) {
+            infoAlertTitle = String(localized: "Wine Staging required", comment: "GOG needs Staging")
+            infoAlertMessage = String(
+                localized: "GOG Galaxy uses Wine Staging and WineD3D (Qt software rendering). Download Staging from Settings › Wine Engines, then open GOG again.",
+                comment: "Offer Staging download before GOG launch"
+            )
+            settingsTab = .wineEngines
+            return
+        }
+
         if game.store == .steam {
             launchSteamGame(game, resolved: resolved, launchConfig: launchConfig)
             return
@@ -929,7 +958,8 @@ final class AppState: ObservableObject {
                 }
                 try await WineManager.shared.launchSteamGame(
                     appId: game.appId,
-                    config: launchConfig
+                    config: launchConfig,
+                    steamOverlayEnabled: resolved.steamOverlayEnabled
                 )
                 steamRuntimeProfile = needed
                 storeRuntimeProfiles[.steam] = needed
