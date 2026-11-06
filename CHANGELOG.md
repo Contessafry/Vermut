@@ -16,8 +16,12 @@ All notable changes to Vermut are documented here.
 ### Changed
 
 - DXMT catalog lists **stable releases only** (pre-release, draft, and nightly assets are skipped)
-- GOG silent setup treats Galaxy on disk as success when Inno never exits (leftover `GalaxyClient.exe` is stopped; 15-minute cap unchanged)
+- GOG silent setup treats Galaxy on disk as success when Inno never exits (leftover `/firstRun` is stopped; 15-minute cap unchanged)
 - GOG recipe installs Mesa llvmpipe as `opengl32sw.dll` beside `GalaxyClient.exe` so Qt Quick can create an RHI
+
+### Fixed
+
+- GOG setup now matches installer `GalaxyClient.exe /firstRun` even when Wine hides `WINEPREFIX` on the Windows process, and does not SIGTERM elevated `/command=installservice` (SCM Error 1055 race)
 
 ### Known
 

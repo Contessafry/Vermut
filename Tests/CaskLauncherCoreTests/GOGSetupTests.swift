@@ -64,16 +64,29 @@ final class GOGSetupTests: XCTestCase {
         )
     }
 
-    func testLeftoversIncludeGalaxyClientWithoutFirstRun() {
+    func testLeftoversAreFirstRunOnlyNotInstallService() {
         let prefix = "/Users/u/Library/Application Support/Vermut/bottles/gog/prefix"
         let lines = [
             "  4911 C:\\Program Files\\GOG Galaxy\\GalaxyClient.exe /firstRun /installationSource=usedefault WINEPREFIX=\(prefix) HOME=/Users/u",
             "  4912 C:\\Program Files\\GOG Galaxy\\GalaxyClient.exe WINEPREFIX=\(prefix) HOME=/Users/u",
             "  4913 C:\\Program Files\\GOG Galaxy\\GalaxyClient.exe /firstRun WINEPREFIX=/other/prefix HOME=/Users/u",
-            "  4914 C:\\setup_galaxy.tmp /SL5 WINEPREFIX=\(prefix)"
+            "  4914 C:\\setup_galaxy.tmp /SL5 WINEPREFIX=\(prefix)",
+            #"  1104 C:\Program Files\GOG Galaxy\GalaxyClient.exe /command="installservice" WINEPREFIX=\#(prefix)"#
         ]
-        XCTAssertEqual(GOGSetupLeftovers.pids(in: lines, prefixPath: prefix), [4911, 4912])
+        XCTAssertEqual(GOGSetupLeftovers.pids(in: lines, prefixPath: prefix), [4911])
         XCTAssertEqual(GOGFirstRun.pids(in: lines, prefixPath: prefix), [4911])
+    }
+
+    func testWindowsStyleFirstRunIsBoundWhenPrefixWineserverIsUp() {
+        let prefix = "/Users/u/Library/Application Support/Vermut/bottles/gog/prefix"
+        let lines = [
+            #"  45601 C:\Program Files\GOG Galaxy\GalaxyClient.exe /firstRun /installationSource=usedefault SAND_LAB=0"#,
+            #"  1104 C:\Program Files\GOG Galaxy\GalaxyClient.exe /command="installservice""#,
+            "  44941 WINEPREFIX=\(prefix) \(prefix)/../../../engines/staging/bin/wineserver"
+        ]
+        XCTAssertEqual(GOGFirstRun.pids(in: lines, prefixPath: prefix), [45601])
+        XCTAssertEqual(GOGSetupLeftovers.pids(in: lines, prefixPath: prefix), [45601])
+        XCTAssertTrue(GOGFirstRun.pids(in: Array(lines.dropLast()), prefixPath: prefix).isEmpty)
     }
 
     func testSilentInstallerClosesLeftoverApplications() {

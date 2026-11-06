@@ -6,8 +6,9 @@ import Glibc
 #endif
 
 /// Inno `/VERYSILENT` still launches Galaxy after the files are on disk.
-/// That child (with or without `/firstRun`) keeps `setup_galaxy.exe` from
-/// exiting, so a wall-clock timeout fires on a completed install.
+/// That `/firstRun` child keeps `setup_galaxy.exe` from exiting, so a
+/// wall-clock timeout fires on a completed install. Do not treat elevated
+/// `/command=installservice` as a leftover — that process registers SCM.
 public enum GOGInstallAcceptance {
     /// Hung setup + payload on disk is success. Do not raise the 15-minute cap.
     public static func acceptInstallerResult(timedOut: Bool, payloadInstalled: Bool) -> Bool {
@@ -56,14 +57,10 @@ public enum GOGSetupWatch {
     }
 }
 
-/// Any `GalaxyClient.exe` in this prefix — post-install `[Run]` often omits `/firstRun`.
+/// Installer leftovers that must be stopped so Inno can finish.
+/// Only `/firstRun` — never `/command=installservice` (1055 reinstall path).
 public enum GOGSetupLeftovers {
     public static func pids(in psLines: [String], prefixPath: String) -> [pid_t] {
-        psLines.compactMap { raw in
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            guard line.localizedCaseInsensitiveContains("GalaxyClient.exe"),
-                  line.contains("WINEPREFIX=\(prefixPath)") else { return nil }
-            return line.split(separator: " ", maxSplits: 1).first.flatMap { pid_t($0) }
-        }
+        GOGFirstRun.pids(in: psLines, prefixPath: prefixPath)
     }
 }

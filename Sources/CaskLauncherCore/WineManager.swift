@@ -197,12 +197,12 @@ public final class WineManager: @unchecked Sendable {
             onAwaitingWindow?()
         }
 
-        // Inno `/VERYSILENT` still launches Galaxy after the files land (with or
-        // without `/firstRun`). That child keeps setup.exe alive. Stop every
-        // GalaxyClient in this prefix; Vermut opens GOG afterwards.
+        // Inno `[Run]` starts `GalaxyClient.exe /firstRun`, which races Wine SCM
+        // (Error 1055) and holds setup.exe. Stop only that child. Elevated
+        // `/command=installservice` must live so CreateService can finish.
         let leftoverGuard: Task<Void, Never>? = store == .gog ? Task.detached {
             while !Task.isCancelled {
-                for pid in GOGSetupLeftovers.pids(
+                for pid in GOGFirstRun.pids(
                     in: PrefixRuntime.processPIDLines(),
                     prefixPath: prefixURL.path
                 ) {
@@ -272,7 +272,7 @@ public final class WineManager: @unchecked Sendable {
         }
     }
 
-    /// Poll GOG setup: kill leftover GalaxyClient, and finish once the payload
+    /// Poll GOG setup: stop leftover `/firstRun`, and finish once the payload
     /// is on disk even if Inno never exits. Does not raise the 15-minute cap.
     private func waitForGOGInstaller(
         _ process: Process,
@@ -286,7 +286,7 @@ public final class WineManager: @unchecked Sendable {
             if payload, payloadSeenAt == nil {
                 payloadSeenAt = Date()
             }
-            let leftoverPIDs = GOGSetupLeftovers.pids(
+            let leftoverPIDs = GOGFirstRun.pids(
                 in: PrefixRuntime.processPIDLines(),
                 prefixPath: prefixURL.path
             )
@@ -312,6 +312,15 @@ public final class WineManager: @unchecked Sendable {
             Thread.sleep(forTimeInterval: 0.5)
         }
         return .exited(process.terminationStatus)
+    }
+
+    private func stopGOGFirstRun(prefixURL: URL) {
+        for pid in GOGFirstRun.pids(
+            in: PrefixRuntime.processPIDLines(),
+            prefixPath: prefixURL.path
+        ) {
+            kill(pid, SIGTERM)
+        }
     }
 
     private func terminateInstallerProcess(_ process: Process) {
@@ -467,6 +476,7 @@ public final class WineManager: @unchecked Sendable {
             try configureLauncherBottle(for: store, config: config, engine: engine)
             if store == .gog {
                 try await GOGSoftwareRenderer.ensureInstalled(in: prefixURL)
+                stopGOGFirstRun(prefixURL: prefixURL)
             }
         }
 
@@ -1443,14 +1453,38 @@ public enum WineError: LocalizedError {
 }
 
 /// Finds GOG Galaxy's installer-spawned `/firstRun` client in one prefix.
+/// Wine often hides `WINEPREFIX` on Windows processes (`C:\…\GalaxyClient.exe`).
 public enum GOGFirstRun {
     public static func pids(in psLines: [String], prefixPath: String) -> [pid_t] {
-        psLines.compactMap { raw in
+        let prefixWineRunning = PrefixRuntime.hasWineProcess(
+            prefixPath: prefixPath,
+            processLines: psLines
+        )
+        return psLines.compactMap { raw in
             let line = raw.trimmingCharacters(in: .whitespaces)
-            guard line.contains("GalaxyClient.exe"),
-                  line.contains("/firstRun"),
-                  line.contains("WINEPREFIX=\(prefixPath)") else { return nil }
+            guard isFirstRunLine(line),
+                  belongsToPrefix(line, prefixPath: prefixPath, prefixWineRunning: prefixWineRunning)
+            else { return nil }
             return line.split(separator: " ", maxSplits: 1).first.flatMap { pid_t($0) }
         }
+    }
+
+    public static func isFirstRunLine(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        guard lower.contains("galaxyclient.exe"), line.contains("/firstRun") else { return false }
+        if lower.contains("/command=installservice") { return false }
+        if lower.contains("/command=\"installservice\"") { return false }
+        return true
+    }
+
+    public static func belongsToPrefix(
+        _ line: String,
+        prefixPath: String,
+        prefixWineRunning: Bool
+    ) -> Bool {
+        if line.contains("WINEPREFIX=\(prefixPath)") { return true }
+        if line.contains("WINEPREFIX=") { return false }
+        guard prefixWineRunning else { return false }
+        return line.localizedCaseInsensitiveContains("GalaxyClient.exe")
     }
 }

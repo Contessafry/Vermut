@@ -37,7 +37,8 @@ final class GOGFirstRunTests: XCTestCase {
             "  4911 C:\\Program Files\\GOG Galaxy\\GalaxyClient.exe /firstRun /installationSource=usedefault WINEPREFIX=\(prefix) HOME=/Users/u",
             "  4912 C:\\Program Files\\GOG Galaxy\\GalaxyClient.exe WINEPREFIX=\(prefix) HOME=/Users/u",
             "  4913 C:\\Program Files\\GOG Galaxy\\GalaxyClient.exe /firstRun WINEPREFIX=/other/prefix HOME=/Users/u",
-            "  4914 C:\\setup_galaxy.tmp /SL5 WINEPREFIX=\(prefix)"
+            "  4914 C:\\setup_galaxy.tmp /SL5 WINEPREFIX=\(prefix)",
+            #"  1104 C:\Program Files\GOG Galaxy\GalaxyClient.exe /command="installservice" WINEPREFIX=\#(prefix)"#
         ]
         XCTAssertEqual(GOGFirstRun.pids(in: lines, prefixPath: prefix), [4911])
     }
