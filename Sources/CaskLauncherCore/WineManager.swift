@@ -618,6 +618,27 @@ public final class WineManager: @unchecked Sendable {
         try killPrefix(prefix: PathManager.shared.prefixURL(for: store), engine: engine)
     }
 
+    /// True when a store or custom bottle is currently running this engine.
+    /// Engine file replacement must not happen while this returns true.
+    public func isEngineInUse(_ engine: WineEngine) -> Bool {
+        var storeEngines: [WineEngine] = []
+        for store in GameStore.allCases where isStoreRunning(store) {
+            let config = (try? loadBottleConfig(for: store)) ?? BottleConfiguration()
+            storeEngines.append(resolvedEngine(for: store, config: config))
+        }
+        var customEngines: [WineEngine] = []
+        if let bottles = try? CustomBottleStore.shared.load() {
+            for bottle in bottles where isCustomBottleRunning(id: bottle.id) {
+                customEngines.append(resolvedCustomEngine(bottle.configuration))
+            }
+        }
+        return WineEngineUsage.isInUse(
+            engine,
+            runningStoreEngines: storeEngines,
+            runningCustomEngines: customEngines
+        )
+    }
+
     public func isStoreRunning(_ store: GameStore) -> Bool {
         let prefixURL = PathManager.shared.prefixURL(for: store)
         if store == .epic {

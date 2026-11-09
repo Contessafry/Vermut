@@ -164,7 +164,11 @@ struct CompatFeedbackBanner: View {
             note: note.isEmpty ? nil : note
         )
         
-        if let url = CompatibilityService.shared.generateGitHubIssueURL(report: report) {
+        let logExcerpt = CompatReportLog.loadExcerpt(for: session.store)
+        if let url = CompatibilityService.shared.generateGitHubIssueURL(
+            report: report,
+            logExcerpt: logExcerpt
+        ) {
             NSWorkspace.shared.open(url)
         }
         

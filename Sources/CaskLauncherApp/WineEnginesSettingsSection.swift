@@ -77,7 +77,7 @@ struct WineEnginesSettingsSection: View {
                 set: { if !$0 { model.cancelPendingDownload() } }
             )
         ) {
-            Button("Download") { model.confirmPendingDownload() }
+            Button(model.pendingDownloadIsUpdate ? "Aggiorna" : "Download") { model.confirmPendingDownload() }
             Button("Cancel", role: .cancel) { model.cancelPendingDownload() }
         } message: {
             if let engine = model.pendingDownload {
@@ -115,13 +115,15 @@ struct WineEnginesSettingsSection: View {
             case .installed:
                 if row.updateAvailable {
                     HStack {
-                        Text("Newer Gcenx build available.")
+                        Text(row.isInUse
+                             ? "Chiudi i giochi che usano questo motore per aggiornare."
+                             : "È disponibile una versione più recente.")
                             .font(VermutType.captionRegular)
-                            .foregroundStyle(Color.Vermut.info)
+                            .foregroundStyle(row.isInUse ? Color.Vermut.mutedForeground : Color.Vermut.info)
                         Spacer()
-                        Button("Update") { model.requestDownload(row.engine, replaceExisting: true) }
+                        Button("Aggiorna") { model.requestDownload(row.engine, replaceExisting: true) }
                             .buttonStyle(VermutButtonStyle(kind: .outline, height: VermutHeight.buttonSmall, radius: VermutRadius.xsPlus, font: VermutType.callout, horizontalPadding: VermutSpace.s2))
-                            .disabled(model.busyEngine != nil)
+                            .disabled(model.busyEngine != nil || row.isInUse)
                     }
                 }
             case .available:

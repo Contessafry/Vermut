@@ -24,9 +24,8 @@ final class GStreamerProbeTests: XCTestCase {
         XCTAssertTrue(WineEngine.devel.requiresGStreamer)
     }
 
-    @MainActor
     func testPickerStatusLabelForMissingEngine() {
-        // WineEnginesViewModel is @MainActor; label must be non-empty.
+        // pickerStatusLabel is nonisolated; keep this test off @MainActor so Linux `swift test` can discover it.
         let label = WineEnginesViewModel.pickerStatusLabel(for: .staging)
         XCTAssertFalse(label.isEmpty)
     }

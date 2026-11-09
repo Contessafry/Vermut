@@ -48,6 +48,10 @@ final class AppState: ObservableObject {
     @Published var hasRosetta = false
     /// True when Rosetta was already present so onboarding never showed the Rosetta step.
     @Published var rosettaSetupSkipped = false
+    /// Apple Silicon only: Rosetta probe failed after setup, show a non-blocking banner.
+    @Published var rosettaMissing = false
+    @Published var isInstallingRosetta = false
+    @Published var rosettaInstallError: String?
     @Published var hasD3DMetal = false
     @Published var bottleToDelete: GameStore?
     @Published var epicAccount: LegendaryAccount?
@@ -119,6 +123,7 @@ final class AppState: ObservableObject {
 
         Task {
             await checkSetup()
+            await checkRosettaOnLaunch()
             await checkForUpdateOnLaunch()
         }
         
@@ -224,16 +229,23 @@ final class AppState: ObservableObject {
                 isCheckingSetup = true
             }
 
+            let alreadySetUp = UserDefaults.standard.bool(forKey: Self.setupCompleteDefaultsKey) || isSetupComplete
             let rosetta = try await SystemSetup.shared.checkRosetta()
             hasRosetta = rosetta
             if !rosetta {
                 rosettaSetupSkipped = false
-                setupPhase = .rosetta
-                setupMessage = "Installing Rosetta 2…"
-                try await SystemSetup.shared.installRosetta()
-                hasRosetta = true
+                if alreadySetUp {
+                    rosettaMissing = HostArchitecture.isAppleSilicon
+                } else {
+                    setupPhase = .rosetta
+                    setupMessage = "Installing Rosetta 2…"
+                    try await SystemSetup.shared.installRosetta()
+                    hasRosetta = true
+                    rosettaMissing = false
+                }
             } else {
                 rosettaSetupSkipped = true
+                rosettaMissing = false
             }
 
             if !SystemSetup.shared.checkWineInstalled() {
@@ -1415,6 +1427,46 @@ final class AppState: ObservableObject {
         return compatibilityData[key]
     }
     
+    /// Cheap Apple Silicon probe after setup. Missing Rosetta is a banner, not a blocking install.
+    func checkRosettaOnLaunch() async {
+        guard HostArchitecture.isAppleSilicon else {
+            hasRosetta = true
+            rosettaMissing = false
+            return
+        }
+        let usable = (try? await SystemSetup.shared.checkRosetta()) ?? false
+        hasRosetta = usable
+        if isSetupComplete {
+            rosettaMissing = !usable
+        }
+    }
+
+    func dismissRosettaBanner() {
+        rosettaMissing = false
+        rosettaInstallError = nil
+    }
+
+    func installRosettaFromBanner() {
+        guard !isInstallingRosetta else { return }
+        isInstallingRosetta = true
+        rosettaInstallError = nil
+        Task {
+            do {
+                try await SystemSetup.shared.installRosetta()
+                let usable = (try? await SystemSetup.shared.checkRosetta()) ?? false
+                isInstallingRosetta = false
+                hasRosetta = usable
+                rosettaMissing = !usable
+                if !usable {
+                    rosettaInstallError = "Installazione di Rosetta non riuscita. Riprova."
+                }
+            } catch {
+                isInstallingRosetta = false
+                rosettaInstallError = "Installazione di Rosetta non riuscita. Riprova."
+            }
+        }
+    }
+
     func checkForUpdateOnLaunch() async {
         let channel = configuration.resolvedUpdateChannel
         let result = await UpdateChecker.shared.checkForUpdate(
