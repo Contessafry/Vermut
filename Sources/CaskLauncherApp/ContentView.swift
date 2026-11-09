@@ -136,6 +136,16 @@ struct AppShell: View {
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         VStack(spacing: 0) {
+                            if appState.rosettaMissing {
+                                RosettaBanner(
+                                    onDismiss: { appState.dismissRosettaBanner() },
+                                    onInstall: { appState.installRosettaFromBanner() }
+                                )
+                                .padding(.horizontal, VermutSpace.s6)
+                                .padding(.top, VermutSpace.s3)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+
                             if let update = appState.availableUpdate {
                                 UpdateBanner(
                                     version: update.version,
@@ -165,6 +175,7 @@ struct AppShell: View {
         .navigationSplitViewStyle(.balanced)
         .background(Color.Vermut.background)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : VermutMotion.panel, value: appState.section)
+        .animation(VermutMotion.panel, value: appState.rosettaMissing)
         .animation(VermutMotion.panel, value: appState.availableUpdate?.version)
         .animation(VermutMotion.panel, value: appState.compatFeedbackSession)
         .sheet(item: $appState.bottleToDelete) { store in

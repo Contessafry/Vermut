@@ -8,6 +8,9 @@ All notable changes to Vermut are documented here.
 
 - Compatibility JSON records **known not working** backend/engine pairs from broken-only reports and no longer marks a `recommended` backend for those titles (e.g. ELDEN RING)
 - Gcenx Wine Staging / Devel versions are detected from GitHub releases (11.19 / 11.20 appear when Gcenx publishes them; UI no longer hardcodes 11.18)
+- Settings › Wine Engines shows the **installed** Gcenx version (persisted at install; existing trees are probed from the app bundle) and offers **Aggiorna** when GitHub has a newer tag. Updates replace only the engine files (SHA-256 as today) and are blocked while that engine is in use
+- On every launch, Apple Silicon Macs probe Rosetta with `arch -x86_64 /usr/bin/true` (off the main thread). If it is missing after setup, a non-blocking banner offers **Installa Rosetta**
+- Compatibility GitHub issues include the last 50 lines of the bottle log (home directory redacted; truncated to fit the issue URL)
 - Per-game **Steam overlay** toggle in Game Settings (off by default)
 - Library / inspector warning for kernel anti-cheat (Easy Anti-Cheat, BattlEye) from [Are We Anti-Cheat Yet?](https://areweanticheatyet.com/)
 - Settings › **x86_64 emulation**: Rosetta 2 (default) or FEX, with runtime detection. FEX needs ARM64 Wine that is not shipping yet — see `docs/FEX.md`

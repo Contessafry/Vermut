@@ -16,6 +16,7 @@ public struct WineEngineRow: Identifiable, Equatable, Sendable {
     public var state: WineEngineRowState
     public var versionLabel: String
     public var updateAvailable: Bool
+    public var isInUse: Bool
 
     public var id: String { engine.id }
 
@@ -23,12 +24,18 @@ public struct WineEngineRow: Identifiable, Equatable, Sendable {
         engine: WineEngine,
         state: WineEngineRowState,
         versionLabel: String,
-        updateAvailable: Bool = false
+        updateAvailable: Bool = false,
+        isInUse: Bool = false
     ) {
         self.engine = engine
         self.state = state
         self.versionLabel = versionLabel
         self.updateAvailable = updateAvailable
+        self.isInUse = isInUse
+    }
+
+    public var canApplyUpdate: Bool {
+        WineEngineVersion.canApplyUpdate(isInUse: isInUse, isBusy: false)
     }
 }
 
@@ -53,8 +60,12 @@ public final class WineEnginesViewModel: ObservableObject {
     private var downloadTask: Task<Void, Never>?
     private var catalogTask: Task<Void, Never>?
     private var replacingEngine: WineEngine?
+    private let isEngineInUse: @Sendable (WineEngine) -> Bool
 
-    public init() {
+    public init(isEngineInUse: @escaping @Sendable (WineEngine) -> Bool = { engine in
+        WineManager.shared.isEngineInUse(engine)
+    }) {
+        self.isEngineInUse = isEngineInUse
         refresh()
     }
 
@@ -64,12 +75,19 @@ public final class WineEnginesViewModel: ObservableObject {
             let installed = EngineManager.shared.isEngineInstalled(engine)
             let installedVersion = EngineManager.shared.installedVersion(of: engine)
             let catalogVersion = latestCatalogVersions[engine]
-            let versionLabel = installedVersion ?? catalogVersion ?? ComponentCatalog.fallback(for: engine).version
-            let updateAvailable: Bool = {
-                guard installed, engine != .grappleWine,
-                      let catalogVersion, let installedVersion else { return false }
-                return ComponentVersion.compare(catalogVersion, installedVersion) == .orderedDescending
-            }()
+            let versionLabel = WineEngineVersion.displayVersion(
+                isInstalled: installed,
+                installedVersion: installedVersion,
+                catalogVersion: catalogVersion,
+                fallbackVersion: ComponentCatalog.fallback(for: engine).version
+            ) ?? ""
+            let updateAvailable = WineEngineVersion.isUpdateAvailable(
+                engine: engine,
+                isInstalled: installed,
+                installedVersion: installedVersion,
+                catalogVersion: catalogVersion
+            )
+            let inUse = installed && isEngineInUse(engine)
             let state: WineEngineRowState
             if engine == .grappleWine, installed {
                 state = .included
@@ -84,7 +102,8 @@ public final class WineEnginesViewModel: ObservableObject {
                 engine: engine,
                 state: state,
                 versionLabel: versionLabel,
-                updateAvailable: updateAvailable
+                updateAvailable: updateAvailable,
+                isInUse: inUse
             )
         }
     }
@@ -103,6 +122,14 @@ public final class WineEnginesViewModel: ObservableObject {
     public func requestDownload(_ engine: WineEngine, replaceExisting: Bool = false) {
         guard engine != .grappleWine else { return }
         if EngineManager.shared.isEngineInstalled(engine), !replaceExisting {
+            refresh()
+            return
+        }
+        if replaceExisting, !WineEngineVersion.canApplyUpdate(
+            isInUse: isEngineInUse(engine),
+            isBusy: busyEngine != nil
+        ) {
+            errorMessage = "Impossibile aggiornare: questo motore è in uso. Chiudi il gioco o lo store e riprova."
             refresh()
             return
         }
@@ -136,15 +163,23 @@ public final class WineEnginesViewModel: ObservableObject {
         refresh()
     }
 
+    public var pendingDownloadIsUpdate: Bool {
+        guard let engine = pendingDownload else { return false }
+        return replacingEngine == engine || EngineManager.shared.isEngineInstalled(engine)
+    }
+
     public func confirmSheetTitle(for engine: WineEngine) -> String {
         let version = latestCatalogVersions[engine].map { " \($0)" } ?? ""
         if replacingEngine == engine || EngineManager.shared.isEngineInstalled(engine) {
-            return "Update \(engine.userFacingName)\(version)?"
+            return "Aggiornare \(engine.userFacingName)\(version)?"
         }
         return "Download \(engine.userFacingName)\(version)?"
     }
 
     public func confirmSheetMessage(for engine: WineEngine) -> String {
+        if replacingEngine == engine || EngineManager.shared.isEngineInstalled(engine) {
+            return "Il download sostituisce solo il motore Wine. Prefissi, bottiglie e dati di gioco restano invariati."
+        }
         let mb = Self.approximateDownloadBytes[engine].map { "About \(Self.formatBytes($0)). " } ?? ""
         return "\(mb)The bottle keeps using the current engine until the download finishes. Versions come from Gcenx/macOS_Wine_builds, not a hardcoded list."
     }
@@ -171,12 +206,21 @@ public final class WineEnginesViewModel: ObservableObject {
     }
 
     private func runDownload(_ engine: WineEngine) async {
+        let replace = replacingEngine == engine
+        if replace, !WineEngineVersion.canApplyUpdate(
+            isInUse: isEngineInUse(engine),
+            isBusy: false
+        ) {
+            errorMessage = "Impossibile aggiornare: questo motore è in uso. Chiudi il gioco o lo store e riprova."
+            replacingEngine = nil
+            refresh()
+            return
+        }
         busyEngine = engine
         busyProgress = 0
         errorMessage = nil
         refresh()
         do {
-            let replace = replacingEngine == engine
             try await EngineManager.shared.downloadEngine(engine, replaceExisting: replace) { [weak self] value in
                 Task { @MainActor in
                     self?.busyProgress = value

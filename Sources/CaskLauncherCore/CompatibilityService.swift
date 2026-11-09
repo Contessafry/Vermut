@@ -26,12 +26,24 @@ public final class CompatibilityService: @unchecked Sendable {
         }
     }
     
-    public func generateGitHubIssueURL(report: CompatibilityReport) -> URL? {
+    public func generateGitHubIssueURL(
+        report: CompatibilityReport,
+        logExcerpt: String? = nil
+    ) -> URL? {
+        CompatReportLog.fittingURL(
+            userNote: report.note,
+            logExcerpt: nonempty(logExcerpt)
+        ) { note in
+            self.makeGitHubIssueURL(report: report, note: note)
+        }
+    }
+
+    private func makeGitHubIssueURL(report: CompatibilityReport, note: String?) -> URL? {
         var components = URLComponents(string: "https://github.com/Contessafry/Vermut/issues/new")
-        
+
         let engineDisplay = userFacingEngineName(report.engine)
         let title = "[compat] \(report.gameName ?? report.gameId) — \(report.result)"
-        
+
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "template", value: "compatibility-report.yml"),
             URLQueryItem(name: "title", value: title),
@@ -46,17 +58,23 @@ public final class CompatibilityService: @unchecked Sendable {
             URLQueryItem(name: "playMinutes", value: "\(report.playMinutes)"),
             URLQueryItem(name: "result", value: report.result),
         ]
-        
-        if let note = report.note, !note.isEmpty {
+
+        if let note, !note.isEmpty {
             queryItems.append(URLQueryItem(name: "note", value: note))
         }
-        
+
         if report.autoDetectedCrash == true {
             queryItems.append(URLQueryItem(name: "autoDetectedCrash", value: "yes"))
         }
-        
+
         components?.queryItems = queryItems
         return components?.url
+    }
+
+    private func nonempty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
     
     private func userFacingEngineName(_ engineId: String) -> String {

@@ -7,34 +7,28 @@ public final class SystemSetup: @unchecked Sendable {
     
     private init() {}
     
-    public func checkRosetta() async throws -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        process.arguments = ["oahd"]
-        
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
+    public func checkRosetta(
+        isAppleSilicon: Bool = HostArchitecture.isAppleSilicon,
+        runner: any RosettaCommandRunning = ProcessRosettaCommandRunner()
+    ) async throws -> Bool {
+        let silicon = isAppleSilicon
+        let probe = runner
+        return await Task.detached(priority: .utility) {
+            RosettaCheck.evaluate(isAppleSilicon: silicon, runner: probe).isUsable
+        }.value
     }
     
     public func installRosetta() async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/softwareupdate")
-        process.arguments = ["--install-rosetta", "--agree-to-license"]
-        
-        try process.run()
-        process.waitUntilExit()
-        
-        guard process.terminationStatus == 0 else {
-            throw SetupError.rosettaInstallFailed
-        }
+        try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/sbin/softwareupdate")
+            process.arguments = ["--install-rosetta", "--agree-to-license"]
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                throw SetupError.rosettaInstallFailed
+            }
+        }.value
     }
     
     public func checkWineInstalled() -> Bool {
@@ -68,7 +62,7 @@ public final class SystemSetup: @unchecked Sendable {
     
 }
 
-public enum SetupError: LocalizedError {
+public enum SetupError: LocalizedError, Sendable {
     case rosettaInstallFailed
     case invalidURL
     case downloadFailed

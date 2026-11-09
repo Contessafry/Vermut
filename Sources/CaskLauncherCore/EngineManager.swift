@@ -15,13 +15,16 @@ public final class EngineManager: @unchecked Sendable {
         WineEngine.allCases.contains { isEngineInstalled($0) }
     }
 
-    public static let installedVersionFileName = ".vermut-version"
+    public static let installedVersionFileName = WineEngineVersion.recordedFileName
 
+    /// Recorded `.vermut-version`, else a Gcenx bundle probe. Existing installs without a file
+    /// get the probed value persisted so the UI does not invent a catalog/fallback number.
     public func installedVersion(of engine: WineEngine) -> String? {
-        let url = PathManager.shared.engineURL(for: engine).appendingPathComponent(Self.installedVersionFileName)
-        guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        let persist = !UninstallPersistenceGate.writesSuppressed
+        return WineEngineVersion.resolved(
+            fromEngineRoot: PathManager.shared.engineURL(for: engine),
+            persistProbe: persist
+        )
     }
 
     public func downloadEngine(
@@ -62,8 +65,7 @@ public final class EngineManager: @unchecked Sendable {
             try DXMTWindowsDLLs.installIntoEngine(overlay: overlay, engine: layout)
         }
 
-        let versionURL = engineURL.appendingPathComponent(Self.installedVersionFileName)
-        try component.version.data(using: .utf8)?.write(to: versionURL, options: .atomic)
+        try WineEngineVersion.writeRecorded(component.version, toEngineRoot: engineURL)
 
         try fileManager.removeItem(at: downloadLocation)
     }
