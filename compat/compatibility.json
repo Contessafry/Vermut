@@ -16,6 +16,20 @@
     },
     {
       "store": "steam",
+      "gameId": "526870",
+      "gameName": "Satisfactory",
+      "byGraphics": {
+        "d3dmetal": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "d3dmetal"
+    },
+    {
+      "store": "steam",
       "gameId": "1017900",
       "gameName": "Age of Empires: Definitive Edition",
       "byGraphics": {
@@ -71,6 +85,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1794388266,
-  "reportCount": 6
+  "generated": 1794408329,
+  "reportCount": 7
 }
