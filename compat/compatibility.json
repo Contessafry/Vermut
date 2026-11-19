@@ -16,6 +16,20 @@
     },
     {
       "store": "steam",
+      "gameId": "550",
+      "gameName": "Left 4 Dead 2",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "steam",
       "gameId": "526870",
       "gameName": "Satisfactory",
       "byGraphics": {
@@ -85,6 +99,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1795082876,
-  "reportCount": 7
+  "generated": 1795129345,
+  "reportCount": 8
 }
