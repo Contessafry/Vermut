@@ -16,6 +16,20 @@
     },
     {
       "store": "steam",
+      "gameId": "607730",
+      "gameName": "Pathologic Demo",
+      "byGraphics": {
+        "d3dmetal": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "d3dmetal"
+    },
+    {
+      "store": "steam",
       "gameId": "550",
       "gameName": "Left 4 Dead 2",
       "byGraphics": {
@@ -99,6 +113,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1795253531,
-  "reportCount": 8
+  "generated": 1795335144,
+  "reportCount": 9
 }
