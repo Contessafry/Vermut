@@ -16,6 +16,20 @@
     },
     {
       "store": "epic",
+      "gameId": "9d2d0eb64d5c44529cece33fe2a46482",
+      "gameName": "Grand Theft Auto V",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "epic",
       "gameId": "0c6db5941ac8420aabbd8510e94e7d9a",
       "gameName": "Marvel’s Spider-Man 2",
       "byGraphics": {
@@ -127,6 +141,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1795689742,
-  "reportCount": 10
+  "generated": 1795710581,
+  "reportCount": 11
 }
