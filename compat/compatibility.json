@@ -16,6 +16,20 @@
     },
     {
       "store": "epic",
+      "gameId": "f2360b908b804d7f92b98238b9ec315e",
+      "gameName": "Pixel Gun 3D",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "epic",
       "gameId": "9d2d0eb64d5c44529cece33fe2a46482",
       "gameName": "Grand Theft Auto V",
       "byGraphics": {
@@ -141,6 +155,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1795710581,
-  "reportCount": 11
+  "generated": 1795718918,
+  "reportCount": 12
 }
