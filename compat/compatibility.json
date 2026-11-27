@@ -15,6 +15,20 @@
       "recommended": "dxmt"
     },
     {
+      "store": "steam",
+      "gameId": "2432040",
+      "gameName": "ネジ込みシミュレーターTMA02",
+      "byGraphics": {
+        "dxvk": {
+          "perfect": 1,
+          "issues": 0,
+          "broken": 0
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxvk"
+    },
+    {
       "store": "epic",
       "gameId": "f2360b908b804d7f92b98238b9ec315e",
       "gameName": "Pixel Gun 3D",
@@ -155,6 +169,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1795718918,
-  "reportCount": 12
+  "generated": 1795738738,
+  "reportCount": 13
 }
