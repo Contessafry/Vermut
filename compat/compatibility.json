@@ -16,6 +16,20 @@
     },
     {
       "store": "steam",
+      "gameId": "589290",
+      "gameName": "appid_589290",
+      "byGraphics": {
+        "dxmt": {
+          "perfect": 0,
+          "issues": 0,
+          "broken": 1
+        }
+      },
+      "totalReports": 1,
+      "recommended": "dxmt"
+    },
+    {
+      "store": "steam",
       "gameId": "2432040",
       "gameName": "ネジ込みシミュレーターTMA02",
       "byGraphics": {
@@ -169,6 +183,6 @@
       "recommended": "dxmt"
     }
   ],
-  "generated": 1795776226,
-  "reportCount": 13
+  "generated": 1795854581,
+  "reportCount": 14
 }
